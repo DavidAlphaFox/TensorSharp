@@ -19,6 +19,7 @@ namespace TensorSharp.Models
         // Optional ModelBase reference for cooperative GpuComputeLock
         // yielding between conformer blocks. See Gemma4VisionEncoder.
         private ModelBase _hostModel;
+        // 中文：设置宿主 ModelBase 引用，用于在 Conformer 块之间协同让出 GPU 计算锁。
         public void SetHostModel(ModelBase model) => _hostModel = model;
 
         private readonly Dictionary<string, Tensor> _weights = new();
@@ -66,6 +67,7 @@ namespace TensorSharp.Models
         /// space. Used by e.g. gemma-4-12b. See <see cref="EncodeRawWaveform"/>.</summary>
         public bool IsEncoderFree => _isEncoderFree;
 
+        // 中文：构造函数，从 mmproj GGUF 读取音频编码器超参数（隐藏维度、注意力头数、FFN、层数、mel 频带、投影维度等），判定是否为无编码器的 gemma4ua 路径，并加载权重、构建因果有效掩码。
         public Gemma4AudioEncoder(string mmProjPath, IAllocator allocator)
         {
             _allocator = allocator;
@@ -110,6 +112,7 @@ namespace TensorSharp.Models
                 (_isEncoderFree ? " (encoder-free / raw-waveform)" : " (conformer)"));
         }
 
+        // 中文：从 GGUF 加载所有音频编码器张量（a./mm.a. 前缀），按需反量化为 F32，并将 GGUF 维序反转为 TensorSharp 行主序；同时解析各线性层的输入/输出 clamp（量化裁剪）参数。
         private void LoadWeights(GgufFile gguf)
         {
             Console.Write("Loading audio encoder weights...");
@@ -167,6 +170,7 @@ namespace TensorSharp.Models
 
         }
 
+        // 中文：Conformer 音频编码主流程——对 mel 频谱做两层 SSCP 卷积下采样并投影到隐藏维，依次通过各 Conformer 块，再经输出投影、多模态 FC、无权重 RMSNorm 和嵌入投影，输出文本嵌入空间的音频特征。
         public unsafe Tensor Encode(float[] melData, int numFrames)
         {
             Console.Write("Audio encoder SSCP...");
@@ -319,6 +323,7 @@ namespace TensorSharp.Models
         /// mm.a.input_projection.weight [640 -> textHidden]. There is no
         /// conformer, mel spectrogram, bias or output clamping.
         /// </summary>
+        // 中文：无编码器（gemma4ua）路径——将原始 16kHz 波形切分为固定 640 样本帧（末帧补零），逐帧无权重 RMS 归一化后，经 mm.a.input_projection 直接投影到文本嵌入空间，无 Conformer/mel/偏置/裁剪。
         public unsafe Tensor EncodeRawWaveform(float[] samples)
         {
             const string projName = "mm.a.input_projection.weight";
@@ -355,12 +360,14 @@ namespace TensorSharp.Models
             return output;
         }
 
+        // 中文：返回指定卷积层的输出通道数（取权重张量第 0 维，对应 GGUF [kW,kH,Cin,Cout] 反转后的 Cout）。
         private int GetConvOutChannels(string prefix)
         {
             var w = _weights[$"{prefix}.weight"];
             return (int)w.Sizes[0]; // TensorSharp reversed: GGUF [kW, kH, C_in, C_out] -> TS [C_out, C_in, kH, kW]
         }
 
+        // 中文：手写 2D 卷积块（stride=2、pad=1）对频率/时间维下采样，随后对每个空间位置在通道维做带权 LayerNorm，并施加 ReLU 激活。
         private unsafe float[] Conv2DBlock(float[] input, int inW, int inH, int inC, string prefix)
         {
             // GGML layout: [ne0=F(freq/W), ne1=T(time/H), ne2=C]
@@ -455,6 +462,7 @@ namespace TensorSharp.Models
             return output;
         }
 
+        // 中文：单个 Conformer 块——依次执行半步 FFN、分块相对位置注意力、轻量卷积模块、第二个半步 FFN，最后梯度裁剪并做块级 RMSNorm。
         private Tensor ConformerBlock(Tensor x, int blockIdx, int seqLen, int hidDim, float[] causalMask)
         {
             string prefix = $"a.blk.{blockIdx}";
@@ -473,6 +481,7 @@ namespace TensorSharp.Models
             return x;
         }
 
+        // 中文：Conformer 前馈（FFN）子层——前置 RMSNorm，经上投影+SiLU+下投影，后置 RMSNorm，再以 0.5 残差权重加回输入（半步残差）。
         private Tensor ForwardFFW(Tensor x, string prefix, string normName,
             string upName, string downName, string postNormName, int seqLen, int hidDim)
         {
@@ -505,6 +514,7 @@ namespace TensorSharp.Models
             return postNormed;
         }
 
+        // 中文：Conformer 注意力子层——前置 RMSNorm、QKV 投影与 Q/K 缩放，构建相对位置嵌入，按块进行带局部上下文（过去/未来窗口）的分块注意力，再输出投影、后置 RMSNorm 并加回残差。
         private unsafe Tensor ForwardAttention(Tensor x, string prefix, int seqLen, int hidDim, float[] causalMask)
         {
             var residual = x;
@@ -590,6 +600,7 @@ namespace TensorSharp.Models
             return postNormed;
         }
 
+        // 中文：计算单个时间块的多头注意力——逐头逐查询累加内容点积与相对位置点积，应用因果/有效性掩码与 tanh logit 软上限，softmax 归一化后对 value 加权求和写入输出。
         private unsafe void ChunkedAttention(float[] qArr, float[] kPadded, float[] vPadded,
             float[] posEmb, float[] causalMask, float[] attnOutput,
             int chunkIdx, int seqLen, int hidDim, int maxSpan, int padLeft)
@@ -670,6 +681,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将（块内查询位置, 上下文位置）映射为相对位置嵌入索引（posIdx = 上下文位置 - 查询位置），越界返回 -1。
         private int RelativeShiftIndex(int queryInChunk, int contextIdx, int maxSpan)
         {
             // Maps (queryInChunk, contextIdx) to position embedding index.
@@ -680,6 +692,7 @@ namespace TensorSharp.Models
             return posIdx;
         }
 
+        // 中文：为注意力构建相对位置嵌入——生成正弦/余弦位置编码，若存在相对位置投影权重则线性投影之，并按块前缀缓存结果。
         private float[] BuildPositionEmbeddings(string prefix, int maxSpan)
         {
             if (_positionEmbeddingCache.TryGetValue(prefix, out var cached))
@@ -726,6 +739,7 @@ namespace TensorSharp.Models
             return projected;
         }
 
+        // 中文：Conformer 轻量卷积子层——RMSNorm 后经逐点卷积升维并做 GLU 门控，再做因果深度可分离 1D 卷积、归一化、SiLU、第二个逐点卷积，最后加回残差。
         private unsafe Tensor ForwardLightConv(Tensor x, string prefix, int seqLen, int hidDim)
         {
             var residual = x;
@@ -806,6 +820,7 @@ namespace TensorSharp.Models
 
         #region Helpers
 
+        // 中文：根据 GGUF 命名约定（Ollama 或 mmproj/Unsloth）将逻辑短名映射为实际权重张量名。
         private string ResolveName(string blockPrefix, string shortName)
         {
             if (_useOllamaNames)
@@ -826,6 +841,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：带可选量化裁剪的线性层前向——按需对输入做输入域 clamp，矩阵乘转置权重，加偏置，再对输出做输出域 clamp。
         private Tensor AudioClippableLinearForward(Tensor input, string prefix, int seqLen)
         {
             string weightName = $"{prefix}.weight";
@@ -856,11 +872,13 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：将偏置向量按行广播加到张量上。
         private void AddBias(Tensor t, Tensor bias, int seqLen, int dim)
         {
             Ops.Add(t, t, bias);
         }
 
+        // 中文：施加带权 RMSNorm，若对应归一化权重不存在则仅返回输入的连续副本。
         private Tensor ApplyRMSNorm(Tensor input, string weightName, int seqLen, int dim)
         {
             if (!_weights.TryGetValue(weightName, out var normWeight))
@@ -869,6 +887,7 @@ namespace TensorSharp.Models
             return Ops.RMSNorm(null, input, normWeight, null, _eps);
         }
 
+        // 中文：原地施加无权重 RMSNorm（使用按需缓存的全 1 权重向量）。
         private void ApplyUnweightedRMSNorm(Tensor data, int seqLen, int dim)
         {
             if (_onesForNorm == null || (int)_onesForNorm.Sizes[0] != dim)
@@ -880,17 +899,20 @@ namespace TensorSharp.Models
             Ops.RMSNorm(data, data, _onesForNorm, null, _eps);
         }
 
+        // 中文：将 Q 按头维 reshape 后，对每个注意力头维度施加逐维缩放。
         private void ApplyPerDimScale(Tensor q, Tensor perDimScale, int seqLen)
         {
             using var reshaped = q.View(seqLen * _numHeads, _headDim);
             Ops.Mul(reshaped, reshaped, perDimScale);
         }
 
+        // 中文：原地施加 SiLU 激活。
         private void ApplySiLU(Tensor t)
         {
             Ops.SiLU(t, t);
         }
 
+        // 中文：原地将张量每个元素裁剪到 [min, max] 区间。
         private unsafe void Clamp(Tensor t, float min, float max)
         {
             float* ptr = GetFloatPtr(t);
@@ -902,11 +924,13 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：返回源张量的连续内存副本。
         private Tensor CloneTensor(Tensor src, int rows, int cols)
         {
             return Ops.NewContiguous(src);
         }
 
+        // 中文：从张量指针拷贝 seqLen 行数据到长度为 paddedLen 的数组，尾部补零（用于分块注意力的序列填充）。
         private unsafe float[] ExtractAndPad(float* ptr, int seqLen, int dim, int paddedLen)
         {
             float[] result = new float[paddedLen * dim];
@@ -915,6 +939,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：构建分块注意力的因果有效性掩码（块内查询 × 上下文），同时约束因果下界与过去/未来窗口上界，命中为 1 否则 0。
         private float[] BuildCausalValidMask()
         {
             int upperDiag = _maxPast + _maxFuture;
@@ -931,9 +956,11 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：获取张量底层的 float* 原始指针。
         private static unsafe float* GetFloatPtr(Tensor t) =>
             TensorComputePrimitives.GetFloatPointer(t);
 
+        // 中文：返回权重的转置连续副本（用于 Addmm），并缓存以复用。
         private Tensor GetOrCreateTransposedWeight(string weightName)
         {
             if (_transposedWeights.TryGetValue(weightName, out var transposed))
@@ -947,6 +974,7 @@ namespace TensorSharp.Models
 
         #endregion
 
+        // 中文：释放所有张量资源（归一化全 1 向量、转置权重缓存、位置嵌入缓存与全部权重）。
         public void Dispose()
         {
             _onesForNorm?.Dispose();

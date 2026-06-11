@@ -21,6 +21,12 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TensorSharp.Runtime.Scheduling;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】聊天生成流水线——服务端单次生成的核心编排。
+// 【主要类型】ChatGenerationPipeline：将每个 chat / generate 请求提交给共享的
+//             InferenceEngine，再从返回的句柄上流式取 token；串联提示词渲染、推理引擎、
+//             输出解析与流式返回。KV 状态生命周期由引擎持有，本层会话仅作历史容器。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Server
 {
     internal sealed class ChatGenerationPipeline

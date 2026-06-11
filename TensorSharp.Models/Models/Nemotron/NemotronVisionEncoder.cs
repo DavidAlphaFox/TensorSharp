@@ -39,6 +39,7 @@ namespace TensorSharp.Models
         private readonly bool _useNativeAttention;
         // Cooperative GpuComputeLock yielding (see Gemma4VisionEncoder).
         private ModelBase _hostModel;
+        // 中文：设置宿主模型引用，用于在编码过程中协作让出 GPU 计算锁。
         public void SetHostModel(ModelBase model) => _hostModel = model;
 
         private readonly int _hiddenSize;
@@ -70,6 +71,7 @@ namespace TensorSharp.Models
         public int ScaleFactor => _scaleFactor;
         public NemotronImageProcessor ImageProcessor => _imageProcessor;
 
+        // 中文：构造函数，从 mmproj GGUF 文件读取视觉编码器超参数、加载权重，并初始化图像预处理器。
         public NemotronVisionEncoder(string mmProjPath, IAllocator allocator)
         {
             _allocator = allocator;
@@ -133,6 +135,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：从 GGUF 加载所有 v.* 和 mm.* 张量，反量化为 float32，并对 patch 嵌入与位置嵌入做维度重排/展平。
         private void LoadWeights(GgufFile gguf)
         {
             Console.Write("Loading Nemotron vision encoder weights...");
@@ -192,6 +195,7 @@ namespace TensorSharp.Models
         /// <param name="imageHeight">Tile height in pixels (multiple of patch size).</param>
         /// <returns>Tensor [numTokens, projectionDim] where numTokens =
         /// (W/patch/scale) * (H/patch/scale).</returns>
+        // 中文：视觉编码主流程——打包图像 patch 并线性嵌入、加位置嵌入、拼接 class token、过全部 Transformer 编码层、剥离 class token、再经像素重排与多模态投影输出 LM 维度的嵌入。
         public unsafe Tensor Encode(float[] pixelValues, int imageWidth, int imageHeight)
         {
             int patchesX = imageWidth / _patchSize;
@@ -245,6 +249,7 @@ namespace TensorSharp.Models
             return projected;
         }
 
+        // 中文：单个 Transformer 编码块——LayerNorm→自注意力→残差，再 LayerNorm→MLP→残差。
         private Tensor EncoderBlock(Tensor hidden, int blockIdx, int totalTokens)
         {
             string prefix = $"v.blk.{blockIdx}";
@@ -260,6 +265,7 @@ namespace TensorSharp.Models
             return hidden;
         }
 
+        // 中文：多头自注意力——融合 QKV 线性投影、拆分多头、按是否使用原生算子走 SDPA 或手写 QK^T/Softmax/加权求和，最后输出线性投影。
         private unsafe Tensor SelfAttention(Tensor input, string prefix, int totalTokens)
         {
             string fusedName = $"{prefix}.attn_qkv.weight";
@@ -316,6 +322,7 @@ namespace TensorSharp.Models
             return LinearForward(flatA, $"{prefix}.attn_out.weight", $"{prefix}.attn_out.bias", _hiddenSize);
         }
 
+        // 中文：编码块内的前馈网络（FFN）——上投影后接 GELU 或 ReLU 激活，再下投影回隐藏维度。
         private Tensor MlpForward(Tensor input, string prefix)
         {
             using var up = LinearForward(input, $"{prefix}.ffn_up.weight", $"{prefix}.ffn_up.bias", _intermediateSize);
@@ -326,6 +333,7 @@ namespace TensorSharp.Models
             return LinearForward(up, $"{prefix}.ffn_down.weight", $"{prefix}.ffn_down.bias", _hiddenSize);
         }
 
+        // 中文：多模态投影器——先按 scaleFactor 做像素重排，再经 RMSNorm 与两层 MLP（中间用 ReLU 平方激活）映射到 LM 隐藏维度。
         private Tensor MultiModalProject(Tensor visionOutputs, int patchesX, int patchesY)
         {
             int scale = Math.Max(1, _scaleFactor);
@@ -354,6 +362,7 @@ namespace TensorSharp.Models
         /// data stays on the active backend (Metal/CUDA/CPU) and avoids a costly
         /// host roundtrip on GGML allocators.
         /// </summary>
+        // 中文：像素重排（pixel shuffle）——将 scale×scale 的相邻 patch 块合并为单个 token，按 ollama v2 打包顺序通过 View/Permute/Contiguous 在设备上完成。
         private Tensor PixelShuffleVisionOutputs(Tensor visionOutputs, int patchesX, int patchesY, int scale)
         {
             int hidden = (int)visionOutputs.Sizes[1];
@@ -378,6 +387,7 @@ namespace TensorSharp.Models
         /// current patch grid via PyTorch align-corners=false bilinear interpolation when
         /// the source side does not match.
         /// </summary>
+        // 中文：将位置嵌入加到隐藏状态上；当当前 patch 网格与源网格不一致时，按需双线性插值缩放位置嵌入表并缓存。
         private void AddPositionEmbeddings(Tensor hidden, int patchesW, int patchesH, int numPatches)
         {
             if (patchesW == _positionSourceSide && patchesH == _positionSourceSide
@@ -417,6 +427,7 @@ namespace TensorSharp.Models
         /// hidden-inner-stride layout, but after the transpose Ollama does we end up with
         /// [dstW*dstH, hidden] which is what callers add to <c>hidden</c>.
         /// </summary>
+        // 中文：对位置嵌入做 PyTorch align-corners=false 的双线性缩放，从源网格插值到目标网格（按 hidden 为内层步长、并行计算）。
         private static float[] ResizePositionEmbedding(float[] values, int hidden,
             int sourceWidth, int sourceHeight, int targetWidth, int targetHeight)
         {
@@ -467,6 +478,7 @@ namespace TensorSharp.Models
             return outArr;
         }
 
+        // 中文：在序列前端拼接 class 嵌入 token 与 patch 隐藏状态，返回合并后的张量并释放原输入。
         private Tensor ConcatClassTokens(Tensor hidden, int numPatches)
         {
             int totalTokens = numPatches + _numClassTokens;
@@ -482,6 +494,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：RMSNorm 归一化封装；若找不到权重则直接返回输入的连续副本。
         private Tensor RMSNormOp(Tensor input, string weightName)
         {
             if (!_weights.TryGetValue(weightName, out var w))
@@ -489,6 +502,7 @@ namespace TensorSharp.Models
             return Ops.RMSNorm(null, input, w, null, 1e-5f);
         }
 
+        // 中文：LayerNorm 归一化封装，读取 .weight/.bias 权重；若缺失 gamma 则返回输入的连续副本。
         private Tensor LayerNormOp(Tensor input, string weightPrefix)
         {
             string gName = weightPrefix + ".weight";
@@ -499,6 +513,7 @@ namespace TensorSharp.Models
             return Ops.LayerNorm(null, input, gamma, beta, _eps);
         }
 
+        // 中文：通用线性层前向——用（缓存的转置）权重做矩阵乘 result = X·Wᵀ，可选加偏置。
         private Tensor LinearForward(Tensor input, string weightName, string biasName, int outDim)
         {
             if (!_weights.TryGetValue(weightName, out _))
@@ -519,6 +534,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：返回指定权重张量的输出维度（第 0 维大小），未找到时返回 -1。
         private int GetWeightOutDim(string weightName)
         {
             if (_weights.TryGetValue(weightName, out var w))
@@ -526,6 +542,7 @@ namespace TensorSharp.Models
             return -1;
         }
 
+        // 中文：惰性获取并缓存权重的转置连续副本，供线性层矩阵乘复用。
         private Tensor GetOrCreateTransposedWeight(string weightName)
         {
             if (_transposedWeights.TryGetValue(weightName, out var transposed))
@@ -536,10 +553,12 @@ namespace TensorSharp.Models
             return transposed;
         }
 
+        // 中文：原地应用 ReLU 平方激活（投影器 MLP 使用），委托给底层计算原语。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void ReluSquaredInPlace(Tensor t) =>
             TensorComputePrimitives.ReluSquaredInPlace(t);
 
+        // 中文：释放所有已加载与缓存的转置权重张量并清空字典。
         public void Dispose()
         {
             foreach (var w in _transposedWeights.Values)

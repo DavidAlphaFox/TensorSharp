@@ -59,6 +59,7 @@ namespace TensorSharp.Models
         // =1000000 to disable).
         private static readonly int GdnChunkedPrefillMinSeqLenEnv = ResolveGdnChunkedPrefillMinSeqLen();
 
+        // 中文：解析环境变量 GDN_CHUNK_PREFILL_MIN_SEQ_LEN，确定启用分块预填充的最小序列长度阈值（默认 GdnChunkSize）。
         private static int ResolveGdnChunkedPrefillMinSeqLen()
         {
             string env = Environment.GetEnvironmentVariable("GDN_CHUNK_PREFILL_MIN_SEQ_LEN");
@@ -259,6 +260,7 @@ namespace TensorSharp.Models
         /// Parse the SSM-related dimensions from the GGUF metadata. Called from the
         /// main constructor immediately after the base config is parsed.
         /// </summary>
+        // 中文：从 GGUF 元数据解析 SSM/GDN 各维度（内层维、状态维、分组数、时间步秩、卷积核），并推导 V/K 头数与各头维度。
         private void ParseGdnConfig(string arch)
         {
             _ssmDInner = (int)_gguf.GetUint32($"{arch}.ssm.inner_size");
@@ -277,6 +279,7 @@ namespace TensorSharp.Models
         /// Allocate the per-layer key arrays for recurrent weights so the BuildLayerKeys
         /// loop in the main partial can fill them. Called from BuildLayerKeys.
         /// </summary>
+        // 中文：为各循环层的 GDN 权重键字符串数组分配空间（每层一项），供 BuildLayerKeys 填充。
         private void InitGdnLayerKeyArrays(int n)
         {
             _ssmInProjKey = new string[n];
@@ -295,6 +298,7 @@ namespace TensorSharp.Models
         /// Fill all the GDN-specific layer key strings for one layer. Called from
         /// the BuildLayerKeys loop in the main partial.
         /// </summary>
+        // 中文：为指定层 l 拼装所有 GDN 专用权重键名（输入投影、QKV、门控、beta/alpha、conv1d、dt_bias、A、norm、输出）。
         private void SetGdnLayerKeys(int l, string p)
         {
             _ssmInProjKey[l] = p + "ssm_in_proj.weight";
@@ -313,6 +317,7 @@ namespace TensorSharp.Models
         /// Allocate the per-layer recurrent weight arrays (matching the array shapes
         /// used by InitGdnLayerKeyArrays). Called once from CacheRecurrentWeights.
         /// </summary>
+        // 中文：为各循环层的 GDN 权重张量及量化权重数组（含转置卷积权重）分配空间，供权重缓存阶段填充。
         private void InitGdnWeightArrays(int n)
         {
             _ssmConv1dW = new Tensor[n];
@@ -340,6 +345,7 @@ namespace TensorSharp.Models
         /// layer, plus the SIMD-friendly transposed conv1d weight. Called from
         /// CacheRecurrentWeights for layers where _isRecurrent[l] is true.
         /// </summary>
+        // 中文：解析并缓存某一循环层的全部 GDN 权重引用，并把 conv1d 权重从 [qkvDim,核] 转置为 [核,qkvDim] 以便沿通道做 SIMD。
         private unsafe void CacheRecurrentLayerWeights(int l, int qkvDim)
         {
             _weights.TryGetValue(_ssmConv1dKey[l], out _ssmConv1dW[l]);
@@ -378,6 +384,7 @@ namespace TensorSharp.Models
         /// Allocate the per-layer recurrent state. Called from InitCaches for layers
         /// where _isRecurrent[l] is true.
         /// </summary>
+        // 中文：为某循环层分配并清零循环状态：卷积环形缓冲、写指针、CUDA 卷积状态张量、delta 状态张量及 MLX 缓存。
         private void InitGdnLayerCache(int l, int qkvDim)
         {
             int convDim = _convKernel - 1;
@@ -398,6 +405,7 @@ namespace TensorSharp.Models
         /// Allocate the per-recurrent-layer cache arrays so InitCaches can fill them
         /// in its layer loop. Called from InitCaches.
         /// </summary>
+        // 中文：分配各循环层的缓存数组（卷积状态、写指针、CUDA/MLX 后端专用状态容器），按后端类型决定是否分配。
         private void InitGdnCacheArrays(int numLayers)
         {
             _convState = new float[numLayers][];
@@ -414,6 +422,7 @@ namespace TensorSharp.Models
         /// <summary>
         /// Reset the per-layer recurrent state. Called from ResetKVCache.
         /// </summary>
+        // 中文：重置某循环层的循环状态：清零卷积缓冲与写指针、CUDA 卷积状态、delta 状态及 MLX 缓存。
         private void ResetGdnLayerCache(int l)
         {
             Array.Clear(_convState[l]);
@@ -424,6 +433,7 @@ namespace TensorSharp.Models
             _mlxGdnCache?[l]?.Reset();
         }
 
+        // 中文：把某层 CUDA 设备上的卷积状态张量下载回主机端的 _convState 数组。
         private void SyncCudaGdnConvStateToHost(int layer)
         {
             Tensor conv = _cudaGdnConvStateTensor?[layer];
@@ -434,6 +444,7 @@ namespace TensorSharp.Models
             Array.Copy(values, _convState[layer], values.Length);
         }
 
+        // 中文：把主机端 _convState 数组的卷积状态上传到某层 CUDA 设备卷积状态张量。
         private void SyncCudaGdnConvStateFromHost(int layer)
         {
             Tensor conv = _cudaGdnConvStateTensor?[layer];
@@ -447,6 +458,7 @@ namespace TensorSharp.Models
         /// Pre-allocate the small pinned scratch buffers used by the per-token GDN
         /// decode step. Called from the constructor.
         /// </summary>
+        // 中文：预分配逐 token 解码步所需的各类小尺寸临时缓冲（Q/K/V、扩展、delta、卷积输出、SiLU、门控输出、打包输出），并设定是否并行处理多头。
         private void InitGDNBuffers()
         {
             int qkvDim = _headKDim * _numKHeads * 2 + _headVDim * _numVHeads;
@@ -479,6 +491,7 @@ namespace TensorSharp.Models
         /// Dispose all GDN-owned tensors and tensor caches. Called from the main
         /// Dispose override.
         /// </summary>
+        // 中文：释放 GDN 拥有的全部张量与缓存（CUDA/MLX 状态、各槽位缓存、门控输出与分块预填充暂存缓冲、解码打包缓冲）。
         private void DisposeGdnState()
         {
             if (_cudaGdnConvStateTensor != null)
@@ -518,6 +531,7 @@ namespace TensorSharp.Models
         /// Print GDN-specific timing stats. Called from PrintTimingStats in the main
         /// partial after the base / shared stats have been printed.
         /// </summary>
+        // 中文：打印 GDN 专属计时统计（分块路径、CUDA 原生路径、逐 token 路径的调用次数与耗时，以及验证模式的偏差摘要）。
         private void PrintGdnTimingStats()
         {
             double msPerTick = 1000.0 / Stopwatch.Frequency;
@@ -561,6 +575,7 @@ namespace TensorSharp.Models
         /// Reset all GDN timing counters. Called from ResetKVCache after the shared
         /// counters are reset.
         /// </summary>
+        // 中文：清零所有 GDN 计时与验证计数器。
         private void ResetGdnTimingCounters()
         {
             _gdnChunkedTicks = 0;
@@ -589,6 +604,7 @@ namespace TensorSharp.Models
         /// input/output projections across the whole chunk, then walks the recurrent state
         /// token-by-token in CPU memory.
         /// </summary>
+        // 中文：循环层主块，编排 GatedDeltaNet 与后续 FFN/MoE；按层类型分三条路径（融合稠密 FFN、融合 MoE 路由、标准无融合），并加上残差。
         private Tensor RecurrentBlock(Tensor hidden, int layer, int seqLen, int startPos)
         {
             bool isMoeLayer = _isMoeLayer != null && _isMoeLayer[layer];
@@ -770,6 +786,7 @@ namespace TensorSharp.Models
         /// Prefill projects the whole chunk once, then walks the recurrent state token-by-token.
         /// Decode follows the same path with seqLen=1, avoiding several tiny GGML dispatches.
         /// </summary>
+        // 中文：GatedDeltaNet 核心：做输入归一化+打包投影，依次尝试 MLX/CUDA 原生核或分块预填充核，否则走逐 token 循环，最后做输出投影/残差融合并返回门控输出。
         private unsafe Tensor GatedDeltaNet(Tensor input, Tensor inputNormW, int layer, int seqLen,
             Tensor residual = null, bool skipOutputProj = false)
         {
@@ -1083,6 +1100,7 @@ namespace TensorSharp.Models
             return fusedAdd ? null : output;
         }
 
+        // 中文：尝试在 CUDA 设备上用打包输入直接运行原生 GDN 递推核（更新卷积/delta 状态并写门控输出）；条件不满足或失败时返回 false。
         private bool TryRunCudaNativeGdnPacked(
             Tensor packedInput,
             int layer,
@@ -1156,6 +1174,7 @@ namespace TensorSharp.Models
         ///
         /// Enabled via <c>GDN_VERIFY_CHUNKED=1</c>; intended for CI / debugging.
         /// </summary>
+        // 中文：验证模式下，先快照循环状态运行分块核，再恢复状态运行逐 token 参考路径，比较门控输出与状态张量的最大绝对/相对偏差并记录；以逐 token 结果为准。
         private unsafe void VerifyAndRunPerTokenAfterChunked(
             float* packedPtr, float* qkvBase, float* zBase, float* betaBase, float* alphaBase,
             int layer, int seqLen, int qkvDim, int qkDim, int vDim, int zDim, int packedDim,
@@ -1273,6 +1292,7 @@ namespace TensorSharp.Models
         /// Returns 0/0 when the reference is identically zero so the metric stays
         /// well-defined for a freshly reset state tensor.
         /// </summary>
+        // 中文：逐元素比较参考数组与原生指针数据，输出最大绝对差与最大相对差（参考全零时返回 0）。
         private static unsafe void ComputeAbsRelDiff(
             float[] reference, float* actual, int length,
             out float maxAbs, out float maxRel)
@@ -1300,6 +1320,7 @@ namespace TensorSharp.Models
         /// Per-token recurrent loop that walks the chunk one input at a time. Used both
         /// for decode (seqLen=1) and as the chunked-path fallback for prefill.
         /// </summary>
+        // 中文：逐 token 循环：从打包行或分散基址定位每个 token 的 QKV/Z/beta/alpha，逐步调用 GatedDeltaNetStep 更新状态并写门控输出。
         private unsafe void RunPerTokenLoop(
             float* packedPtr, float* qkvBase, float* zBase, float* betaBase, float* alphaBase,
             int layer, int seqLen, int qkvDim, int qkDim, int vDim, int zDim, int packedDim,
@@ -1349,6 +1370,7 @@ namespace TensorSharp.Models
         /// passed in as input/output. The kernel updates it in place on the device and
         /// downloads the new value back to the host buffer.
         /// </summary>
+        // 中文：分块预填充路径：在 CPU 上构建扩展卷积输入并并行执行 Conv1D+SiLU+打包 Q/K/V/Z/alpha/beta，CPU 预算门控与 beta，再一次性派发融合 GGML 分块核更新 delta 状态并写门控输出。
         private unsafe void GatedDeltaNetChunkedPrefill(
             float* packedPtr, float* qkvBase, float* zBase, float* betaBase, float* alphaBase,
             int layer, int seqLen, int qkvDim, int qkDim, int zDim, int packedDim,
@@ -1662,6 +1684,7 @@ namespace TensorSharp.Models
         /// worker owns its own <paramref name="outRow"/> (thread-local in
         /// <c>Parallel.ForEach</c>'s <c>localInit</c>).
         /// </summary>
+        // 中文：向量化计算分块路径中第 s 个 token 的一维卷积行（对各核 tap 做 ext*wt 的 SIMD 累加），结果写入调用方提供的线程局部 outRow。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void ComputeConv1DRowScratch(int s, int qkvDim, int convKernel,
             float* ext, float* outRow, float* wt)
@@ -1713,6 +1736,7 @@ namespace TensorSharp.Models
         /// seqLen=1024, H=32) so we keep this scalar for clarity. TensorPrimitives
         /// handles the sigmoid(beta) pass in one vectorised call on every modern ISA.
         /// </summary>
+        // 中文：在 CPU 上就地预算门控 gate = a_log*softplus(alpha+dt_bias) 与 beta_sig = sigmoid(beta)，覆盖打包后的 alpha/beta 暂存缓冲，省去 GPU 上对应的 add/softplus/mul/sigmoid 派发。
         private unsafe void PrecomputeGateAndBetaSig(
             float* alphaPtr, float* betaPtr, float* dtBiasPtr, float* aLogPtr,
             int seqLen, int H)
@@ -1742,6 +1766,7 @@ namespace TensorSharp.Models
         /// have seen and reused for every layer in the same forward pass and every
         /// subsequent forward pass with seqLen <= capacity.
         /// </summary>
+        // 中文：按需（重新）分配分块预填充的 Q/K/V/Z/alpha/beta 暂存张量，使其容量至少覆盖 seqLen 行，容量足够时直接复用。
         private void EnsureChunkedStagingBuffers(int seqLen, int H, int Dk, int Dv)
         {
             if (_gdnChunkedQBuf != null && _gdnChunkedBufCapacity >= seqLen)
@@ -1770,6 +1795,7 @@ namespace TensorSharp.Models
         /// place and are reused across layers (32 in Qwen3.5) and benchmark runs; we never
         /// reallocate for the same shape.
         /// </summary>
+        // 中文：按需扩容并行 Conv1D 的扩展输入缓冲（[(convDim+seqLen)*qkvDim]）及逐 token 步用的 SiLU 临时缓冲，跨层复用不重复分配。
         private void EnsureConv1DScratchBuffers(int seqLen, int qkvDim, int convDim, int H)
         {
             long extendedLen = (long)(convDim + seqLen) * qkvDim;
@@ -1802,6 +1828,7 @@ namespace TensorSharp.Models
         /// 4. Per-head state updates can run on a thread pool when `_numVHeads >= 16`, which
         ///    matches MoE/qwen3-next configurations that use 32 V-heads.
         /// </summary>
+        // 中文：单 token 的 GatedDeltaNet 步：环形缓冲卷积+SiLU 得到 Q/K/V，按需扩展 K 头、逐头 L2 归一化与 Q 缩放，再串行或并行对各头执行 delta 规则状态更新与归一化门控输出。
         private unsafe void GatedDeltaNetStep(float* qkvPtr, float* zPtr, float* betaPtr, float* alphaPtr,
             int layer, int qkvDim, int qkDim, int vDim,
             float[] convWT, float* dtBiasPtr, float* aPtr, float* ssmNormPtr,
@@ -1909,6 +1936,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：处理单个 V 头的 delta 规则递推：按门控衰减状态、算 delta=(v-state·k)*beta、用 k*delta 更新状态并与 q 点积得 core，最后 RMSNorm 加 ssm_norm 权重与 silu(z) 门控写出。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void ProcessHead(int h,
             float* qPtr, float* kPtr, float* vPtr,
@@ -1960,6 +1988,7 @@ namespace TensorSharp.Models
         /// weight tap row. SIMD vectorization runs along the channel dimension. After the
         /// reduction, SiLU is applied in-place over the channel vector.
         /// </summary>
+        // 中文：逐 token 解码的向量化一维卷积步：用环形状态缓冲与转置权重沿通道做 SIMD 累加（历史 tap + 当前输入 tap），最后就地对结果施加 SiLU。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private unsafe void ComputeConv1DStep(float* qkvPtr, int qkvDim, int convDim,
             int writeIdx, float[] convState, float[] convWT, float[] convOutArray, float* convOutPtr)
@@ -2046,10 +2075,12 @@ namespace TensorSharp.Models
             ApplySiLUInPlace(convOutArray, convOutPtr, qkvDim);
         }
 
+        // 中文：从指针处加载一个 SIMD 向量的小封装。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe Vector<float> LdVecLocal(float* p) =>
             TensorComputePrimitives.LoadVector(p);
 
+        // 中文：把一个 SIMD 向量存回指针处的小封装。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void StVecLocal(float* p, Vector<float> v) =>
             TensorComputePrimitives.StoreVector(p, v);
@@ -2068,6 +2099,7 @@ namespace TensorSharp.Models
         /// called concurrently from multiple threads - the chunked-prefill parallel
         /// loop uses <see cref="ApplySiLUInPlaceScratch"/> with a per-worker scratch.
         /// </summary>
+        // 中文：用硬件加速的 TensorPrimitives.Sigmoid 加逐元素乘，就地计算 SiLU(x)=x*sigmoid(x)；使用共享临时缓冲，非线程安全。
         private void ApplySiLUInPlace(float[] dataArray, int n)
         {
             if (_gdnSiluTempBuf == null || _gdnSiluTempBuf.Length < n)
@@ -2088,6 +2120,7 @@ namespace TensorSharp.Models
         /// scratch. Each Parallel.For worker keeps its own scratch so we can fuse
         /// Conv1D + SiLU + packing memcpys into one pass over the tokens.
         /// </summary>
+        // 中文：ApplySiLUInPlace 的线程安全版本，sigmoid 写入调用方自有的 tmp 暂存，供分块路径每个并行 worker 独立使用。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ApplySiLUInPlaceScratch(Span<float> data, Span<float> tmp) =>
             TensorComputePrimitives.ApplySiLUInPlace(data, tmp);
@@ -2097,6 +2130,7 @@ namespace TensorSharp.Models
         /// <c>fixed</c> on the conv output buffer. Marshals to the array overload to avoid
         /// duplicating the SIMD plumbing.
         /// </summary>
+        // 中文：逐 token 循环中使用的指针版包装，转调数组版 ApplySiLUInPlace（指针来自对同一数组的 fixed，安全等价）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private unsafe void ApplySiLUInPlace(float[] dataArray, float* dataPtr, int n)
         {
@@ -2105,6 +2139,7 @@ namespace TensorSharp.Models
             ApplySiLUInPlace(dataArray, n);
         }
 
+        // 中文：对每个头的向量做 L2 归一化（按 1/sqrt(平方和+eps) 缩放）。
         private unsafe void L2NormalizePerHead(float[] data, int numHeads, int headDim)
         {
             fixed (float* ptr = data)
@@ -2118,10 +2153,13 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：标量 Sigmoid 封装。
         private static float SigmoidScalar(float x) => TensorComputePrimitives.Sigmoid(x);
 
+        // 中文：标量 SiLU 封装。
         private static float SiLUScalar(float x) => TensorComputePrimitives.SiLU(x);
 
+        // 中文：标量 Softplus 封装。
         private static float SoftplusScalar(float x) => TensorComputePrimitives.Softplus(x);
     }
 }

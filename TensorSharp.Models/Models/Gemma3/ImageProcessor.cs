@@ -26,6 +26,7 @@ namespace TensorSharp.Models
         public const int NewlineNewlineToken = 108;
         public const int PadToken = 0;
 
+        // 中文：构造函数，初始化每图 token 数、目标图像尺寸和 patch 大小。
         public Gemma3ImageProcessor(int tokensPerImage = 256, int imageSize = 896, int patchSize = 14)
         {
             TokensPerImage = tokensPerImage;
@@ -37,6 +38,7 @@ namespace TensorSharp.Models
         /// Process an image file into normalized pixel values in channel-first format [C, H, W].
         /// Matches Ollama's processing: composite over white, bilinear resize, normalize with mean=0.5, std=0.5.
         /// </summary>
+        // 中文：处理图像文件，解码后缩放并归一化为通道优先 [C,H,W] 的像素值数组。
         public float[] ProcessImage(string imagePath)
         {
             byte[] fileBytes = File.ReadAllBytes(imagePath);
@@ -45,6 +47,7 @@ namespace TensorSharp.Models
             return ResizeRgbaToChannelFirstNormalized(rgba, origWidth, origHeight, ImageSize, ImageSize);
         }
 
+        // 中文：根据文件头嗅探格式（PNG/JPEG/HEIC），将图像字节解码为 RGBA 像素并输出宽高。
         internal static byte[] DecodeImageToRGBA(byte[] fileBytes, out int width, out int height)
         {
             if (IsPng(fileBytes))
@@ -59,6 +62,7 @@ namespace TensorSharp.Models
             throw new NotSupportedException("Only PNG, JPEG, and HEIC/HEIF image formats are supported");
         }
 
+        // 中文：仅读取图像文件的宽高尺寸（按格式分派），无需完整解码像素。
         internal static (int width, int height) ReadImageDimensions(string imagePath)
         {
             byte[] fileBytes = File.ReadAllBytes(imagePath);
@@ -78,6 +82,7 @@ namespace TensorSharp.Models
             throw new NotSupportedException("Only PNG, JPEG, and HEIC/HEIF image formats are supported");
         }
 
+        // 中文：通过文件头魔数判断字节流是否为 PNG 格式。
         private static bool IsPng(byte[] fileBytes) =>
             fileBytes.Length >= 8 &&
             fileBytes[0] == 0x89 &&
@@ -85,6 +90,7 @@ namespace TensorSharp.Models
             fileBytes[2] == 0x4E &&
             fileBytes[3] == 0x47;
 
+        // 中文：通过文件头魔数判断字节流是否为 JPEG 格式。
         private static bool IsJpeg(byte[] fileBytes) =>
             fileBytes.Length >= 2 &&
             fileBytes[0] == 0xFF &&
@@ -96,6 +102,7 @@ namespace TensorSharp.Models
         // first and then scan the compatible_brands list so files authored with a
         // generic major_brand (e.g. "mif1") but a HEIC/HEIF compatible brand are
         // still recognised.
+        // 中文：检测 ISOBMFF 容器的 ftyp box，识别 major_brand 及 compatible_brands 判断是否为 HEIC/HEIF。
         private static bool IsHeic(byte[] fileBytes)
         {
             if (fileBytes.Length < 12)
@@ -123,6 +130,7 @@ namespace TensorSharp.Models
             return false;
         }
 
+        // 中文：读取指定偏移处的 4 字节 brand 字符串，判断是否属于 HEIF/HEIC 品牌标识集合。
         private static bool IsHeifBrand(byte[] data, int offset)
         {
             if (offset < 0 || offset + 4 > data.Length)
@@ -138,6 +146,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：手写 PNG 解码器，解析各 chunk、inflate 解压并应用行滤波器，将各色彩类型统一展开为 RGBA。
         private static byte[] DecodePNG(byte[] data, out int width, out int height)
         {
             using var ms = new MemoryStream(data);
@@ -256,6 +265,7 @@ namespace TensorSharp.Models
             return rgba;
         }
 
+        // 中文：直接从 PNG 的 IHDR 字段（固定偏移）读取宽高，不解码像素。
         private static (int width, int height) ReadPngDimensions(byte[] data)
         {
             if (data.Length < 24 || !IsPng(data))
@@ -266,6 +276,7 @@ namespace TensorSharp.Models
             return (width, height);
         }
 
+        // 中文：PNG Paeth 滤波器预测函数，从左、上、左上像素中选取最接近的预测值。
         private static byte PaethPredictor(byte a, byte b, byte c)
         {
             int p = a + b - c;
@@ -275,12 +286,14 @@ namespace TensorSharp.Models
             return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
         }
 
+        // 中文：从 BinaryReader 读取 4 字节并按大端序组装成 32 位整数。
         private static int ReadBigEndianInt32(BinaryReader reader)
         {
             byte[] bytes = reader.ReadBytes(4);
             return (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3];
         }
 
+        // 中文：借助 StbImageSharp 将 JPEG 解码为 RGBA 像素并输出宽高。
         private static byte[] DecodeJPEG(byte[] data, out int width, out int height)
         {
             try
@@ -300,6 +313,7 @@ namespace TensorSharp.Models
         // Magick.NET-Q8-AnyCPU package. The Q8 build uses byte-sized quanta which
         // matches the rest of this pipeline (8-bit RGBA), so Magick.NET will tonemap
         // 10/12-bit HEIC sources down to 8-bit automatically.
+        // 中文：通过 ImageMagick（libheif）解码 HEIC/HEIF，转换到 sRGB 并补齐 alpha，输出 RGBA 像素。
         private static byte[] DecodeHEIC(byte[] data, out int width, out int height)
         {
             try
@@ -327,6 +341,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：用 ImageMagick 的 MagickImageInfo 仅读取 HEIC/HEIF 的宽高，不解码像素。
         private static (int width, int height) ReadHeicDimensions(byte[] data)
         {
             try
@@ -340,6 +355,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 RGBA 图像按 alpha 合成到白色背景上（并行处理），输出不透明的 RGBA。
         internal static byte[] CompositeOverWhite(byte[] rgba, int width, int height)
         {
             byte[] result = new byte[width * height * 4];
@@ -370,6 +386,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：对 RGBA 图像做双线性插值缩放到目标尺寸（并行处理），输出 RGBA 字节。
         internal static byte[] BilinearResize(byte[] rgba, int srcW, int srcH, int dstW, int dstH)
         {
             byte[] result = new byte[dstW * dstH * 4];
@@ -408,6 +425,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：双线性缩放并合成白底，归一化到 [-1,1]（mean=0.5/std=0.5），输出通道优先 [C,H,W] 浮点数组。
         internal static float[] ResizeRgbaToChannelFirstNormalized(byte[] rgba, int srcW, int srcH, int dstW, int dstH)
         {
             int pixels = dstW * dstH;
@@ -439,6 +457,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：对四邻像素先合成白底并归一化，再做双线性插值，结果裁剪到 [-1,1]。
         private static float BilinearSampleNormalized(byte[] rgba, int srcW, int x0, int y0, int x1, int y1,
             double fx, double fy, int channel)
         {
@@ -452,6 +471,7 @@ namespace TensorSharp.Models
             return Math.Clamp((float)v, -1f, 1f);
         }
 
+        // 中文：取单个像素指定通道，按 alpha 合成白底后归一化到 [-1,1]。
         private static float CompositeChannelToNormalized(byte[] rgba, int pixelBase, int channel)
         {
             float alpha = rgba[pixelBase + 3] / 255f;
@@ -465,6 +485,7 @@ namespace TensorSharp.Models
         /// Used by models whose mmproj declares its own image_mean / image_std
         /// (e.g. the Gemma 4 unified vision embedder with mean=0, std=1 -> [0,1]).
         /// </summary>
+        // 中文：双线性缩放并合成白底，按传入的逐通道 mean/std 归一化（(pixel/255-mean)/std），输出通道优先 [C,H,W]。
         internal static float[] ResizeRgbaToChannelFirstNormalized(
             byte[] rgba, int srcW, int srcH, int dstW, int dstH, float[] mean, float[] std)
         {
@@ -506,6 +527,7 @@ namespace TensorSharp.Models
         }
 
         // Composite an RGBA channel over a white background and rescale to [0, 1].
+        // 中文：取单个像素指定通道，按 alpha 合成白底后缩放到 [0,1]。
         private static float CompositeChannel01(byte[] rgba, int pixelBase, int channel)
         {
             float alpha = rgba[pixelBase + 3] / 255f;

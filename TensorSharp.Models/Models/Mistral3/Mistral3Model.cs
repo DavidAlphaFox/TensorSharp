@@ -30,6 +30,7 @@ namespace TensorSharp.Models
         // Bound the MLX lazy-graph depth across the per-layer dispatch loop.
         // Default matches Qwen35 (16). Override via TS_MLX_EVAL_EVERY_N_LAYERS.
         private static readonly int MlxEvalEveryNLayers = ResolveMlxEvalEveryNLayers();
+        // 中文：从环境变量 TS_MLX_EVAL_EVERY_N_LAYERS 解析 MLX 每隔多少层强制求值一次，默认 16，用于限制 MLX 惰性计算图深度。
         private static int ResolveMlxEvalEveryNLayers()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_EVAL_EVERY_N_LAYERS");
@@ -61,6 +62,7 @@ namespace TensorSharp.Models
         private Mistral3VisionEncoder _visionEncoder;
         private List<(Tensor embeddings, int position)> _pendingVisionEmbeddingsList = new();
 
+        // 中文：构造函数，从 GGUF 文件加载 Mistral3 模型，解析基础配置与 YaRN/RoPE 参数，载入并融合权重、初始化 KV 缓存并预计算常量。
         public Mistral3Model(string ggufPath, BackendType backend)
             : base(ggufPath, backend)
         {
@@ -109,6 +111,7 @@ namespace TensorSharp.Models
             PrecomputeConstants();
         }
 
+        // 中文：将每层的 Q/K/V 三个投影权重（量化或浮点）拼接融合为单个 attn_qkv 权重，以减少推理时的矩阵乘次数。
         private unsafe void FuseQKVWeights()
         {
             int fused = 0;
@@ -157,6 +160,7 @@ namespace TensorSharp.Models
 
         private bool[] _layerQkvFused;
 
+        // 中文：预计算各层权重名称表（区分是否已融合 QKV）与 RoPE 频率数组，必要时应用 YaRN 频率修正。
         private void PrecomputeConstants()
         {
             int numLayers = Config.NumLayers;
@@ -213,6 +217,7 @@ namespace TensorSharp.Models
         /// Interpolates between extrapolated and interpolated frequencies based on
         /// whether each frequency band is within the "slow" or "fast" rotation range.
         /// </summary>
+        // 中文：对预计算的 RoPE 频率应用 YaRN 修正，按波长在高频外推、低频内插与中间平滑混合之间选择，用于扩展上下文长度。
         private void ApplyYarnFreqCorrection(float[] freqs, int halfDim)
         {
             float lowFreqWavelen = (float)(_ropeOrigCtx / _ropeBetaSlow);
@@ -246,6 +251,7 @@ namespace TensorSharp.Models
 
         private int _kvCacheCapacity;
 
+        // 中文：初始化每层的 K/V 缓存张量，按初始序列长度分配容量并记录最大上下文长度与 KV 数据类型。
         private void InitKVCache(int initialSeqLen, int maxSeqLen)
         {
             _maxContextLength = maxSeqLen;
@@ -265,6 +271,7 @@ namespace TensorSharp.Models
             _cacheSeqLen = 0;
         }
 
+        // 中文：确保 KV 缓存容量满足所需序列长度，不足时按倍增策略扩容并拷贝已有缓存内容，超过最大上下文则抛异常。
         private void EnsureCacheCapacity(int requiredSeqLen)
         {
             if (requiredSeqLen <= _kvCacheCapacity)
@@ -306,6 +313,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"Expanded Mistral3 attention cache to {newCapacity} tokens.");
         }
 
+        // 中文：重置所有层的 KV 缓存张量并将缓存序列长度与各项性能计时/前向计数归零。
         public override void ResetKVCache()
         {
             for (int l = 0; l < Config.NumLayers; l++)
@@ -319,6 +327,7 @@ namespace TensorSharp.Models
             _forwardSw.Reset();
         }
 
+        // 中文：将 KV 缓存截断到指定 token 数（调用基类逻辑），并使各层缓存张量的设备端副本失效以便后续重新同步。
         public override void TruncateKVCache(int tokenCount)
         {
             base.TruncateKVCache(tokenCount);
@@ -334,9 +343,11 @@ namespace TensorSharp.Models
         public override string KVStateFingerprint =>
             $"mistral3|arch={Config.Architecture}|L={Config.NumLayers}|H={Config.NumHeads}|KV={Config.NumKVHeads}|kL={_attnKeyLen}|vL={_attnValLen}|dtype={_kvCacheDtype.ToShortString()}";
 
+        // 中文：计算指定 token 数量对应的 KV 缓存块字节大小，供快照导出/导入分配缓冲区使用。
         public override long ComputeKVBlockByteSize(int tokenCount)
             => KvBlockTransfer.ComputeBlockByteSize(_kvCacheK, _kvCacheV, tokenCount);
 
+        // 中文：从 KV 缓存中提取指定范围的 token 块到目标字节缓冲区（用于状态快照），不支持快照时返回 false。
         public override bool TryExtractKVBlock(int startToken, int tokenCount, Span<byte> destination)
         {
             if (!SupportsKVStateSnapshot)
@@ -346,6 +357,7 @@ namespace TensorSharp.Models
                 startToken, tokenCount, destination);
         }
 
+        // 中文：将外部字节缓冲区中的 KV 块注入到缓存的指定位置（用于恢复状态），扩容缓存、更新序列长度并使设备端缓存失效。
         public override bool TryInjectKVBlock(int destToken, int tokenCount, ReadOnlySpan<byte> source)
         {
             if (!SupportsKVStateSnapshot)
@@ -367,12 +379,14 @@ namespace TensorSharp.Models
         }
 
         // Vision support
+        // 中文：加载多模态视觉编码器（Pixtral mmproj 文件）并将本模型设为其宿主，以支持图像输入。
         public void LoadVisionEncoder(string mmProjPath)
         {
             _visionEncoder = new Mistral3VisionEncoder(mmProjPath, _allocator);
             _visionEncoder.SetHostModel(this);
         }
 
+        // 中文：登记一组待注入的视觉嵌入及其插入位置，等待下次 Forward 时注入到隐藏状态序列中。
         public void SetVisionEmbeddings(Tensor embeddings, int insertPosition)
         {
             _pendingVisionEmbeddingsList.Add((embeddings, insertPosition));
@@ -385,6 +399,7 @@ namespace TensorSharp.Models
         // (~numHeads × chunkLen × totalKvLen × kvDtype). Past ~2048 the score tensor
         // can run into hundreds of MB on long contexts and thrash the MLX memory pool.
         // Override with TS_PREFILL_CHUNK when tuning.
+        // 中文：从环境变量 TS_PREFILL_CHUNK 解析预填充分块大小，默认 2048，用于限制长提示词处理时注意力分数张量的内存占用。
         private static int ResolvePrefillChunkSize()
         {
             string env = Environment.GetEnvironmentVariable("TS_PREFILL_CHUNK");
@@ -393,6 +408,7 @@ namespace TensorSharp.Models
             return 2048;
         }
 
+        // 中文：批量预填充入口，将长 token 序列按块预填充以约束内存（多模态或短序列则走单次 Forward），最后对末尾 token 调用 Forward 返回 logits。
         public override float[] ForwardRefill(int[] tokens)
         {
             if (tokens == null || tokens.Length <= 1)
@@ -419,6 +435,7 @@ namespace TensorSharp.Models
             return Forward(new[] { tokens[lastIdx] });
         }
 
+        // 中文：对一块 token 执行前向计算并写入 KV 缓存，但不计算输出 logits（仅用于预填充以建立缓存上下文）。
         private void PrefillWithoutLogits(int[] tokens)
         {
             if (tokens == null || tokens.Length == 0)
@@ -449,6 +466,7 @@ namespace TensorSharp.Models
             _forwardSw.Stop();
         }
 
+        // 中文：核心前向计算：嵌入 token、注入待处理视觉嵌入、逐层 Transformer 计算、输出归一化并经 lm_head 投影为最末位置的 logits。
         public override float[] Forward(int[] tokens)
         {
             _forwardSw.Start();
@@ -514,6 +532,7 @@ namespace TensorSharp.Models
             return _logitsBuffer;
         }
 
+        // 中文：将视觉编码器产生的图像嵌入按 token 逐行内存拷贝覆盖到隐藏状态张量的指定插入位置，实现多模态嵌入注入。
         private unsafe void InjectVisionEmbeddings(Tensor hidden, Tensor visionEmbeddings, int insertPos, int startPos)
         {
             int numVisionTokens = (int)visionEmbeddings.Sizes[0];
@@ -534,6 +553,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"Injected {numVisionTokens} vision tokens at chunk-offset {insertPos} (absolute position {startPos + insertPos})");
         }
 
+        // 中文：单个 Transformer 层的前向计算：注意力前 RMSNorm + 注意力 + 残差，再 FFN 前 RMSNorm + SwiGLU FFN + 残差（尽量使用 MLX 融合的 Add+RMSNorm）。
         private Tensor TransformerBlock(Tensor hidden, int layer, int seqLen, int startPos)
         {
             string[] wn = _layerWeightNames[layer];
@@ -578,6 +598,7 @@ namespace TensorSharp.Models
             return hidden;
         }
 
+        // 中文：多头注意力计算：投影出 Q/K/V，应用 RoPE 与 YaRN 位置相关 Q 缩放，写入 KV 缓存，区分单 token 解码与多 token 预填充两条路径计算缩放点积注意力并输出投影。
         private Tensor Attention(Tensor input, int layer, string[] wn, int seqLen, int startPos)
         {
             int numHeads = Config.NumHeads;
@@ -735,6 +756,7 @@ namespace TensorSharp.Models
         /// GPT-J (norm) style RoPE: pairs adjacent elements (x[2i], x[2i+1]).
         /// Uses precomputed YaRN-corrected frequencies for decode.
         /// </summary>
+        // 中文：解码（单 token）路径的 RoPE：用预计算的 YaRN 修正频率对每个头的相邻元素对 (x[2i], x[2i+1]) 做旋转位置编码。
         private unsafe void ApplyRoPEDecode(Tensor data, int numHeads, int headDim, int position)
         {
             int halfDim = _ropeDim / 2;
@@ -762,6 +784,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：预填充（多 token）路径的 RoPE：为每个位置构造位置索引并调用张量算子 RoPEEx（含 YaRN 参数）批量施加旋转位置编码。
         private Tensor ApplyRoPEPrefill(Tensor data, int numHeads, int headDim, int seqLen, int startPos)
         {
             int totalRows = seqLen * numHeads;
@@ -787,6 +810,7 @@ namespace TensorSharp.Models
             return flat;
         }
 
+        // 中文：计算 YaRN 注意力缩放因子（mscale），当 mscale 相关参数均非零时返回随 RopeScale 衰减的因子，否则返回 1。
         private float ComputeAttnFactor()
         {
             if (_ropeMscale != 0 && _ropeMscaleAllDim != 0)
@@ -798,6 +822,7 @@ namespace TensorSharp.Models
         /// Position-dependent Q scaling for YaRN:
         /// q *= (1 + beta * log(1 + floor(pos / orig_ctx)))
         /// </summary>
+        // 中文：解码路径的 YaRN 位置相关 Q 缩放：按公式 q *= (1 + beta·log(1 + floor(pos/orig_ctx))) 对整个 Q 张量整体缩放。
         private unsafe void ApplyPositionScale(Tensor qTensor, int totalQDim, int position)
         {
             float interval = MathF.Floor((float)position / _ropeOrigCtx);
@@ -809,6 +834,7 @@ namespace TensorSharp.Models
             VecScale(ptr, posScale, totalQDim);
         }
 
+        // 中文：预填充路径的 YaRN 位置相关 Q 缩放：逐个序列位置按其绝对位置计算缩放系数并对该行的 Q 子向量缩放。
         private unsafe void ApplyPositionScalePrefill(Tensor qTensor, int numHeads, int headDim,
             int seqLen, int startPos)
         {
@@ -831,6 +857,7 @@ namespace TensorSharp.Models
         // API cannot express. The C# decode path uses GGML-backed matmul/attention
         // and only adds a lightweight C# RoPE kernel.
 
+        // 中文：释放资源：销毁视觉编码器、待注入视觉嵌入及所有层的 K/V 缓存张量，最后调用基类释放。
         public override void Dispose()
         {
             _visionEncoder?.Dispose();

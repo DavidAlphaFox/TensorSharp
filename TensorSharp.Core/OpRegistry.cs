@@ -12,6 +12,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】算子注册与分发中心——后端无关计算的关键枢纽。
+// 【主要类型】OpRegistry：通过反射扫描各后端用特性标注的算子，按操作名与约束
+//             （设备 / 数据类型等）匹配并调用；某后端缺失的算子可回退到 CPU。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp
 {
     public delegate object OpHandler(object[] args);

@@ -116,6 +116,7 @@ namespace TensorSharp.Models
         /// MLX for those models is even slower than the batched path,
         /// so the global default stays ON until the per-seq MLX path
         /// is benchmarked and fixed for hybrid Qwen3-Next.</summary>
+        // 中文：读取 TS_QWEN35_BATCHED 环境变量，判定是否启用批量分页注意力前向路径（默认开启）。
         private static bool IsBatchedPathEnabled()
         {
             string raw = Environment.GetEnvironmentVariable("TS_QWEN35_BATCHED");
@@ -123,6 +124,7 @@ namespace TensorSharp.Models
             return raw != "0" && !string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase);
         }
 
+        // 中文：连续批处理（continuous batching）的批量前向主入口；展平各序列的调度元数据、分页 KV/block table/slot mapping/位置编码，逐层执行注意力或 GDN、FFN/MoE，并按序列做 LM head 输出 logits。
         public IReadOnlyList<float[]> ForwardBatch(BatchedForwardContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
@@ -508,9 +510,11 @@ namespace TensorSharp.Models
 
         // ----- Per-Qwen3.5 batched helpers (no Gemma4 cross-dependency) -----
 
+        // 中文：批量路径的 RMSNorm 封装，按 Config.Eps 对输入做归一化并乘以权重 alpha。
         private Tensor RMSNormOpQ35(Tensor input, Tensor alpha)
             => Ops.RMSNorm(null, input, alpha, null, Config.Eps);
 
+        // 中文：将每 token 的位置按 numHeads 复制展开为每行一份的位置张量，供 RoPEEx 使用（每个头共享同一 token 位置）。
         private Tensor BuildRoPEPositionsTensorQ35(int[] tokenPositions, int numHeads)
         {
             // The legacy ApplyRoPEPrefill replicates the position per-head so
@@ -525,6 +529,7 @@ namespace TensorSharp.Models
             return CreateIntTensor(expanded, total);
         }
 
+        // 中文：对批量 Q/K 张量按 NeoX 模式（mode=2）原地施加 RoPE 旋转位置编码，使用给定的 ropeBase 与频率缩放。
         private Tensor ApplyBatchedRoPENeoXQ35(
             Tensor data, Tensor positionsTensor,
             int numTokens, int numHeads, int headDim, int ropeDim, float ropeBase, float ropeFreqScale)
@@ -538,6 +543,7 @@ namespace TensorSharp.Models
             return data;
         }
 
+        // 中文：把各序列的 block table 拼接成单一扁平数组，并返回每序列在扁平数组中的起始偏移表。
         private static (int[] flat, int[] offsets) FlattenBlockTablesQ35(int[][] tables)
         {
             int[] offsets = new int[tables.Length + 1];
@@ -554,6 +560,7 @@ namespace TensorSharp.Models
             return (flat, offsets);
         }
 
+        // 中文：按需（含 2 倍扩容）分配/扩容各层分页 K/V 缓冲与 GDN 每槽状态外层数组，扩容时保留已有 KV 与 GDN 状态以免在飞序列丢失上下文。
         private void EnsureQwen35PagedBuffers(int numBlocks, int blockSize, int numLayers)
         {
             bool needRebuild = _q35PagedK == null
@@ -646,6 +653,7 @@ namespace TensorSharp.Models
         /// first access. The state is zero-initialised; subsequent calls
         /// reuse the same references and accumulate state across forward
         /// calls for that slot.</summary>
+        // 中文：首次访问某 (层, 槽) 时惰性分配并清零其 GDN 卷积环形缓冲、SSM 状态张量及 MLX 缓存；槽被新序列回收时重置状态。
         private void EnsureGdnSlotAllocated(int layer, int slot)
         {
             int qkvDim = _headKDim * _numKHeads * 2 + _headVDim * _numVHeads;
@@ -725,10 +733,12 @@ namespace TensorSharp.Models
         // A `static readonly` here would capture TS_QWEN35_BATCHED_GDN_NATIVE
         // at class-init time, which is before tests get a chance to set it —
         // the same gotcha that bit Nemotron's Phase 9 verification.
+        // 中文：读取 TS_QWEN35_BATCHED_GDN_NATIVE 环境变量，判定是否启用原生批量 GDN 内核路径（默认关闭，运行时可由测试切换）。
         private static bool UseNativeBatchedGdn() =>
             string.Equals(Environment.GetEnvironmentVariable("TS_QWEN35_BATCHED_GDN_NATIVE"),
                           "1", StringComparison.Ordinal);
 
+        // 中文：GDN（Gated DeltaNet 线性注意力）层的批量调度入口，按开关分发到原生批量内核或已验证的逐序列引用交换实现。
         private Tensor RunBatchedGdnLayer(
             Tensor hiddenStates, BatchedForwardContext ctx, int layer,
             int numTokens, int numSeqs, int[] queryStartLoc)
@@ -752,6 +762,7 @@ namespace TensorSharp.Models
         // handful of tokens. We swap _mlxGdnCache[layer] over to the
         // per-slot instance in _q35GdnSlotMlxCache before each iteration
         // and restore it after the loop, mirroring the C# state swap.
+        // 中文：逐序列执行 GDN 层——将每序列对应槽的 conv/SSM/MLX 状态以引用方式换入模型级字段（不拷贝字节），调用 GatedDeltaNet（跳过输出投影）累计递归状态，拼装批量输出后统一做一次输出投影；finally 中恢复原状态引用。
         private Tensor RunBatchedGdnLayerPerSeq(
             Tensor hiddenStates, BatchedForwardContext ctx, int layer,
             int numTokens, int numSeqs, int[] queryStartLoc)
@@ -821,6 +832,7 @@ namespace TensorSharp.Models
         // still serializes the heavy matmul; the win is replacing N RunPerTokenLoop
         // C# calls with one native dispatch that walks every (seq, token) pair.
         // Opt-in (TS_QWEN35_BATCHED_GDN_NATIVE=1) — see s_useNativeBatchedGdn note.
+        // 中文：原生批量 GDN 路径——逐序列做输入投影并拼成批量 packed 缓冲，构造每序列状态描述符（pin 卷积缓冲、取 SSM 指针与 slot 索引），单次原生调用 GatedDeltaNetBatchedStep 覆盖全部 (序列,token) 对，回写写指针后统一做输出投影。
         private unsafe Tensor RunBatchedGdnLayerNative(
             Tensor hiddenStates, BatchedForwardContext ctx, int layer,
             int numTokens, int numSeqs, int[] queryStartLoc)

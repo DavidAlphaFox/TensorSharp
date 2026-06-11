@@ -30,6 +30,7 @@ namespace TensorSharp.Models
         // Optional ModelBase reference for cooperative GpuComputeLock
         // yielding between encoder blocks. See Gemma4VisionEncoder.
         private ModelBase _hostModel;
+        // 中文：设置可选的宿主模型引用，用于在编码器块之间协作让出 GpuComputeLock。
         public void SetHostModel(ModelBase model) => _hostModel = model;
 
         private readonly int _imageSize;
@@ -55,6 +56,7 @@ namespace TensorSharp.Models
         public int PatchSize => _patchSize;
         public int SpatialMergeSize => _spatialMergeSize;
 
+        // 中文：构造函数，从 mmProj GGUF 文件读取视觉超参数、加载权重并合并时序 patch 权重。
         public Qwen35VisionEncoder(string mmProjPath, IAllocator allocator)
         {
             _allocator = allocator;
@@ -87,6 +89,7 @@ namespace TensorSharp.Models
             gguf.Dispose();
         }
 
+        // 中文：从 GGUF 加载并按需反量化全部视觉权重张量，转为 Float32 并按反转后的形状存入字典。
         private void LoadWeights(GgufFile gguf)
         {
             Console.Write("Loading vision encoder weights...");
@@ -120,6 +123,7 @@ namespace TensorSharp.Models
             Console.WriteLine($" done ({count} tensors)");
         }
 
+        // 中文：将两个时序 patch 嵌入卷积权重相加合并为单个 combined 权重，供 patch 嵌入复用。
         private unsafe void CombineTemporalPatchWeights()
         {
             if (!_weights.ContainsKey("v.patch_embd.weight") ||
@@ -138,6 +142,7 @@ namespace TensorSharp.Models
         /// Input: pixelValues float array in channel-first [C, H, W], resized dimensions.
         /// Output: Tensor of shape [numMergedTokens, projectionDim].
         /// </summary>
+        // 中文：视觉编码主流程：patch 嵌入、位置嵌入、块重排、逐层编码器块、后归一化、空间合并与投影，输出可注入文本模型的视觉嵌入。
         public unsafe Tensor Encode(float[] pixelValues, int resizedH, int resizedW)
         {
             long encodeStart = Stopwatch.GetTimestamp();
@@ -237,6 +242,7 @@ namespace TensorSharp.Models
         /// nested loop (single-threaded scalar) implementation, especially on Apple Silicon
         /// where matmul saturates the unified-memory bandwidth.
         /// </summary>
+        // 中文：Conv2D patch 嵌入，通过 im2col + GEMM 实现，输出按光栅顺序的 [numPatches, hiddenSize]。
         private unsafe Tensor PatchEmbed(float[] pixelValues, int imgH, int imgW, int gridH, int gridW)
         {
             int numPatches = gridH * gridW;
@@ -304,6 +310,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：将 4D 卷积权重 [outDim,C,P,P] 一次性展平复制为 2D 矩阵 [outDim,patchStride] 并缓存。
         private Tensor GetOrCreatePatchEmbedWeight2D(Tensor convWeight, string weightName, int patchStride)
         {
             string key = weightName + ".2d";
@@ -326,6 +333,7 @@ namespace TensorSharp.Models
             return flat;
         }
 
+        // 中文：对 2D patch 嵌入权重做转置并连续化，供 im2col 矩阵乘使用，结果缓存复用。
         private Tensor GetOrCreatePatchEmbedTransposed(Tensor weight2D, string weightName)
         {
             string key = weightName + ".2d.T";
@@ -341,6 +349,7 @@ namespace TensorSharp.Models
         /// <summary>
         /// Add bilinearly-interpolated position embeddings (computed in raster order).
         /// </summary>
+        // 中文：将双线性插值得到的位置嵌入按光栅顺序加到隐藏状态上。
         private void AddPositionEmbedding(Tensor hidden, int gridH, int gridW)
         {
             Ops.Add(hidden, hidden, GetOrCreatePositionEmbedding(gridH, gridW));
@@ -353,6 +362,7 @@ namespace TensorSharp.Models
         /// Parallelized across block rows (bh). Each block row is independent
         /// and processes gridW/mergeSize blocks of mergeSize*mergeSize patches each.
         /// </summary>
+        // 中文：将 patch 从光栅顺序重排为空间合并的块顺序（2x2 分组按光栅遍历，组内按 mh、mw 排列）。
         private unsafe Tensor ReorderToBlockOrder(Tensor input, int gridH, int gridW)
         {
             int numPatches = gridH * gridW;
@@ -397,6 +407,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：单个 Transformer 编码器块：LN+自注意力+残差、LN+MLP+残差，优先走融合 GPU 算子否则回退非融合路径。
         private Tensor EncoderBlock(Tensor hidden, int blockIdx, int numPatches, int headDim,
             int halfDim, float[] cosTable, float[] sinTable)
         {
@@ -474,6 +485,7 @@ namespace TensorSharp.Models
         /// Buffer.MemoryCopy pass to split Q/K/V in one sweep, eliminating three separate
         /// Narrow+NewContiguous allocations.
         /// </summary>
+        // 中文：视觉自注意力：融合 QKV 线性、拆分 Q/K/V、应用 2D RoPE、SDPA（GPU 整批或 CPU 分块）后输出线性投影。
         private unsafe Tensor VisionSelfAttention(Tensor input, string prefix, int numPatches,
             int headDim, int halfDim, float[] cosTable, float[] sinTable)
         {
@@ -621,6 +633,7 @@ namespace TensorSharp.Models
         // unchanged when the un-chunked path already fits — keeps the existing
         // fast path active for typical image sizes.
         private const long AttentionChunkBudgetBytes = 256L * 1024 * 1024;
+        // 中文：根据注意力分数张量的预算字节数计算 query 维度的分块大小，使单次注意力计算的峰值显存可控。
         private int ComputeAttentionChunkSize(int numPatches)
         {
             long perRowBytes = (long)_numHeads * numPatches * sizeof(float);
@@ -642,6 +655,7 @@ namespace TensorSharp.Models
         /// halfDim=36, this processes ~1.3M element pairs. The parallel+SIMD path is ~8-12x
         /// faster than the scalar triple-nested loop on Apple M-series.
         /// </summary>
+        // 中文：对 Q 或 K 应用 NeoX 式 2D 空间 RoPE，按 patch 并行、沿 halfDim 维做 SIMD 向量化的旋转变换。
         private unsafe void ApplyVisionRoPE(Tensor data, int numPatches, int headDim, int halfDim,
             float[] cosTable, float[] sinTable)
         {
@@ -691,6 +705,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：视觉前馈 MLP：up 线性升维、GELU 激活、down 线性降维。
         private Tensor VisionMLP(Tensor input, string prefix)
         {
             using var fc1Out = LinearForwardWithBias(input, $"{prefix}.ffn_up.weight", $"{prefix}.ffn_up.bias");
@@ -698,6 +713,7 @@ namespace TensorSharp.Models
             return LinearForwardWithBias(fc1Out, $"{prefix}.ffn_down.weight", $"{prefix}.ffn_down.bias");
         }
 
+        // 中文：带偏置的线性层前向：input 与（缓存的）转置权重矩阵乘，再加偏置。
         private unsafe Tensor LinearForwardWithBias(Tensor input, string weightName, string biasName)
         {
             var weight = _weights[weightName];
@@ -719,12 +735,14 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：按权重名取出 LayerNorm 的 weight 与可选 bias，对输入做层归一化。
         private Tensor LayerNormOp(Tensor input, string weightName, string biasName)
         {
             _weights.TryGetValue(biasName, out var bias);
             return Ops.LayerNorm(null, input, _weights[weightName], bias, _eps);
         }
 
+        // 中文：调试用，打印张量首行/末行的前几个元素及其 L2 范数。
         private unsafe void DumpTensor(Tensor t, string label, int numRows)
         {
             float* ptr = GetFloatPtr(t);
@@ -741,9 +759,11 @@ namespace TensorSharp.Models
             Console.WriteLine($"] norm0={MathF.Sqrt(norm0):F4} normLast={MathF.Sqrt(normLast):F4}");
         }
 
+        // 中文：获取张量底层 Float32 数据的裸指针。
         private static unsafe float* GetFloatPtr(Tensor t) =>
             TensorComputePrimitives.GetFloatPointer(t);
 
+        // 中文：按需对指定权重做转置并连续化，结果缓存以避免重复转置。
         private Tensor GetOrCreateTransposedWeight(string weightName)
         {
             if (_transposedWeights.TryGetValue(weightName, out var transposed))
@@ -755,6 +775,7 @@ namespace TensorSharp.Models
             return transposed;
         }
 
+        // 中文：按目标网格尺寸对预训练位置嵌入做双线性插值生成位置嵌入张量，按 (gridH,gridW) 键缓存。
         private unsafe Tensor GetOrCreatePositionEmbedding(int gridH, int gridW)
         {
             long key = ((long)gridH << 32) | (uint)gridW;
@@ -833,6 +854,7 @@ namespace TensorSharp.Models
             return cached;
         }
 
+        // 中文：按块顺序构建每个 patch 的 (Y,X) 网格坐标，预计算 2D RoPE 的 cos/sin 表并按网格尺寸缓存。
         private RopeCache GetOrCreateRopeCache(int gridH, int gridW, int numPatches, int halfDim)
         {
             long key = ((long)gridH << 32) | (uint)gridW;
@@ -885,6 +907,7 @@ namespace TensorSharp.Models
             return cache;
         }
 
+        // 中文：释放位置嵌入缓存、转置权重缓存、权重张量并清空 RoPE 缓存等所有资源。
         public void Dispose()
         {
             foreach (var w in _positionEmbeddingCache.Values)

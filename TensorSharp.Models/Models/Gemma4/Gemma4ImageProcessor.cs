@@ -25,6 +25,7 @@ namespace TensorSharp.Models
         private readonly float[] _imageMean;
         private readonly float[] _imageStd;
 
+        // 中文：构造图像处理器，依据 patch 尺寸、合并系数与 token 上下限计算像素范围，并配置可选的均值/标准差归一化参数。
         public Gemma4ImageProcessor(int patchSize = 16, int nMerge = 3, int minTokens = 40, int maxTokens = 280,
             float[] imageMean = null, float[] imageStd = null)
         {
@@ -48,6 +49,7 @@ namespace TensorSharp.Models
         /// (gemma4uv unified embedder, mean=0 std=1), otherwise the legacy SigLIP [-1,1] map.
         /// Returns pixel data and the actual canvas dimensions.
         /// </summary>
+        // 中文：读取并解码图像文件，按比例计算目标画布尺寸，做信箱填充与归一化，返回通道优先的像素及画布宽高。
         public (float[] pixels, int width, int height) ProcessImage(string imagePath)
         {
             byte[] fileBytes = File.ReadAllBytes(imagePath);
@@ -69,6 +71,7 @@ namespace TensorSharp.Models
         /// llama.cpp <c>img_tool::calc_size_preserved_ratio(..., min_pixels, max_pixels)</c>
         /// (the "smart_resize" used by the Qwen/Gemma transformers processors).
         /// </summary>
+        // 中文：保持长宽比计算目标画布尺寸，使总像素落在 [minPixels, maxPixels] 区间且各边对齐到 alignSize（smart_resize 移植）。
         internal static void CalcSizePreservedRatio(int width, int height, int alignSize,
             int minPixels, int maxPixels, out int targetW, out int targetH)
         {
@@ -112,6 +115,7 @@ namespace TensorSharp.Models
         /// the smaller of the per-axis scales, centred in the canvas, and the surrounding border is
         /// filled with the (normalized) padding colour black. The result is channel-first [C,H,W].
         /// </summary>
+        // 中文：按比例缩放内容并居中放入目标画布，周边以归一化黑色填充（信箱化），输出通道优先 [C,H,W] 归一化像素。
         private float[] BuildLetterboxedNormalized(byte[] rgba, int origW, int origH, int targetW, int targetH)
         {
             float scale = Math.Min((float)targetW / origW, (float)targetH / origH);
@@ -153,6 +157,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：根据图像宽高计算切分 patch 并按 NMerge 合并后的输出 token 数量。
         public int ComputeOutputTokens(int imageWidth, int imageHeight)
         {
             int patchesX = imageWidth / PatchSize;

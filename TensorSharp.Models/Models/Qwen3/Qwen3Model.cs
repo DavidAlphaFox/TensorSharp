@@ -21,6 +21,7 @@ namespace TensorSharp.Models
         // Bound the MLX lazy-graph depth across the per-layer dispatch loop.
         // Mirrors Qwen35's pattern; override via TS_MLX_EVAL_EVERY_N_LAYERS.
         private static readonly int MlxEvalEveryNLayers = ResolveMlxEvalEveryNLayers();
+        // 中文：从环境变量 TS_MLX_EVAL_EVERY_N_LAYERS 解析 MLX 惰性图每隔多少层强制求值一次，默认 16。
         private static int ResolveMlxEvalEveryNLayers()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_EVAL_EVERY_N_LAYERS");
@@ -41,6 +42,7 @@ namespace TensorSharp.Models
         private bool _canUseNativeLayerDecode;
         private bool _kvCacheHostDirty;
 
+        // 中文：构造函数，从 GGUF 文件加载 Qwen3 模型：解析配置与分词器、加载并融合权重、为推理准备量化权重、初始化 KV 缓存、预计算常量与本地解码数组。
         public Qwen3Model(string ggufPath, BackendType backend)
             : base(ggufPath, backend)
         {
@@ -70,6 +72,7 @@ namespace TensorSharp.Models
             DetermineNativeLayerDecodeAvailability();
         }
 
+        // 中文：将每层的 Q、K、V 三个投影权重（量化或浮点）沿输出维拼接融合为单个 attn_qkv 权重，以减少矩阵乘次数。
         private unsafe void FuseQKVWeights()
         {
             int fused = 0;
@@ -116,6 +119,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Fused projections: {fused} QKV");
         }
 
+        // 中文：预计算推理常量：缓存每层各权重名称、Q/K 位置数组，以及 RoPE 各频率分量。
         private void PrecomputeConstants()
         {
             int numLayers = Config.NumLayers;
@@ -150,6 +154,7 @@ namespace TensorSharp.Models
 
         private int _kvCacheCapacity;
 
+        // 中文：按初始/最大序列长度为每层分配并初始化 K、V 缓存张量，并确定 KV 缓存数据类型。
         private void InitKVCache(int initialSeqLen, int maxSeqLen)
         {
             _maxContextLength = maxSeqLen;
@@ -170,6 +175,7 @@ namespace TensorSharp.Models
             _cacheSeqLen = 0;
         }
 
+        // 中文：确保 KV 缓存容量足够：不足时按倍增策略（上限为最大上下文）重新分配更大缓存并拷贝已有内容。
         private void EnsureCacheCapacity(int requiredSeqLen)
         {
             if (requiredSeqLen <= _kvCacheCapacity)
@@ -212,6 +218,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"Expanded Qwen3 attention cache to {newCapacity} tokens.");
         }
 
+        // 中文：重置 KV 缓存与序列长度，并清零各项性能计时与前向计数。
         public override void ResetKVCache()
         {
             for (int l = 0; l < Config.NumLayers; l++)
@@ -226,6 +233,7 @@ namespace TensorSharp.Models
             _forwardSw.Reset();
         }
 
+        // 中文：将 KV 缓存截断到指定 token 数量，同步主机缓存并使各层设备端缓存失效。
         public override void TruncateKVCache(int tokenCount)
         {
             EnsureKvCacheHostSynchronized();
@@ -238,14 +246,18 @@ namespace TensorSharp.Models
             _kvCacheHostDirty = false;
         }
 
+        // 中文：当 K、V 缓存均已分配时返回 true，表示支持 KV 状态快照（提取/注入）。
         public override bool SupportsKVStateSnapshot => _kvCacheK != null && _kvCacheV != null;
 
+        // 中文：返回由架构、层数、头数、KV 头数、头维与缓存数据类型组成的 KV 状态指纹，用于校验快照兼容性。
         public override string KVStateFingerprint =>
             $"qwen3|arch={Config.Architecture}|L={Config.NumLayers}|H={Config.NumHeads}|KV={Config.NumKVHeads}|D={Config.HeadDim}|dtype={_kvCacheDtype.ToShortString()}";
 
+        // 中文：计算给定 token 数量对应的 KV 缓存块的字节大小。
         public override long ComputeKVBlockByteSize(int tokenCount)
             => KvBlockTransfer.ComputeBlockByteSize(_kvCacheK, _kvCacheV, tokenCount);
 
+        // 中文：从 KV 缓存中提取指定区间的 K/V 块到目标字节缓冲区（提取前先同步主机缓存）。
         public override bool TryExtractKVBlock(int startToken, int tokenCount, Span<byte> destination)
         {
             if (!SupportsKVStateSnapshot)
@@ -256,6 +268,7 @@ namespace TensorSharp.Models
                 startToken, tokenCount, destination);
         }
 
+        // 中文：将外部字节缓冲区中的 K/V 块注入到 KV 缓存指定位置，扩容并更新序列长度、使设备端缓存失效。
         public override bool TryInjectKVBlock(int destToken, int tokenCount, ReadOnlySpan<byte> source)
         {
             if (!SupportsKVStateSnapshot)
@@ -278,6 +291,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：模型前向计算入口：嵌入输入 token，逐层运行 Transformer 块（或本地解码路径），输出最末位置的归一化隐藏态并经 LM 头得到 logits。
         public override float[] Forward(int[] tokens)
         {
             _forwardSw.Start();
@@ -350,6 +364,7 @@ namespace TensorSharp.Models
         // Chunk size for ForwardRefill: long prompts are processed in this-many-token
         // chunks so the per-layer attention-score allocation stays bounded.
         // Override with TS_PREFILL_CHUNK when tuning.
+        // 中文：从环境变量 TS_PREFILL_CHUNK 解析预填充分块大小，默认 2048，用于限制长提示的注意力分数显存占用。
         private static int ResolvePrefillChunkSize()
         {
             string env = Environment.GetEnvironmentVariable("TS_PREFILL_CHUNK");
@@ -358,6 +373,7 @@ namespace TensorSharp.Models
             return 2048;
         }
 
+        // 中文：分块预填充长提示：将除最后一个 token 外的部分按块预填充进 KV 缓存（不算 logits），再对最后一个 token 做完整前向得到 logits。
         public override float[] ForwardRefill(int[] tokens)
         {
             if (tokens == null || tokens.Length <= 1)
@@ -381,6 +397,7 @@ namespace TensorSharp.Models
             return Forward(new[] { tokens[lastIdx] });
         }
 
+        // 中文：仅做预填充：嵌入并逐层前向以填充 KV 缓存、推进序列长度，但不计算输出 logits。
         private void PrefillWithoutLogits(int[] tokens)
         {
             if (tokens == null || tokens.Length == 0)
@@ -424,6 +441,7 @@ namespace TensorSharp.Models
             _forwardSw.Stop();
         }
 
+        // 中文：单层 Transformer 块：注意力归一化+自注意力、残差、FFN 归一化+前馈网络、残差；解码且权重量化时走本地融合解码路径。
         private Tensor TransformerBlock(Tensor hidden, int layer, int seqLen, int startPos)
         {
             string[] wn = _layerWeightNames[layer];
@@ -468,6 +486,7 @@ namespace TensorSharp.Models
             return hidden;
         }
 
+        // 中文：多头自注意力：QKV 投影、Q/K-Norm、RoPE，写入 KV 缓存，按 GQA 扩展 KV 头并计算因果掩码 softmax 注意力，最后经输出投影（解码路径单独优化）。
         private Tensor Attention(Tensor input, int layer, string[] wn, int seqLen, int startPos)
         {
             int numHeads = Config.NumHeads;
@@ -601,6 +620,7 @@ namespace TensorSharp.Models
             return output;
         }
 
+        // 中文：对 Q 或 K 张量按头维做 RMSNorm（QK-Norm），解码时原地归一化、预填充时整体归一化。
         private Tensor ApplyQKNormInPlace(Tensor data, string weightName, int numHeads, int seqLen)
         {
             int headDim = Config.HeadDim;
@@ -621,6 +641,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：解码阶段（单 token）在 CPU 上原地对各头施加 RoPE 旋转位置编码，按预计算频率生成 cos/sin 表逐对旋转。
         private unsafe void ApplyRoPEDecodeInPlace(Tensor data, int numHeads, int headDim, int position)
         {
             int halfDim = headDim / 2;
@@ -649,6 +670,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：预填充阶段（多 token）通过 RoPEEx 算子按每行位置对 Q/K 施加 RoPE 旋转位置编码。
         private Tensor ApplyRoPEInPlace(Tensor data, int numHeads, int headDim, int seqLen, int startPos)
         {
             int totalRows = seqLen * numHeads;
@@ -673,6 +695,7 @@ namespace TensorSharp.Models
 
         #region Native decode paths
 
+        // 中文：调用 GGML 本地内核，对单层在解码阶段一次性完成整层 Transformer 计算（注意力+FFN，含 KV 缓存更新）。
         private unsafe void NativeTransformerLayerDecode(Tensor hidden, int layer, string[] wn, int startPos)
         {
             float* hiddenPtr = GetFloatPtr(hidden);
@@ -717,6 +740,7 @@ namespace TensorSharp.Models
             public long DownNe0, DownNe1, DownBytes;
         }
 
+        // 中文：预先收集所有层量化权重与 KV 缓存的指针、类型与维度信息，构建供整模型本地解码内核使用的指针数组。
         private unsafe void BuildModelDecodeArrays()
         {
             int numLayers = Config.NumLayers;
@@ -764,6 +788,7 @@ namespace TensorSharp.Models
             _modelDecodeArrays = arr;
         }
 
+        // 中文：检测是否可走单层本地解码路径：要求 GGML 后端且每层 QKV/输出/门控上投/下投权重均为量化权重。
         private void DetermineNativeLayerDecodeAvailability()
         {
             _canUseNativeLayerDecode = IsGgmlBackend;
@@ -784,6 +809,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：当 KV 缓存被本地内核改脏时，将各层 K/V 缓存从设备同步回主机（按 Storage 去重），随后清除脏标记。
         private void EnsureKvCacheHostSynchronized()
         {
             if (!_kvCacheHostDirty || !IsGgmlBackend)
@@ -801,6 +827,7 @@ namespace TensorSharp.Models
             _kvCacheHostDirty = false;
         }
 
+        // 中文：调用 GGML 本地内核，在解码阶段对所有层一次性完成整个模型的 Transformer 前向计算（含逐层 KV 缓存更新）。
         private unsafe void NativeTransformerModelDecode(Tensor hidden, int startPos)
         {
             float* hiddenPtr = GetFloatPtr(hidden);
@@ -825,6 +852,7 @@ namespace TensorSharp.Models
 
         #endregion
 
+        // 中文：释放资源：销毁所有层的 K、V 缓存张量并调用基类 Dispose。
         public override void Dispose()
         {
             if (_kvCacheK != null)

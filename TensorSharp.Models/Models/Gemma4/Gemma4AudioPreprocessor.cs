@@ -33,6 +33,7 @@ namespace TensorSharp.Models
         private static readonly double[] HannWindow = BuildWindow();
         private static readonly float[] MelFilters = BuildMelFilterBank(NumFreqBins, MelBins, MinFrequency, MaxFrequency, SampleRate);
 
+        // 中文：根据文件扩展名（.wav/.mp3/.ogg）将音频文件解码为 16kHz 单声道浮点采样数组。
         public static float[] DecodeAudioFile(string path)
         {
             string ext = Path.GetExtension(path).ToLowerInvariant();
@@ -46,6 +47,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：解码 MP3 文件，将多声道混合为单声道，并在需要时重采样到 16kHz。
         private static float[] DecodeMp3(string path)
         {
             using var stream = File.OpenRead(path);
@@ -78,6 +80,7 @@ namespace TensorSharp.Models
             return mono;
         }
 
+        // 中文：解码 OGG/Vorbis 文件，将多声道混合为单声道，并在需要时重采样到 16kHz。
         private static float[] DecodeOgg(string path)
         {
             using var vorbis = new VorbisReader(path);
@@ -109,6 +112,7 @@ namespace TensorSharp.Models
             return mono;
         }
 
+        // 中文：解析 WAV 字节流（RIFF 分块），读取 fmt/data 块并解码为单声道采样，必要时重采样到 16kHz。
         public static float[] DecodeWAV(byte[] data)
         {
             if (data.Length < 12 || System.Text.Encoding.ASCII.GetString(data, 0, 4) != "RIFF" ||
@@ -159,6 +163,7 @@ namespace TensorSharp.Models
             return samples;
         }
 
+        // 中文：按位深与格式（PCM 8/16/24/32 位、IEEE float）将 WAV data 块解码并下混为归一化单声道采样。
         private static float[] DecodeSamples(byte[] data, ushort format, int bits, int channels)
         {
             int bytesPerSample = bits / 8;
@@ -193,6 +198,7 @@ namespace TensorSharp.Models
             return mono;
         }
 
+        // 中文：使用线性插值将采样序列从源采样率重采样到目标采样率。
         private static float[] ResampleLinear(float[] samples, int fromRate, int toRate)
         {
             int n = (int)((double)samples.Length / fromRate * toRate);
@@ -209,6 +215,7 @@ namespace TensorSharp.Models
             return output;
         }
 
+        // 中文：对采样做分帧并逐帧计算对数梅尔频谱，返回展平的梅尔特征及帧数（帧数较多时并行处理）。
         public static (float[] melData, int numFrames) ComputeMelSpectrogram(float[] samples)
         {
             int frameSizeForUnfold = FrameLength + 1;
@@ -237,6 +244,7 @@ namespace TensorSharp.Models
             return (result, numFrames);
         }
 
+        // 中文：构建三角梅尔滤波器组，按 Hz<->Mel 转换在频率轴上等距分布并生成 [频点 x 梅尔通道] 权重矩阵。
         private static float[] BuildMelFilterBank(int numFreqBins, int numMels, double fMin, double fMax, int sr)
         {
             double HzToMel(double f) => 2595.0 * Math.Log10(1.0 + f / 700.0);
@@ -277,6 +285,7 @@ namespace TensorSharp.Models
             return filters;
         }
 
+        // 中文：对复数数组做原地基-2 迭代式快速傅里叶变换（含位反转重排）。
         private static void FFT(Complex[] x)
         {
             int n = x.Length;
@@ -309,6 +318,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：根据采样长度（含 128 对齐填充）预估经分帧与两层卷积下采样后的音频 token 数量。
         public static int ComputeAudioTokenCount(float[] samples)
         {
             if (samples.Length % 128 != 0)
@@ -325,6 +335,7 @@ namespace TensorSharp.Models
             return tConv1;
         }
 
+        // 中文：计算单帧：加汉宁窗、补零做 FFT，再经梅尔滤波器组求能量并取对数（带下限），写入结果缓冲。
         private static void ComputeMelFrame(float[] samples, int frameIndex, Complex[] fftInput, float[] result)
         {
             int start = frameIndex * HopLength;
@@ -346,6 +357,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：计算 FFT 长度：取不小于帧长的最小 2 的幂再乘以 2。
         private static int ComputeFftLength()
         {
             int fftLen = 1;
@@ -353,6 +365,7 @@ namespace TensorSharp.Models
             return fftLen * 2;
         }
 
+        // 中文：构建长度为帧长的汉宁（Hann）窗系数表（采用半采样偏移的周期窗）。
         private static double[] BuildWindow()
         {
             double[] window = new double[FrameLength];

@@ -9,6 +9,12 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using TensorSharp.Runtime.Paged;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】vLLM 式「迭代级 / 连续批处理」调度器。
+// 【主要类型】ContinuousBatchScheduler：维护等待队列（按提交先后 FCFS、优先级打破平局）
+//             与运行集合；每次 Schedule 决定下一次前向要算哪些序列，从池中分配 KV 块、
+//             命中前缀缓存、并在块耗尽时抢占低优先级序列。非线程安全，由引擎工作线程调用。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Runtime.Scheduling
 {
     /// <summary>

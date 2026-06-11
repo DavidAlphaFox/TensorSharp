@@ -14,6 +14,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TensorSharp.Runtime.Paged;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】推理引擎门面（对外统一入口）。
+// 【主要类型】InferenceEngine：把分页 KV 池、连续批处理调度器、批执行器串联起来；
+//             内部独占一个工作线程跑「步进循环」，调用方通过 SubmitRequest 提交请求、
+//             经返回的 InferenceRequestHandle 逐 token 消费输出。生命周期按请求而非会话。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Runtime.Scheduling
 {
     /// <summary>

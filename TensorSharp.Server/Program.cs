@@ -8,6 +8,12 @@
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】Web 服务入口（顶层语句）。
+// 【职责】配置并启动 ASP.NET Core 主机：监听端口、注册依赖、加载模型，
+//         挂载健康检查与 Ollama / OpenAI / WebUI 三套端点及协议适配器，
+//         同时托管浏览器聊天界面（wwwroot）。
+// ───────────────────────────────────────────────────────────────────────────
 using System;
 using System.IO;
 using Microsoft.AspNetCore.Builder;

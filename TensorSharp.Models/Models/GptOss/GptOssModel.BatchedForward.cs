@@ -49,6 +49,7 @@ namespace TensorSharp.Models
         // load — a static readonly would capture the env var at class-init
         // time, which is before tests get a chance to set it (same gotcha
         // that bit Nemotron). Mirrors Qwen 3.5's pattern.
+        // 中文：读取 TS_GPTOSS_BATCHED 环境变量，判断是否启用批量分页注意力前向（默认开启），用方法而非静态字段以便测试运行时切换。
         private static bool GptOssBatchedOptIn()
         {
             string raw = Environment.GetEnvironmentVariable("TS_GPTOSS_BATCHED");
@@ -68,6 +69,7 @@ namespace TensorSharp.Models
         private int _gptOssPagedNumBlocks;
         private int _gptOssPagedBlockSize;
 
+        // 中文：连续批处理（continuous batching）的整体前向入口：扁平化各序列 token 并嵌入，分配分页 K/V 缓冲、逐层执行带 sinks 的分页注意力与 MoE FFN，最后对每个序列做末 token 的 LM head 投影并返回各序列 logits。
         public IReadOnlyList<float[]> ForwardBatch(BatchedForwardContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
@@ -180,6 +182,7 @@ namespace TensorSharp.Models
             return perSeq;
         }
 
+        // 中文：执行单层批量注意力：前置 RMSNorm 与残差、带 bias 的 Q/K/V 投影、NeoX+YaRN RoPE、按 slotMapping 将 K/V 散写入分页缓冲，再据层奇偶选择滑动窗口或全因果、用 native 或托管核做带 attention sinks 的分页注意力，最后带 bias 的输出投影并加回残差。
         private Tensor RunBatchedAttentionLayer(
             Tensor hiddenStates, int layer, int numTokens, int numSeqs,
             int[] queryStartLoc, int[] slotMapping, int[] seqLens, int[] positions,
@@ -272,6 +275,7 @@ namespace TensorSharp.Models
             return residual;
         }
 
+        // 中文：对批量 Q 或 K 张量按每 token 位置施加 NeoX 模式 + YaRN 缩放的 RoPE（参数与旧版 ApplyRoPEInPlace 一致），返回展平后的结果张量。
         private Tensor ApplyBatchedRoPE(Tensor data, Tensor positionsTensor,
             int numTokens, int numHeads, int headDim)
         {
@@ -290,6 +294,7 @@ namespace TensorSharp.Models
             return flat;
         }
 
+        // 中文：将每 token 的位置按头数复制展开为 [token*head] 的位置索引张量，供 RoPE 逐 (token, head) 使用。
         private Tensor BuildBatchedRoPEPositions(int[] tokenPositions, int numHeads)
         {
             int total = tokenPositions.Length * numHeads;
@@ -302,6 +307,7 @@ namespace TensorSharp.Models
 
         // Flatten per-seq block tables into concatenated int[] + offsets[]
         // for the native paged-attention entry point.
+        // 中文：将各序列的 block table 拼接为单个扁平 int[] 并生成每序列起始偏移数组，供 native 分页注意力入口使用。
         private static (int[] flat, int[] offsets) FlattenBlockTables(int[][] perSeq)
         {
             int total = 0;
@@ -339,6 +345,7 @@ namespace TensorSharp.Models
         /// derived from <c>owner.BlockTable</c>. GptOss has no SWA wrap (SWA
         /// is applied as an attention mask rather than via a circular cache),
         /// so every position from 0..<c>_cacheSeqLen</c> is recoverable.</summary>
+        // 中文：将某序列的 K/V 历史从旧版线性缓存按 block table 推算的 slot 位置逐层逐头迁移到分页缓冲（必要时先把设备端缓存同步回主机并扩容分页缓冲），使 N=1 快路径能在第二个并发序列到来时交接给批量路径。
         public bool TryMigrateLinearKVToPaged(SequenceState owner, int blockSize)
         {
             if (owner == null) return false;
@@ -417,6 +424,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：将缓存张量读为 float32 数组：F32 直接取，F16 转换为 F32，其他（如块量化）类型返回 false 表示不支持。
         private static unsafe bool TryReadCacheAsF32(Tensor cache, int totalElems, out float[] flat)
         {
             if (cache.ElementType == DType.Float32)
@@ -438,6 +446,7 @@ namespace TensorSharp.Models
             return false;
         }
 
+        // 中文：按需（首次或容量/块大小不足）以倍增策略分配各层分页 K/V 缓冲，并在块大小不变时把旧缓冲内容拷贝到新缓冲以保留已有 K/V。
         private void EnsureGptOssPagedBuffers(int numBlocks, int blockSize)
         {
             bool needRebuild = _gptOssPagedK == null

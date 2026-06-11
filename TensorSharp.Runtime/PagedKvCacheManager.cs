@@ -14,6 +14,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TensorSharp.Runtime.Logging;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】跨会话的分页 KV 缓存协调器——前缀复用与连续批处理的核心。
+// 【主要类型】PagedKvCacheManager：把规范 token 序列切成定长块，对每块（链入父块）做哈希，
+//             将对应的 K/V 字节切片存入内存层（可选 SSD 溢出层）。当新请求的提示词与历史
+//             共享前缀时，prefill 成本从 O(n) 降为 O(块大小 × 后缀)。它仅作薄协调层，
+//             字节序列化交给模型、存储 / 淘汰交给底层块存储。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Runtime
 {
     /// <summary>

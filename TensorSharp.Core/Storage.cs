@@ -9,6 +9,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
 using System;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】张量底层内存的抽象基类。
+// 【主要类型】Storage：继承自引用计数基类 RefCounted，封装一块连续内存；
+//             各计算后端（CPU / CUDA / MLX / GGML）各自派生实现具体的存储与读写。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp
 {
     [Serializable]

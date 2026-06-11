@@ -183,6 +183,7 @@ namespace TensorSharp.Models
         private static readonly bool MlxDeviceRouter =
             !string.Equals(Environment.GetEnvironmentVariable("TS_MLX_DEVICE_ROUTER"), "0", StringComparison.Ordinal);
 
+        // 中文：解析融合注意力层解码 kernel 启用的最小序列长度阈值（可由环境变量覆盖，默认 1）。
         private static int ResolveFusedAttnLayerMinSeqLen()
         {
             string env = Environment.GetEnvironmentVariable("FUSED_ATTN_LAYER_MIN_SEQ_LEN");
@@ -196,6 +197,7 @@ namespace TensorSharp.Models
             return 1;
         }
 
+        // 中文：解析 MLX flash-attention 解码 kernel 启用的最小序列长度阈值（可由环境变量覆盖，默认 1）。
         private static int ResolveMlxFlashAttnDecodeMinSeqLen()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_FLASH_ATTN_DECODE_MIN_SEQ_LEN");
@@ -207,6 +209,7 @@ namespace TensorSharp.Models
             return 1;
         }
 
+        // 中文：解析 MLX 每隔多少层触发一次图求值（eval）的间隔（可由环境变量覆盖，默认 16）。
         private static int ResolveMlxEvalEveryNLayers()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_EVAL_EVERY_N_LAYERS");
@@ -355,6 +358,7 @@ namespace TensorSharp.Models
         private long _mlxCacheEvalTicks;
         private int _prefillTokenCount;
 
+        // 中文：构造函数。从 GGUF 读取架构与超参数（层数/头数/MoE/MRoPE/SSM 等），判定各层是循环（GatedDeltaNet）还是全注意力，加载并融合权重、检测 MoE 层、初始化缓存与 RoPE 表，完成模型构建。
         public Qwen35Model(string ggufPath, BackendType backend)
             : base(ggufPath, backend)
         {
@@ -444,6 +448,7 @@ namespace TensorSharp.Models
             CacheRecurrentWeights();
         }
 
+        // 中文：将每个全注意力层的 Q/K/V 投影权重融合为单个 attn_qkv 权重，减少 hot 路径上的矩阵乘次数。
         private unsafe void FuseAttentionProjectionWeights()
         {
             int fused = 0;
@@ -466,6 +471,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Fused projections: {fused} Q+K+V");
         }
 
+        // 中文：将每个循环（GatedDeltaNet）层的输入投影权重（qkv/gate/beta/alpha）融合成一个 ssm_in_proj 权重包。
         private unsafe void FuseRecurrentInputWeights()
         {
             int fused = 0;
@@ -489,6 +495,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Fused projections: {fused} recurrent input packs");
         }
 
+        // 中文：尝试把多个权重沿输出维拼接成一个融合权重（量化或 F32 两条路径），成功后替换字典并释放原权重；形状/类型不匹配时返回 false。
         private unsafe bool TryFuseWeights(string fusedName, params string[] weightNames)
         {
             if (weightNames == null || weightNames.Length < 2)
@@ -576,6 +583,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：通过检测各层是否存在 ffn_gate_inp 等权重，标记哪些层是 MoE 层、是否含共享专家及共享专家门控。
         private void DetectMoeLayers()
         {
             int numLayers = Config.NumLayers;
@@ -605,9 +613,11 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  MoE layers: {moeCount}/{numLayers} (shared experts: {sharedCount}, gated shared: {sharedGateCount})");
         }
 
+        // 中文：判断给定名称的权重是否存在（量化权重字典或 F32 权重字典任一命中）。
         private bool WeightExists(string name) =>
             _quantWeights.ContainsKey(name) || _weights.ContainsKey(name);
 
+        // 中文：初始化 MoE 相关缓冲：预缓存各层每个专家及路由/共享专家的权重键与权重引用、堆叠专家权重句柄，并预分配 MoE 与解码热路径复用的工作张量。
         private void InitMoeBuffers()
         {
             if (_numExperts <= 0)
@@ -734,6 +744,7 @@ namespace TensorSharp.Models
         /// path never executes string interpolation. This eliminates dozens of allocations per
         /// layer per forward step and removes hundreds of dictionary string-hash lookups.
         /// </summary>
+        // 中文：为每一层预先拼好层前缀与各权重名称字符串，避免 Forward 热路径上的字符串插值与重复字典哈希查找。
         private void BuildLayerKeys()
         {
             int n = Config.NumLayers;
@@ -784,6 +795,7 @@ namespace TensorSharp.Models
         /// Pre-resolve recurrent layer constant tensors and pre-compute a transposed conv1d
         /// weight layout that is friendly for SIMD vectorization across channels.
         /// </summary>
+        // 中文：预解析并缓存各层的注意力/FFN/归一化权重以及最终归一化与 LM head 权重引用，循环层另行缓存其专用权重，消除 hot 路径上的字典查找。
         private unsafe void CacheRecurrentWeights()
         {
             int n = Config.NumLayers;
@@ -850,6 +862,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：初始化各层的 KV 缓存（全注意力层）与 GatedDeltaNet 循环状态缓存（循环层），按配置的 KV 缓存 dtype 分配并清零。
         private void InitCaches(int initialSeqLen, int maxSeqLen)
         {
             _maxContextLength = maxSeqLen;
@@ -885,6 +898,7 @@ namespace TensorSharp.Models
             _cacheSeqLen = 0;
         }
 
+        // 中文：当所需序列长度超过当前 KV 缓存容量时按倍增策略扩容（上限为最大上下文长度），并把已有缓存内容拷贝到新缓存。
         private void EnsureCacheCapacity(int requiredSeqLen)
         {
             if (requiredSeqLen <= _kvCacheCapacity)
@@ -928,6 +942,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"Expanded Qwen3.5 attention cache to {newCapacity} tokens.");
         }
 
+        // 中文：预计算 RoPE 各维度的旋转频率表（按 RopeBase 与 RopeScale 生成 inv_freq）。
         private void PrecomputeRoPE()
         {
             int headDim = Config.HeadDim;
@@ -939,6 +954,7 @@ namespace TensorSharp.Models
                 _ropeFreqs[i] = freqScale / MathF.Pow(Config.RopeBase, (2.0f * i) / ropeDim);
         }
 
+        // 中文：重置所有层的 KV 缓存与 GDN 循环状态、清零缓存序列长度及各项计时计数器，使模型回到全新会话状态。
         public override void ResetKVCache()
         {
             for (int l = 0; l < Config.NumLayers; l++)
@@ -992,6 +1008,7 @@ namespace TensorSharp.Models
         public override string KVStateFingerprint =>
             $"qwen35|arch={Config.Architecture}|L={Config.NumLayers}|H={Config.NumHeads}|KV={Config.NumKVHeads}|D={Config.HeadDim}|gdnK={_headKDim}|gdnV={_headVDim}|nKHead={_numKHeads}|nVHead={_numVHeads}|convKern={_convKernel}|dtype={_kvCacheDtype.ToShortString()}";
 
+        // 中文：计算一个含 tokenCount 个 token 的 KV 状态块的总字节数（全注意力层按 K/V 字节累加，循环层按 GDN 状态字节累加）。
         public override long ComputeKVBlockByteSize(int tokenCount)
         {
             if (tokenCount <= 0 || _kvCacheK == null || _isRecurrent == null) return 0;
@@ -1012,6 +1029,7 @@ namespace TensorSharp.Models
             return total;
         }
 
+        // 中文：将各层从 startToken 起 tokenCount 个 token 的 KV 状态（注意力层 K/V + 循环层 GDN 状态）序列化导出到目标字节缓冲。
         public override bool TryExtractKVBlock(int startToken, int tokenCount, Span<byte> destination)
         {
             if (!SupportsKVStateSnapshot) return false;
@@ -1040,6 +1058,7 @@ namespace TensorSharp.Models
             return offset == destination.Length;
         }
 
+        // 中文：将外部序列化的 KV 状态块注入回各层缓存（必须紧接当前缓存末尾），扩容后写入并使设备端缓存视图失效以便下次重新加载。
         public override bool TryInjectKVBlock(int destToken, int tokenCount, ReadOnlySpan<byte> source)
         {
             if (!SupportsKVStateSnapshot) return false;
@@ -1080,6 +1099,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：计算某注意力层缓存张量中 tokenCount 个 token 所占的字节数（KV 头数 × token 数 × 每行字节）。
         private static long AttentionLayerBlockBytes(Tensor cacheTensor, int tokenCount)
         {
             long numKVHeads = cacheTensor.Sizes[0];
@@ -1088,6 +1108,7 @@ namespace TensorSharp.Models
             return numKVHeads * tokenCount * rowBytes;
         }
 
+        // 中文：计算某 GDN 循环层完整状态的字节数（conv 状态字节 + writeIdx(4 字节) + deltaState 张量字节）。
         private long GdnLayerStateBytes(int layer)
         {
             // convState bytes + writeIdx (4 bytes) + deltaState tensor bytes.
@@ -1096,6 +1117,7 @@ namespace TensorSharp.Models
             return convBytes + sizeof(int) + deltaBytes;
         }
 
+        // 中文：把注意力缓存张量中 [startToken, startToken+tokenCount) 的字节按每头拷贝导出到目标缓冲（先确保主机可读）。
         private static bool CopyAttentionOut(Tensor cacheTensor, int startToken, int tokenCount, Span<byte> destination, out int written)
         {
             cacheTensor.Storage.EnsureHostReadable();
@@ -1123,6 +1145,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：把源字节按每头写回注意力缓存张量 [destToken, destToken+tokenCount) 区间（导入的逆操作）。
         private static bool CopyAttentionIn(Tensor cacheTensor, int destToken, int tokenCount, ReadOnlySpan<byte> source, out int read)
         {
             cacheTensor.Storage.EnsureHostReadable();
@@ -1151,6 +1174,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：把某 GDN 层的完整循环状态（convState 原始浮点字节 + writeIdx + deltaState 字节）序列化导出到目标缓冲。
         private bool CopyGdnStateOut(int layer, Span<byte> destination, out int written)
         {
             written = 0;
@@ -1180,6 +1204,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：把源字节恢复回某 GDN 层的 convState/writeIdx/deltaState 状态，并重置该层 MLX 缓存的 scratch 索引（导出的逆操作）。
         private bool CopyGdnStateIn(int layer, ReadOnlySpan<byte> source, out int read)
         {
             read = 0;
@@ -1213,6 +1238,7 @@ namespace TensorSharp.Models
         // Chunk size for ForwardRefill: long prompts are processed in this-many-token
         // chunks so the per-layer attention-score allocation stays bounded.
         // Override with TS_PREFILL_CHUNK when tuning.
+        // 中文：解析 ForwardRefill 的 prefill 分块大小（长提示按此长度分块处理以限制每层注意力分数的内存占用，可由环境变量覆盖，默认 2048）。
         private static int ResolvePrefillChunkSize()
         {
             string env = Environment.GetEnvironmentVariable("TS_PREFILL_CHUNK");
@@ -1221,6 +1247,7 @@ namespace TensorSharp.Models
             return 2048;
         }
 
+        // 中文：批量预填充（prefill）入口：长提示按块逐段喂入 PrefillWithoutLogits 构建 KV 缓存，最后只对末 token 调用 Forward 取 logits；含多模态嵌入或短提示时退化为单次 Forward。
         public override float[] ForwardRefill(int[] tokens)
         {
             if (tokens == null || tokens.Length <= 1)
@@ -1246,6 +1273,7 @@ namespace TensorSharp.Models
             return Forward(new[] { tokens[lastIdx] });
         }
 
+        // 中文：仅前向传播一段 token 以填充 KV 缓存而不计算 logits（嵌入后逐层跑注意力/循环块并推进缓存序列长度），用于分块 prefill。
         private void PrefillWithoutLogits(int[] tokens)
         {
             if (tokens == null || tokens.Length == 0)
@@ -1287,6 +1315,7 @@ namespace TensorSharp.Models
             _forwardSw.Stop();
         }
 
+        // 中文：核心前向传播：嵌入并注入视觉嵌入后逐层跑全注意力/循环块，对末 token 做最终归一化 + LM head 得到词表 logits 并拷贝到主机缓冲返回。
         public override float[] Forward(int[] tokens)
         {
             _forwardSw.Start();
@@ -1434,6 +1463,7 @@ namespace TensorSharp.Models
         // call. Each call queues the next embedding lookup (via on-device
         // argmax) so the next call can run without any host work besides
         // building the layer graph.
+        // 中文：执行一步流水线化贪心解码（MLX 专用）：跑完所有层 + LM head，在设备上做 argmax 得到 [1] int32 下一 token，并预先在设备上算好下一步输入嵌入以重叠后续前向，返回该设备 token 句柄。
         public override Tensor SubmitGreedyDecodeStep(int? firstTokenForBegin)
         {
             _forwardSw.Start();
@@ -1544,6 +1574,7 @@ namespace TensorSharp.Models
         // get_rows path (MlxQuantizedOps.TryGetRowsQuantizedToFloat32) for
         // quantized embedding tables; otherwise returns false so the caller
         // falls back to the host path.
+        // 中文：在设备上（MLX）为 [1] int32 token 查 token_embd 行得到 [1, hidden] 输入嵌入写入 outEmb；不支持时返回 false 让调用方回退到主机路径。
         private bool TryComputeNextInputEmbedding(Tensor outEmb, Tensor deviceTokenInt)
         {
             if (_backend != BackendType.Mlx)
@@ -1570,12 +1601,14 @@ namespace TensorSharp.Models
 
         // Release any pending pipelined-decode state. Call at end of a
         // generation run so resources don't linger.
+        // 中文：释放流水线贪心解码的挂起状态（预算的下一步设备输入嵌入），在一次生成结束时调用以免资源滞留。
         public override void ResetPipelinedGreedyState()
         {
             _pipelineNextInputDevice?.Dispose();
             _pipelineNextInputDevice = null;
         }
 
+        // 中文：在 MLX 后端按设定间隔（每 N 层或最后一层）触发隐藏态与对应层缓存状态的图求值，把惰性计算图分段刷新以平衡同步开销与调度深度。
         private void TryEvaluateMlxLayerBoundary(Tensor hidden, int layer, int seqLen)
         {
             if (_backend != BackendType.Mlx || MlxEvalEveryNLayers <= 0)
@@ -1614,6 +1647,7 @@ namespace TensorSharp.Models
             TryEvaluateMlxLayerCacheState(firstLayer, layer);
         }
 
+        // 中文：在 MLX 后端对 [firstLayer, lastLayer] 区间各层的 KV/GDN 缓存状态触发图求值，使累积的缓存写入提前落盘。
         private void TryEvaluateMlxLayerCacheState(int firstLayer, int lastLayer)
         {
             if (_backend != BackendType.Mlx)
@@ -1642,6 +1676,7 @@ namespace TensorSharp.Models
         /// Full attention with gated Q, QK-norm, sigmoid-gated output, and post-attention norm.
         /// Q projection outputs 2x: [Q, gate] interleaved per head.
         /// </summary>
+        // 中文：单个全注意力 Transformer 块：注意力（含残差与输出投影，可走融合解码/融合 outproj+FFN 路径）+ 后注意力归一化 + FFN（稠密 SwiGLU 或 MoE），就地更新并返回隐藏态。
         private Tensor AttentionBlock(Tensor hidden, int layer, int seqLen, int startPos)
         {
             // Decode fast path (long context): fold the entire attention block (norm + QKV +
@@ -1775,6 +1810,7 @@ namespace TensorSharp.Models
             return hidden;
         }
 
+        // 中文：完整带门控注意力实现：输入归一化 + 融合 QKV → 拆分 Q/gate → QK-norm → RoPE/MRoPE → 写入 KV 缓存 → flash/SIMD 注意力 → sigmoid 门控混合 → 输出投影（可与残差融合），返回输出张量或在已就地加残差时返回 null。
         private unsafe Tensor FullAttention(Tensor input, Tensor inputNormW, int layer, int seqLen, int startPos,
             Tensor residual = null, bool skipOutputProj = false)
         {
@@ -2209,6 +2245,7 @@ namespace TensorSharp.Models
             return output;
         }
 
+        // 中文：对注意力输出施加 sigmoid 门控混合：attn = attn * sigmoid(gate)（GPU 路径）。
         private void ApplySigmoidGate(Tensor attn, Tensor gate)
         {
             Ops.SigmoidMul(attn, attn, gate);
@@ -2219,6 +2256,7 @@ namespace TensorSharp.Models
         /// <c>attn[i] = attn[i] * sigmoid(gate[i])</c>. The tensors are small enough that
         /// going through the GPU just incurs Metal dispatch overhead with no compute win.
         /// </summary>
+        // 中文：单行解码热路径的 CPU 版 sigmoid 门控混合 attn[i] *= sigmoid(gate[i])，数据量小以避免 GPU 调度开销。
         private unsafe void ApplySigmoidGateCpu(Tensor attn, Tensor gate)
         {
             float* aPtr = GetFloatPtr(attn);
@@ -2247,6 +2285,7 @@ namespace TensorSharp.Models
         /// each of which allocates and copies. Doing the split with explicit Buffer.MemoryCopy
         /// avoids the intermediate strided views and pays a single contiguous copy per slice.
         /// </summary>
+        // 中文：把门控 Q 投影 [seqLen, numHeads, 2*headDim]（每头 Q 后接 gate）一次性拆分为独立的 Q 与 gate 张量，按后端走 GPU 视图或 CPU memcpy 路径。
         private unsafe void DeinterleaveQGate(Tensor qFull, int seqLen, int numHeads, int headDim,
             out Tensor qTensor, out Tensor gateTensor, out bool ownsBuffers)
         {
@@ -2365,6 +2404,7 @@ namespace TensorSharp.Models
         /// FFN with pre-resolved weight references, mirroring <see cref="ModelBase.FFN"/>
         /// but skipping the dictionary lookup. SwiGLU on a fused gate+up projection.
         /// </summary>
+        // 中文：稠密 FFN（使用预解析权重引用）：对融合 gate_up 投影做 SwiGLU（SiLU(gate)*up）后经 down 投影返回结果。
         private Tensor FFNCached(Tensor input, int layer, int seqLen)
         {
             int intermSize = Config.IntermediateSize;
@@ -2400,6 +2440,7 @@ namespace TensorSharp.Models
         /// Returns null when the down+residual fusion succeeded (residual already updated in-place);
         /// otherwise returns the down output for the caller to add manually.
         /// </summary>
+        // 中文：稠密 FFN 的融合版：把后注意力归一化 + gate_up 投影、以及 down + 残差加分别融合，prefill 时可整块塞进单次 GGML 图；成功融合残差加时返回 null，否则返回 down 输出供调用方手动相加。
         private Tensor FFNCachedFused(Tensor residual, Tensor postNormW, int layer, int seqLen)
         {
             int intermSize = Config.IntermediateSize;
@@ -2518,6 +2559,7 @@ namespace TensorSharp.Models
         /// RMSNorm with a pre-resolved alpha tensor, avoiding the dictionary lookup that
         /// <see cref="ModelBase.RMSNormOp"/> performs per call. The arithmetic is identical.
         /// </summary>
+        // 中文：使用预解析 alpha 权重的 RMSNorm，避免每次字典查找，运算与 ModelBase.RMSNormOp 一致。
         private Tensor RMSNormOpCached(Tensor input, Tensor alpha)
         {
             long t0 = Stopwatch.GetTimestamp();
@@ -2540,6 +2582,7 @@ namespace TensorSharp.Models
         /// and skips materialising the intermediate normalized tensor on the GPU.
         /// Falls back to the unfused path when the GGML backend or quant weight is unavailable.
         /// </summary>
+        // 中文：把 RMSNorm 与量化矩阵乘融合到单次 kernel（GGML/MLX），等价 matmul(rms_norm(input), qW)；后端或权重不可用时回退到显式 norm + linear。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Tensor FusedNormLinear(Tensor input, Tensor normW, QuantizedWeight qw, Tensor wF32)
         {
@@ -2595,6 +2638,7 @@ namespace TensorSharp.Models
         /// fallback path (explicit norm + linear) had to be used; in that case the
         /// caller will see the standard <see cref="FusedNormLinear"/> result.
         /// </summary>
+        // 中文：FusedNormLinear 的写入预分配缓冲版：融合快路径成功则写入并返回 output，否则返回 null 让调用方走普通分配路径。
         private Tensor TryFusedNormLinearInto(Tensor output, Tensor input, Tensor normW, QuantizedWeight qw)
         {
             if (qw == null || normW == null
@@ -2641,6 +2685,7 @@ namespace TensorSharp.Models
         /// and one GPU sync. Returns true if the fused path executed; the caller must do its own
         /// add otherwise.
         /// </summary>
+        // 中文：把输出投影矩阵乘与残差加融合为单次 dispatch：residual += matmul(input, qW)；融合执行返回 true，否则返回 false 让调用方自行相加。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool TryLinearAddInto(Tensor residual, Tensor input, QuantizedWeight qw)
         {
@@ -2684,6 +2729,7 @@ namespace TensorSharp.Models
         /// Returns true if the device kernel was used; false to indicate the caller should
         /// fall back to the CPU SIMD attention path. Only safe for the GGML backend.
         /// </summary>
+        // 中文：单 token flash-attention 解码（仅 GGML）：把 KV 缓存追加与缩放点积注意力融合到一次设备图，K/V 直接零拷贝写入持久 KV 缓存；成功返回 true，否则回退 CPU SIMD 注意力。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool TryFlashAttnDecode(Tensor q, Tensor k, Tensor v,
             Tensor kCache, Tensor vCache, Tensor output,
@@ -2740,6 +2786,7 @@ namespace TensorSharp.Models
         ///  - the layer is shared (KV donor mapping isn't handled here yet).
         /// Caller falls back to the legacy multi-dispatch FullAttention path.
         /// </summary>
+        // 中文：把整个全注意力层的 prefill（归一化+融合QKV+QK norm+RoPE+KV缓存追加+因果softmax注意力+sigmoid门控+输出投影+残差加）折叠进一次 GGML 图就地更新 hidden；前置条件不满足时返回 false 回退到多次 dispatch 路径。
         private unsafe bool TryFusedAttnLayerPrefill(Tensor hidden, int layer, int seqLen, int startPos)
         {
             if (!IsGgmlBackend) return false;
@@ -2810,6 +2857,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：单 token 的全注意力层解码融合 kernel（仅 GGML）：把整层注意力块（归一化+融合QKV+拆分+QK norm+RoPE+KV缓存追加+flash注意力+sigmoid门控+输出投影+残差加）折叠进一次 GGML 图就地更新 residual；前置条件不满足返回 false。
         private bool TryFusedAttnLayerDecode(Tensor residual, int layer, int position)
         {
             if (!IsGgmlBackend)
@@ -2873,6 +2921,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：对每个注意力头的 Q 或 K 向量按 headDim 做 RMSNorm（QK-norm），解码用 CPU 就地路径、MLX/prefill 走设备就地路径，返回原张量。
         private Tensor ApplyQKNormCached(Tensor data, Tensor alpha, int numHeads, int seqLen)
         {
             int headDim = Config.HeadDim;
@@ -2902,6 +2951,7 @@ namespace TensorSharp.Models
         /// when <c>halfDim</c> is divisible by the hardware vector width, with a scalar
         /// tail for the remainder.
         /// </summary>
+        // 中文：解码路径下对同一 position 的 Q 与 K 一次性应用 RoPE：只算一次 cos/sin 表并对两者就地旋转（内层 SIMD 向量化）。
         private unsafe void ApplyRoPEDecodeQKInPlace(Tensor qData, Tensor kData,
             int numQHeads, int numKHeads, int position)
         {
@@ -2927,6 +2977,7 @@ namespace TensorSharp.Models
             InvalidateTensorDeviceCache(kData);
         }
 
+        // 中文：用给定 cos/sin 表对每个头的向量做 NeoX 式成对就地旋转（[head[i], head[i+halfDim]] 旋转），主循环 SIMD 向量化、尾部标量处理。
         private static unsafe void ApplyRoPERotationInPlace(float* ptr, int numHeads,
             int headDim, int halfDim, float* cosTable, float* sinTable)
         {
@@ -2958,6 +3009,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：prefill 路径下对 Q 或 K 应用标量 RoPE：按 (seqLen,startPos) 构建并跨层缓存位置张量，再调用 Ops.RoPEEx 就地旋转，返回原张量。
         private Tensor ApplyRoPEPrefill(Tensor data, int numHeads, int seqLen, int startPos)
         {
             int headDim = Config.HeadDim;
@@ -3009,6 +3061,7 @@ namespace TensorSharp.Models
         /// call. Length must equal 3 * seqLen of the upcoming Forward(). Called
         /// by ModelMultimodalInjector.QueuePromptEmbeddingsForSlice when an
         /// image is in the prompt slice.</summary>
+        // 中文：为下一次 prefill 设置按 (T,H,W) 轴展平的 MRoPE 位置数组（多模态视觉提示用），由多模态注入器在 Forward 前调用。
         public void SetMRoPEPositions(int[] flatThw)
         {
             _pendingMRoPEPositions = flatThw;
@@ -3018,6 +3071,7 @@ namespace TensorSharp.Models
         /// using vLLM's get_mrope_interleaved_id_list algorithm (see
         /// mrope_interleaved.py:138-185). Result: int[rotary_dim/2] where
         /// each entry ∈ {0=T, 1=H, 2=W}. Called lazily on first MRoPE-prefill.</summary>
+        // 中文：依据 _mropeSections 用 vLLM 的交错算法预计算每个旋转对的模态归属（int[rotary_dim/2]，值 ∈ {0=T,1=H,2=W}，并强制末位为 T），首次 MRoPE prefill 时惰性调用。
         private void PrecomputeMRoPEInterleavedIds()
         {
             int ropeDim = _ropeDimCount > 0 ? _ropeDimCount : Config.HeadDim;
@@ -3100,6 +3154,7 @@ namespace TensorSharp.Models
         /// Costs one host download + one host upload per call (Q and K each).
         /// Acceptable for prefill since it's already the slow path; not used in
         /// decode.</summary>
+        // 中文：ApplyRoPEPrefill 的多模态交错变体：每个旋转对按其模态归属取 (T,H,W) 中对应位置算角度做 NeoX 旋转，GGML 后端走 ggml_rope_multi 在设备完成、否则走主机下载/上传路径，返回原张量。
         private Tensor ApplyMRoPEPrefill(Tensor data, int numHeads, int seqLen, int[] mropePositions)
         {
             int headDim = Config.HeadDim;
@@ -3207,6 +3262,7 @@ namespace TensorSharp.Models
         /// MoEExpertsSwiGLUResidual kernel. Returns true if the fully fused path executed and
         /// `residual` already contains the updated value; false to fall back to MoEForward.
         /// </summary>
+        // 中文：单 token MoE 解码融合路径（仅 GGML）：CPU 上算路由 logits 的 top-K 与（归一化）softmax 权重，再把路由专家 SwiGLU、可选共享专家及残差加全部融合进一次 MoEExpertsSwiGLUResidual 图；成功返回 true 并就地更新 residual。
         private unsafe bool TryMoEResidualDecode(Tensor residual, Tensor input, int layer)
         {
             if (!IsGgmlBackend
@@ -3353,6 +3409,7 @@ namespace TensorSharp.Models
         /// MoE decode with pre-computed router logits (from the fused outproj+norm+router kernel).
         /// Skips the router projection dispatch since logits are already available.
         /// </summary>
+        // 中文：与 TryMoEResidualDecode 相同的 MoE 解码融合路径，但路由 logits 已由上游融合 kernel 算好直接传入，省去本层的路由投影 dispatch。
         private unsafe bool TryMoEResidualDecodeWithRouter(Tensor residual, Tensor input, Tensor routerLogits, int layer)
         {
             if (!IsGgmlBackend || _moeBatchedResult == null || _moeGatePtrs == null
@@ -3446,6 +3503,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：MLX 的 MoE prefill 批处理路径：对所有 token 路由并按专家分组，把同一专家的 token 行聚集成批做 gate/up/SiLUMul/down 矩阵乘，再按路由权重 scatter-add 回输出，最后叠加共享专家；不满足条件返回 false。
         private unsafe bool TryMoEPrefillBatchedMlx(
             Tensor input,
             Tensor output,
@@ -3601,6 +3659,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：MLX 路径把共享专家输出叠加到 output：无门控时直接相加，有门控向量时按 sigmoid(input·gateInp) 逐 token 缩放后相加；前置不满足返回 false。
         private bool TryAddSharedExpertMlx(Tensor output, Tensor input, Tensor sharedDownAll, Tensor sharedGateInpVec, int seqLen, int hiddenSize)
         {
             if (sharedDownAll == null)
@@ -3630,6 +3689,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：通用 MoE SwiGLU FFN（qwen35moe/qwen3next）：算路由 logits → top-K 专家与（归一化）权重 → 各专家 SwiGLU 加权求和 → 可选共享专家（可门控），按后端/序列长度选择设备路由、批处理或逐 token 路径，返回 FFN 输出张量。
         private unsafe Tensor MoEForward(Tensor input, int layer, int seqLen)
         {
             int hiddenSize = Config.HiddenSize;
@@ -3957,6 +4017,7 @@ namespace TensorSharp.Models
         //  - Sequential (fallback): per-expert matmul loop with the
         //    fused AddScaled accumulator. Used when no batched kernel
         //    is available for the layer's quant type.
+        // 中文：MLX 解码专用：让全部激活专家的累加保持在 GPU 上以避免逐专家主机同步——优先走批处理 kernel，否则按专家循环用复用 scratch 做 gate/up/SiLUMul/down 并 AddScaled 累加到 output。
         private void RunMoEExpertsReusedMlxOnDevice(Tensor output, Tensor tokenInput, int layer,
             int[] topExperts, float[] routeW)
         {
@@ -3991,6 +4052,7 @@ namespace TensorSharp.Models
         //      shared-expert gate, asserted by the caller).
         // Returns null on precondition failure so the caller can fall
         // through to the host-routing path.
+        // 中文：解码版 MoEForward 的设备端路由路径：在设备上算 top-K+softmax，直接用得到的设备索引/权重张量跑批处理 MoE 矩阵乘并叠加共享专家，省去对 routerLogits 的主机同步；前置不满足返回 null 让调用方回退主机路由。
         private Tensor? TryMoEForwardDeviceRouter(Tensor input, Tensor routerLogits, int layer)
         {
             int hiddenSize = Config.HiddenSize;
@@ -4077,6 +4139,7 @@ namespace TensorSharp.Models
         // Inner helper: runs the 3 batched matmuls + SiLUMul + routeW@down
         // chain assuming _moeBatchedExpertIndices and _moeBatchedRouteWeights
         // are already populated (typically by the device-router path).
+        // 中文：内层辅助：假设设备端专家索引/路由权重已就绪，跑 3 个批处理矩阵乘 + SiLUMul + routeW@down 链并把加权专家输出累加进 output（供设备路由路径调用）。
         private bool RunBatchedMoeMatmulFromDevice(Tensor output, Tensor tokenInput, int layer)
         {
             var gateW = _layerStackedGate[layer];
@@ -4120,6 +4183,7 @@ namespace TensorSharp.Models
         //  - All experts share the same (quant type, dimensions)
         // Returns false if any precondition fails so the caller falls back
         // to the sequential path.
+        // 中文：MLX 批处理 MoE 解码：上传 top-K 索引与路由权重，用堆叠专家权重一次 Metal dispatch 完成 gate/up（可融合 SiLU）/down 批处理矩阵乘，再以 routeW@down 加权累加进 output；缺少堆叠权重或 kernel 不支持时返回 false 回退顺序路径。
         private bool TryRunMoEExpertsBatchedMlx(Tensor output, Tensor tokenInput, int layer,
             int[] topExperts, float[] routeW)
         {
@@ -4233,6 +4297,7 @@ namespace TensorSharp.Models
         // mulv + addt (2 kernels). The fallback variant is destructive on
         // `src` — _moeDownBuf is rewritten next iteration by the next
         // expert's down matmul anyway, so this is safe in the decode loop.
+        // 中文：MLX 设备端就地累加 output += scalar * src（优先单融合 kernel，否则回退 mul+add 两步，回退会破坏 src），无主机往返。
         private void AddScaledTensorMlx(Tensor output, Tensor src, float scalar)
         {
             if (scalar == 0f)
@@ -4246,6 +4311,7 @@ namespace TensorSharp.Models
             Ops.Add(output, output, src);
         }
 
+        // 中文：用复用 scratch 张量跑选中专家的 SwiGLU 并按路由权重累加到 outRow：优先把全部专家的 gate/up/silu*mul/down 融合进单次 GGML 批处理图，否则逐专家 dispatch 回退。
         private unsafe void RunMoEExpertsReused(Tensor tokenInput, int layer,
             int[] topExperts, float[] routeW, float* outRow, int hiddenSize)
         {
@@ -4329,6 +4395,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：逐专家分配临时张量跑 SwiGLU（gate/up/SiLUMul/down）并按路由权重累加到 outRow 的 MoE 回退实现（不复用 scratch）。
         private unsafe void RunMoEExpertsAllocating(Tensor tokenInput, int layer,
             int[] topExperts, float[] routeW, float* outRow, int hiddenSize)
         {
@@ -4364,6 +4431,7 @@ namespace TensorSharp.Models
         /// references (kind: 0=gate, 1=up, 2=down). Used by prefill where the output rows
         /// vary per token. Returns null if the weight is missing.
         /// </summary>
+        // 中文：用缓存的专家权重（kind: 0=gate,1=up,2=down）做线性前向并分配返回结果张量（量化走 AddmmQuant，F32 走转置 Addmm），权重缺失返回 null；prefill 用。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Tensor ExpertLinearForwardAlloc(Tensor input, int layer, int expert, int kind)
         {
@@ -4403,6 +4471,7 @@ namespace TensorSharp.Models
         /// dictionary lookup that dominates the hot decode path for layer-shared weights
         /// such as MoE routers and shared expert projections.
         /// </summary>
+        // 中文：使用预解析权重引用（量化或 F32）的线性前向并分配返回结果，消除 hot 路径字典查找；两者皆空返回 null。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private Tensor LinearForwardCached(Tensor input, QuantizedWeight qw, Tensor wF32)
         {
@@ -4440,6 +4509,7 @@ namespace TensorSharp.Models
         /// Linear forward into a pre-allocated result tensor using cached expert weight
         /// references (kind: 0=gate, 1=up, 2=down). Returns false if the weight is missing.
         /// </summary>
+        // 中文：用缓存的专家权重（kind: 0=gate,1=up,2=down）做线性前向并写入预分配的 result 张量，成功返回 true，权重缺失返回 false。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool ExpertLinearForwardInto(Tensor result, Tensor input, int layer, int expert, int kind)
         {
@@ -4472,9 +4542,11 @@ namespace TensorSharp.Models
             return false;
         }
 
+        // 中文：在原地从 n 个值中选出前 k 大的下标（委托给 TensorComputePrimitives 实现），用于 MoE 路由选 top-K 专家。
         private static unsafe void SelectTopKInPlace(float* values, int n, int k, int[] indices) =>
             TensorComputePrimitives.SelectTopKInPlace(values, n, k, indices);
 
+        // 中文：为一行路由数据选 top-K 专家并计算其路由权重：输入是 logits 时按归一化或全 softmax 求权重，输入是概率时直接取（必要时归一化），结果写入 topExperts/routeWeights。
         private unsafe void SelectTopKRouteWeights(float* routeRow, bool routeRowIsLogits, int[] topExperts, float[] routeWeights)
         {
             SelectTopKInPlace(routeRow, _numExperts, _numExpertsUsed, topExperts);
@@ -4542,12 +4614,14 @@ namespace TensorSharp.Models
 
         #region Vision Support
 
+        // 中文：从 mmproj 文件加载 Qwen3.5 视觉编码器并将本模型设为其宿主，启用多模态（图像）输入。
         public void LoadVisionEncoder(string mmProjPath)
         {
             VisionEncoder = new Qwen35VisionEncoder(mmProjPath, _allocator);
             VisionEncoder.SetHostModel(this);
         }
 
+        // 中文：将一批视觉嵌入及其起始位置入队，等下一次 Forward 时注入到对应 image_pad token 位置。
         public void SetVisionEmbeddings(Tensor visionEmbeddings, int startPosition)
         {
             _visionEmbeddingsList.Add((visionEmbeddings, startPosition));
@@ -4556,6 +4630,7 @@ namespace TensorSharp.Models
         /// <summary>
         /// Inject vision embeddings into text embeddings at the image_pad token positions.
         /// </summary>
+        // 中文：把已入队的各批视觉嵌入按其起始位置 memcpy 覆盖到文本嵌入张量对应的 image_pad token 行（维度/越界不符则跳过并告警），随后清空队列并释放视觉张量。
         private unsafe void InjectVisionEmbeddings(Tensor textEmbeddings, int seqLen)
         {
             if (_visionEmbeddingsList.Count == 0)
@@ -4598,6 +4673,7 @@ namespace TensorSharp.Models
 
         #endregion
 
+        // 中文：打印推理计时统计：MLX 后端打印 linear/attention/norm/eval 等各阶段毫秒占比，其它后端走基类统计，并附带 GDN、prefill、decode 各阶段的细分计时。
         public override void PrintTimingStats()
         {
             if (_backend == BackendType.Mlx && _forwardCount > 0)
@@ -4645,6 +4721,7 @@ namespace TensorSharp.Models
             PrintDecodeStageStats();
         }
 
+        // 中文：当启用解码分阶段 profiling 时，打印每 token 的注意力块与循环块解码耗时（需 QWEN35_DECODE_PROFILE=1）。
         private void PrintDecodeStageStats()
         {
             if (!_profileDecodeStages || _decodeForwardCount == 0)
@@ -4658,6 +4735,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"  Recurrent blocks: {recMs:F0} ms total ({recMs / cnt:F2} ms/token)");
         }
 
+        // 中文：当启用 prefill 分阶段 profiling 时，打印嵌入、注意力块（QKV/拆分/QK-norm/RoPE/缓存/注意力计算/门控/输出/FFN 等细项）、循环块及最终 norm+LM head 的耗时占比（需 QWEN35_PREFILL_PROFILE=1）。
         private void PrintPrefillStageStats()
         {
             if (!_profilePrefillStages || _prefillTokenCount == 0)
@@ -4710,6 +4788,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"  Final norm + LM head:       {lmHeadMs,8:F0} ms ({100 * lmHeadMs / total,5:F1}%)");
         }
 
+        // 中文：释放模型资源：视觉编码器与挂起视觉嵌入、各层 KV/MLX 注意力缓存、GDN 状态、所有 MoE 与注意力解码 scratch 张量，最后调用基类释放。
         public override void Dispose()
         {
             VisionEncoder?.Dispose();

@@ -88,8 +88,10 @@ namespace TensorSharp.Models
         /// <summary>Attach the model that owns this encoder so the per-block
         /// loop in <see cref="Encode"/> can yield the GPU compute lock between
         /// blocks. Set once after construction.</summary>
+        // 中文：设置宿主模型引用，使逐块编码循环可在块之间让出 GPU 计算锁。
         public void SetHostModel(ModelBase model) => _hostModel = model;
 
+        // 中文：构造函数，从 mmproj GGUF 文件读取视觉编码器超参数并加载权重。
         public Gemma4VisionEncoder(string mmProjPath, IAllocator allocator)
         {
             _allocator = allocator;
@@ -121,6 +123,7 @@ namespace TensorSharp.Models
             gguf.Dispose();
         }
 
+        // 中文：从 GGUF 中加载所有视觉相关张量（反量化为 F32），并解析线性层的钳位参数。
         private void LoadWeights(GgufFile gguf)
         {
             Console.Write("Loading vision encoder weights...");
@@ -177,6 +180,7 @@ namespace TensorSharp.Models
             Console.WriteLine($" done ({count} tensors, {_clampParams.Count} clampable linears)");
         }
 
+        // 中文：编码入口；对 SigLIP 路径执行 patch 嵌入、位置嵌入、逐 Transformer 块编码后池化投影。
         public unsafe Tensor Encode(float[] pixelValues, int imgWidth, int imgHeight)
         {
             if (_isUnified)
@@ -223,6 +227,7 @@ namespace TensorSharp.Models
         ///   -> unweighted RMSNorm -> linear projection to the text embedding dim.
         /// There are no transformer blocks (clip.vision.block_count == 0).
         /// </summary>
+        // 中文：统一视觉嵌入器（gemma4uv）的无 Transformer 块编码路径：im2col→多次 LayerNorm→位置嵌入→RMSNorm→线性投影。
         private unsafe Tensor EncodeUnified(float[] pixelValues, int imgWidth, int imgHeight)
         {
             // The unified variant folds the n_merge "token merging" directly into
@@ -293,6 +298,7 @@ namespace TensorSharp.Models
             return projected;
         }
 
+        // 中文：将偏置向量按行就地加到张量的每一行上。
         private unsafe void AddBiasInPlace(Tensor t, Tensor bias, int rows, int cols)
         {
             float* p = GetFloatPtr(t);
@@ -305,6 +311,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：为统一嵌入器加上学习到的 2D（x、y 各一张查找表）位置嵌入。
         private unsafe void AddUnifiedPositionEmbedding(Tensor hidden, int patchesX, int numPatches)
         {
             // v.position_embd.weight is stored as two stacked lookup tables
@@ -329,6 +336,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：图像 patch 嵌入；用卷积权重将每个像素 patch 投影为隐藏维向量（等价于 Conv2D）。
         private unsafe Tensor PatchEmbed(float[] pixelValues, int imgW, int imgH, int patchesX, int patchesY)
         {
             int numPatches = patchesX * patchesY;
@@ -372,6 +380,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：为 SigLIP 路径按缓存的 PosX/PosY 加上学习到的 2D 位置嵌入。
         private unsafe void AddPositionEmbedding2D(Tensor hidden, Rope2DCache ropeCache, int numPatches)
         {
             var posEmbd = _weights["v.position_embd.weight"];
@@ -391,6 +400,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：单个 Transformer 编码器块：自注意力 + MLP，配合各自的前/后 RMSNorm 与残差连接。
         private Tensor EncoderBlock(Tensor hidden, int blockIdx, int numPatches, int headDim,
             Rope2DCache ropeCache)
         {
@@ -418,6 +428,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：视觉多头自注意力；含 Q/K/V 投影、逐头 RMSNorm、2D RoPE 与缩放点积注意力。
         private unsafe Tensor VisionSelfAttention(Tensor input, string prefix, int numPatches, int headDim,
             Rope2DCache ropeCache)
         {
@@ -475,6 +486,7 @@ namespace TensorSharp.Models
             return ClippableLinear(flatContig, $"{prefix}.attn_out");
         }
 
+        // 中文：对 Q/K 应用 2D 旋转位置编码（前半维按 x、后半维按 y 分别旋转）。
         private unsafe void Apply2DRoPE(Tensor data, Rope2DCache ropeCache, int numPatches, int headDim)
         {
             float* ptr = GetFloatPtr(data);
@@ -510,6 +522,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：对每个注意力头按 headDim 维度施加带权 RMSNorm。
         private void ApplyPerHeadRMSNorm(Tensor data, Tensor normWeight, int numPatches, int headDim)
         {
             int total = _numHeads * numPatches;
@@ -517,6 +530,7 @@ namespace TensorSharp.Models
             Ops.RMSNorm(reshaped, reshaped, normWeight, null, _eps);
         }
 
+        // 中文：施加无权重（gamma=1）的 RMSNorm，按需复用全 1 的归一化向量缓存。
         private void ApplyUnweightedRMSNorm(Tensor data, int numVectors, int dim)
         {
             if (_onesForNorm == null || (int)_onesForNorm.Sizes[0] != dim)
@@ -529,6 +543,7 @@ namespace TensorSharp.Models
             Ops.RMSNorm(reshaped, reshaped, _onesForNorm, null, _eps);
         }
 
+        // 中文：视觉前馈网络（MLP）；门控/上投影后用 QuickGELU 激活相乘，再做下投影。
         private unsafe Tensor VisionMLP(Tensor input, string prefix)
         {
             var gate = ClippableLinear(input, $"{prefix}.ffn_gate");
@@ -543,6 +558,7 @@ namespace TensorSharp.Models
             return down;
         }
 
+        // 中文：就地计算 QuickGELU(gate)=gate*sigmoid(1.702*gate) 并与 up 相乘。
         private void ApplyQuickGELUMul(Tensor gate, Tensor up)
         {
             // QuickGELU(x) * up = x * sigmoid(1.702 * x) * up
@@ -551,6 +567,7 @@ namespace TensorSharp.Models
             Ops.Mul(gate, gate, up);
         }
 
+        // 中文：可钳位的线性层；按需对输入/输出执行 min-max 钳位后做矩阵乘。
         private unsafe Tensor ClippableLinear(Tensor input, string prefix)
         {
             string weightName = $"{prefix}.weight";
@@ -577,6 +594,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：将张量所有元素就地钳位到 [min, max] 区间。
         private unsafe void Clamp(Tensor t, float min, float max)
         {
             float* ptr = GetFloatPtr(t);
@@ -588,6 +606,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：按 nMerge 网格平均池化合并 patch，缩放并标准化后投影到文本嵌入维并 RMSNorm。
         private unsafe Tensor PoolAndProject(Tensor visionOutput, int patchesX, int patchesY, int numPatches)
         {
             int mergedX = patchesX / _nMerge;
@@ -652,6 +671,7 @@ namespace TensorSharp.Models
             return projected;
         }
 
+        // 中文：多模态投影；用指定权重将视觉特征线性投影到文本嵌入维度。
         private Tensor LinearProjection(Tensor input, string weightName)
         {
             var weight = _weights[weightName];
@@ -663,12 +683,14 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：用命名权重对输入施加带权 RMSNorm 并返回新张量。
         private Tensor RMSNormOp(Tensor input, string weightName)
         {
             var alpha = _weights[weightName];
             return Ops.RMSNorm(null, input, alpha, null, _eps);
         }
 
+        // 中文：用给定数据和形状创建 Int32 张量。
         private Tensor CreateIntTensor(int[] data, params long[] sizes)
         {
             var tensor = new Tensor(_allocator, DType.Int32, sizes);
@@ -676,9 +698,11 @@ namespace TensorSharp.Models
             return tensor;
         }
 
+        // 中文：获取张量底层 float 数据的原始指针。
         private static unsafe float* GetFloatPtr(Tensor t) =>
             TensorComputePrimitives.GetFloatPointer(t);
 
+        // 中文：返回权重的转置版本（用于矩阵乘），带缓存避免重复转置。
         private Tensor GetOrCreateTransposedWeight(string weightName)
         {
             if (_transposedWeights.TryGetValue(weightName, out var transposed))
@@ -690,6 +714,7 @@ namespace TensorSharp.Models
             return transposed;
         }
 
+        // 中文：按图像 patch 网格尺寸预计算并缓存 2D RoPE 的位置坐标与正余弦表。
         private Rope2DCache GetOrCreateRopeCache(int patchesX, int patchesY, int headDim)
         {
             long key = ((long)patchesX << 32) | (uint)patchesY;
@@ -742,6 +767,7 @@ namespace TensorSharp.Models
             return cache;
         }
 
+        // 中文：释放所有权重、转置权重缓存、归一化缓存与 RoPE 缓存等非托管资源。
         public void Dispose()
         {
             _onesForNorm?.Dispose();

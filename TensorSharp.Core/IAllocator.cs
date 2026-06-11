@@ -7,6 +7,11 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】内存分配器接口与 BLAS 后端枚举。
+// 【主要类型】IAllocator：各计算后端通过它分配 Storage（张量内存）；
+//             BlasEnum：可选的底层线性代数库（DotNet / MKL / CUDA 等）。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp
 {
     public enum BlasEnum

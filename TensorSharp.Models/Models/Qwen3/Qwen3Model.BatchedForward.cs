@@ -41,6 +41,7 @@ namespace TensorSharp.Models
         private int _pagedNumBlocks;
         private int _pagedBlockSize;
 
+        // 中文：连续批处理分页注意力前向主入口，将多序列 token 打包后按层执行 RMSNorm/QKV 投影/QK-Norm/RoPE，把 K/V 按 slot 映射散写入分页缓冲并按序列做分页注意力，最后取每序列末 token 过 LM head 返回各序列 logits。
         public IReadOnlyList<float[]> ForwardBatch(BatchedForwardContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
@@ -216,6 +217,7 @@ namespace TensorSharp.Models
 
         /// <summary>Per-head RMSNorm over a batched [numTokens, dim] buffer.
         /// dim = numHeads * headDim.</summary>
+        // 中文：对批量 [numTokens, dim] 张量按头做 QK-Norm（逐头 RMSNorm），先重塑成 [numTokens*numHeads, headDim] 归一化再还原形状。
         private Tensor ApplyQKNormBatched(Tensor data, string weightName, int numTokens, int numHeads, int headDim)
         {
             using var reshaped = data.View(numTokens * numHeads, headDim);
@@ -229,6 +231,7 @@ namespace TensorSharp.Models
 
         /// <summary>Apply Qwen3's RoPE flavour with arbitrary per-token positions.
         /// </summary>
+        // 中文：以任意逐 token 位置张量对 Q/K 施加 Qwen3 风格 RoPE 位置编码，通过 Ops.RoPEEx 完成并还原为扁平形状。
         private Tensor ApplyBatchedRoPE(Tensor data, Tensor positionsTensor, int numTokens, int numHeads, int headDim)
         {
             using var reshaped = data.View(1, numTokens, numHeads, headDim);
@@ -244,6 +247,7 @@ namespace TensorSharp.Models
 
         /// <summary>Build the positions tensor for <see cref="Ops.RoPEEx"/>: one
         /// integer per (token, head) row.</summary>
+        // 中文：构建 RoPEEx 所需的位置张量，将每 token 位置在各头上复制展开为每 (token, head) 一个整数。
         private Tensor BuildRoPEPositionsTensor(int[] tokenPositions, int numHeads)
         {
             int total = tokenPositions.Length * numHeads;
@@ -254,6 +258,7 @@ namespace TensorSharp.Models
             return CreateIntTensor(expanded, total);
         }
 
+        // 中文：按需分配/扩容各层分页 K/V 缓冲（容量翻倍以减少重分配），扩容时务必复制已写入的 K/V 数据以保证跨调度步的序列续写不被清零。
         private void EnsurePagedBuffersAllocated(int numBlocks, int blockSize, int numKvHeads, int headDim)
         {
             if (_pagedK != null && _pagedNumBlocks >= numBlocks && _pagedBlockSize == blockSize)

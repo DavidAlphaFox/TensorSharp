@@ -33,6 +33,7 @@ namespace TensorSharp.Models
         private readonly bool _useNativeAttention;
         // Cooperative GpuComputeLock yielding (see Gemma4VisionEncoder).
         private ModelBase _hostModel;
+        // 中文：设置宿主模型，用于在编码过程中协作式让出 GPU 计算锁。
         public void SetHostModel(ModelBase model) => _hostModel = model;
 
         private readonly int _imageSize;
@@ -52,6 +53,7 @@ namespace TensorSharp.Models
         public int SpatialMergeSize => _spatialMergeSize;
         public int ImageSize => _imageSize;
 
+        // 中文：构造函数，从 GGUF (mmproj) 文件读取视觉编码器的超参配置（图像/patch 尺寸、隐藏维度、注意力头数、层数、RoPE 基频、空间合并尺寸等）并加载权重。
         public Mistral3VisionEncoder(string mmProjPath, IAllocator allocator)
         {
             _allocator = allocator;
@@ -84,6 +86,7 @@ namespace TensorSharp.Models
             gguf.Dispose();
         }
 
+        // 中文：从 GGUF 文件遍历加载所有张量权重，按需反量化为 Float32，并将 GGUF 的 shape 反转为 TensorSharp 的 shape 后存入字典。
         private void LoadWeights(GgufFile gguf)
         {
             Console.Write("Loading Mistral3 vision encoder weights...");
@@ -137,6 +140,7 @@ namespace TensorSharp.Models
         /// Input: normalized pixel data, image dimensions.
         /// Output: Tensor of shape [numOutputTokens, textHiddenSize].
         /// </summary>
+        // 中文：视觉编码主流程——patch 嵌入 → 编码器 RMSNorm → 计算 2D RoPE → 逐层 Transformer 编码 → 多模态投影，输出可供文本模型使用的视觉 token 嵌入。
         public unsafe Tensor Encode(float[] pixelValues, int imageWidth, int imageHeight)
         {
             int numPatchesW = imageWidth / _patchSize;
@@ -174,6 +178,7 @@ namespace TensorSharp.Models
             return projected;
         }
 
+        // 中文：patch 嵌入，用 Conv2D（卷积核=patch 大小、步长=patch 大小）将每个图像 patch 的 RGB 像素投影为 hiddenSize 维向量，输出 [numPatches, hiddenSize]。
         private unsafe Tensor PatchEmbed(float[] pixelValues, int imgW, int imgH,
             int patchesW, int patchesH)
         {
@@ -226,6 +231,7 @@ namespace TensorSharp.Models
         /// Compute 2D RoPE embeddings for the vision transformer.
         /// Returns (cos, sin) tensors of shape [headDim, 1, numPatches].
         /// </summary>
+        // 中文：计算视觉 Transformer 的 2D RoPE 位置编码，按 patch 的高/宽坐标分别生成频率，组合后输出 cos/sin 张量 [numPatches,1,headDim]。
         private (Tensor cos, Tensor sin) Compute2DRoPE(int patchesW, int patchesH)
         {
             int maxPatchesPerSide = _imageSize / _patchSize;
@@ -285,6 +291,7 @@ namespace TensorSharp.Models
             return (cosTensor, sinTensor);
         }
 
+        // 中文：单个 Transformer 编码器层，执行 RMSNorm→自注意力→残差，再 RMSNorm→SiLU 门控 MLP→残差（前归一化结构）。
         private Tensor EncoderBlock(Tensor hidden, int blockIdx, int numPatches,
             Tensor cos, Tensor sin)
         {
@@ -305,6 +312,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：视觉多头自注意力，计算 Q/K/V 并对 Q/K 施加 2D RoPE，按是否支持原生算子走 SDPA 或手动 Softmax(QK^T·scale)·V 路径，最后经输出投影返回。
         private unsafe Tensor VisionSelfAttention(Tensor input, string prefix, int numPatches,
             Tensor cos, Tensor sin)
         {
@@ -366,6 +374,7 @@ namespace TensorSharp.Models
         /// Apply rotary position embeddings (2D RoPE) for vision.
         /// Uses rotate_half style: [-x1, x0] * sin + [x0, x1] * cos
         /// </summary>
+        // 中文：对输入 [numPatches,numHeads,headDim] 逐头逐位置施加 rotate_half 式旋转位置编码，用预计算的 cos/sin 旋转前后两半维度。
         private unsafe Tensor ApplyVisionRoPE(Tensor input, Tensor cos, Tensor sin, int numPatches)
         {
             // input: [numPatches, numHeads, headDim]
@@ -401,6 +410,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：视觉前馈网络（SiLU 门控 MLP），计算 down(SiLU(gate(x)) * up(x))。
         private Tensor VisionMLP(Tensor input, string prefix)
         {
             using var gate = LinearForward(input, $"{prefix}.ffn_gate.weight");
@@ -413,6 +423,7 @@ namespace TensorSharp.Models
         /// Multi-modal projector: vision → text space.
         /// Steps: RMSNorm → PatchMerger → Linear1 → GELU → Linear2
         /// </summary>
+        // 中文：多模态投影器，将视觉特征映射到文本空间——RMSNorm → 按 spatialMergeSize 空间合并相邻 patch → 合并线性层 → Linear1 → GELU → Linear2。
         private unsafe Tensor MultiModalProject(Tensor visionOutput, int patchesW, int patchesH)
         {
             int numPatches = patchesW * patchesH;
@@ -470,6 +481,7 @@ namespace TensorSharp.Models
             return proj2;
         }
 
+        // 中文：RMSNorm 归一化封装，若权重不存在则直接返回输入的连续副本，否则用指定权重执行 RMSNorm。
         private Tensor RMSNormOp(Tensor input, string weightName)
         {
             if (!_weights.ContainsKey(weightName))
@@ -477,6 +489,7 @@ namespace TensorSharp.Models
             return Ops.RMSNorm(null, input, _weights[weightName], null, _eps);
         }
 
+        // 中文：无偏置线性层前向，必要时先令输入连续，再用预转置的权重做矩阵乘 (input × Wᵀ)，权重缺失时返回 null。
         private Tensor LinearForward(Tensor input, string weightName)
         {
             if (!_weights.ContainsKey(weightName))
@@ -496,6 +509,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：获取或惰性创建并缓存权重的转置连续副本，供线性层矩阵乘复用。
         private Tensor GetOrCreateTransposedWeight(string weightName)
         {
             if (_transposedWeights.TryGetValue(weightName, out var transposed))
@@ -507,9 +521,11 @@ namespace TensorSharp.Models
             return transposed;
         }
 
+        // 中文：获取张量底层 Float32 数据的原始指针，供非托管循环直接读写。
         private static unsafe float* GetFloatPtr(Tensor t) =>
             TensorComputePrimitives.GetFloatPointer(t);
 
+        // 中文：释放所有持有的张量资源（转置权重缓存、原始权重、量化权重）并清空对应字典。
         public void Dispose()
         {
             foreach (var w in _transposedWeights.Values)

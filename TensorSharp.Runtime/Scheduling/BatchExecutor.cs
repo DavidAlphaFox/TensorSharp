@@ -11,6 +11,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using TensorSharp.Runtime.Paged;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】批执行器——真正驱动模型前向的执行单元。
+// 【主要类型】BatchExecutor：执行调度器决定的工作，维护「KV 状态归属」不变式：
+//             任一时刻模型 KV 张量只持有一个序列的状态，切换序列时把旧状态抽取到分页块、
+//             再从分页块注入新序列状态（未来支持多序列共享 KV 的批量分页注意力路径）。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Runtime.Scheduling
 {
     /// <summary>

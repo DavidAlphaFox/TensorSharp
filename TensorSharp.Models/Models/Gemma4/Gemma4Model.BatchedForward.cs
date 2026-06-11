@@ -52,6 +52,7 @@ namespace TensorSharp.Models
         private int _g4PagedBlockSize;
         private int[] _g4PagedKvDimPerLayer; // num_kv_heads * head_dim per layer
 
+        // 中文：批量前向入口；校验上下文，MLX 后端时整批折叠进单次 worker 调用以省队列开销，否则直接调用 ForwardBatchCore。
         public IReadOnlyList<float[]> ForwardBatch(BatchedForwardContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
@@ -67,6 +68,7 @@ namespace TensorSharp.Models
             return ForwardBatchCore(ctx);
         }
 
+        // 中文：批量分页注意力前向核心实现；拒绝 MoE/共享 KV/Q8_0 等不支持场景，准备 slot mapping/block table/位置等元数据，逐层执行 QKV 投影+各类 RMSNorm+NeoX RoPE+分页注意力+FFN+PLE 注入，最后做 final norm、取每序列末 token 经 LM head 得到各序列 logits。
         private IReadOnlyList<float[]> ForwardBatchCore(BatchedForwardContext ctx)
         {
             int numSeqs = ctx.Sequences.Count;
@@ -374,6 +376,7 @@ namespace TensorSharp.Models
             return perSeq;
         }
 
+        // 中文：按头（headwise）对 Q/K 做 RMSNorm；将张量视为 [numTokens*numHeads, hd] 归一化后再还原形状，释放输入张量。
         private Tensor ApplyHeadwiseRMSNorm(Tensor data, string weightName, int numHeads, int numTokens, int hd)
         {
             using var reshaped = data.View(numTokens * numHeads, hd);
@@ -385,6 +388,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：对批量 Q/K 施加 NeoX 风格 RoPE（mode=2）；全局层在 GGML 后端用 freq_factors 做按维频率缩放，其它后端回退到 Ops.RoPEEx（无缩放）。
         private Tensor ApplyBatchedRoPENeoX(
             Tensor data, Tensor positionsTensor,
             int numTokens, int numHeads, int hd, int ropeDims, float ropeBase,
@@ -417,9 +421,11 @@ namespace TensorSharp.Models
             return data;
         }
 
+        // 中文：诊断用，计算张量校验和（委托给 DiagChecksum），用于逐层比对数值正确性。
         private static string TensorChecksum(Tensor t, string label)
             => DiagChecksum(t, label);
 
+        // 中文：构建 RoPE 位置张量；将每 token 的位置按头数 numHeads 复制展开，生成 int 位置张量供 RoPE 使用。
         private Tensor BuildRoPEPositionsTensor(int[] tokenPositions, int numHeads)
         {
             int total = tokenPositions.Length * numHeads;
@@ -430,6 +436,7 @@ namespace TensorSharp.Models
             return CreateIntTensor(expanded, total);
         }
 
+        // 中文：将各序列的二维 block table 摊平为一维数组，并返回每序列在该数组中的起始偏移，供 native 分页注意力按序列索引块表。
         private static (int[] flat, int[] offsets) FlattenBlockTables(int[][] tables)
         {
             int total = 0;
@@ -452,6 +459,7 @@ namespace TensorSharp.Models
         /// batched path already rejects Q8_0 KV cache anyway, so we don't
         /// claim migration support in that case.
         /// </summary>
+        // 中文：是否支持将序列 K/V 历史从旧线性缓存迁移到分页存储；要求线性 K/V 缓存存在且非块量化（Q8_0）。
         public bool SupportsLinearKVMigration =>
             _kvCacheK != null && _kvCacheV != null && !_kvCacheDtype.IsBlockQuantized();
 
@@ -481,6 +489,7 @@ namespace TensorSharp.Models
         /// anyway, so leaving their paged slots untouched (zero-initialised)
         /// is correct.
         /// </summary>
+        // 中文：将 owner 序列的 K/V 历史从线性逐层缓存逐 token 拷入分页缓冲；按 BlockTable 计算 slot 位置，处理 F32/F16 反量化、donor 别名层跳过，SWA 局部层仅迁移滑窗内可恢复的位置。
         public bool TryMigrateLinearKVToPaged(SequenceState owner, int blockSize)
         {
             if (owner == null) return false;
@@ -577,6 +586,7 @@ namespace TensorSharp.Models
         /// F16 (dequant via F16ToF32). Returns false for any other dtype —
         /// quantised caches (Q8_0) are filtered out earlier by
         /// SupportsLinearKVMigration so this path doesn't see them.</summary>
+        // 中文：将线性 KV 缓存张量读入新建的 F32 数组；F32 零拷贝，F16 经 F16ToF32 反量化，其它 dtype 返回 false。
         private static unsafe bool TryReadCacheAsF32(Tensor cache, int totalElems, out float[] flat)
         {
             if (cache.ElementType == DType.Float32)
@@ -598,6 +608,7 @@ namespace TensorSharp.Models
             return false;
         }
 
+        // 中文：按需（重新）分配每层分页 K/V 缓冲；扩容时保留已有数据避免清零导致 token 退化，非 donor 层按各自 head_dim*num_kv_heads 分配，donor 接收层别名到目标层缓冲。
         private void EnsureGemma4PagedBuffers(int numBlocks, int blockSize, int numLayers)
         {
             bool needRebuild = _g4PagedK == null ||

@@ -22,6 +22,7 @@ namespace TensorSharp.Models
         private readonly bool _useNativeAttention;
         // Cooperative GpuComputeLock yielding (see Gemma4VisionEncoder).
         private ModelBase _hostModel;
+        // 中文：设置宿主模型引用，用于在编码过程中协作式让出 GPU 计算锁。
         public void SetHostModel(ModelBase model) => _hostModel = model;
 
         private readonly int _imageSize;
@@ -37,6 +38,7 @@ namespace TensorSharp.Models
         public int ProjectionDim => _projectionDim;
         public int TokensPerImage => _tokensPerImage;
 
+        // 中文：构造函数，从 mmproj GGUF 文件读取视觉编码器超参数（图像/patch 尺寸、隐藏维度、头数、层数等）并加载权重。
         public Gemma3VisionEncoder(string mmProjPath, IAllocator allocator)
         {
             _allocator = allocator;
@@ -61,6 +63,7 @@ namespace TensorSharp.Models
             gguf.Dispose();
         }
 
+        // 中文：从 GGUF 文件读取所有视觉权重张量，按需反量化为 Float32，并将 GGUF 维度顺序反转为 TensorSharp 形状后存入权重字典。
         private void LoadWeights(GgufFile gguf)
         {
             Console.Write("Loading vision encoder weights...");
@@ -103,6 +106,7 @@ namespace TensorSharp.Models
         /// Input: pixelValues float array of shape [channels * imageSize * imageSize] normalized.
         /// Output: Tensor of shape [tokensPerImage, projectionDim].
         /// </summary>
+        // 中文：完整前向流程，将归一化像素编码为视觉嵌入：patch 嵌入→位置嵌入→逐层 Transformer 编码→后置 LayerNorm→多模态投影。
         public unsafe Tensor Encode(float[] pixelValues)
         {
             int numPatches = (_imageSize / _patchSize) * (_imageSize / _patchSize);
@@ -144,6 +148,7 @@ namespace TensorSharp.Models
         /// Conv2D patch embedding: [3, imageSize, imageSize] -> [numPatches, hiddenSize]
         /// Uses the v.patch_embd.weight [patchSize, patchSize, 3, hiddenSize] convolution kernel.
         /// </summary>
+        // 中文：以 Conv2D 卷积核手工实现 patch 嵌入，将图像逐 patch 卷积投影为 [numPatches, hiddenSize] 的 token 序列。
         private unsafe Tensor PatchEmbed(float[] pixelValues, int patchesPerSide)
         {
             int numPatches = patchesPerSide * patchesPerSide;
@@ -193,12 +198,14 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：将可学习的位置嵌入逐元素加到 patch token 序列上（原地相加）。
         private void AddPositionEmbedding(Tensor hidden)
         {
             var posEmbd = _weights["v.position_embd.weight"];
             Ops.Add(hidden, hidden, posEmbd);
         }
 
+        // 中文：单个 Transformer 编码层，执行 pre-LN 自注意力残差与 pre-LN MLP 残差（LN1→注意力→残差→LN2→MLP→残差）。
         private Tensor EncoderBlock(Tensor hidden, int blockIdx, int numPatches, int headDim)
         {
             string prefix = $"v.blk.{blockIdx}";
@@ -220,6 +227,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：视觉多头自注意力，计算 Q/K/V 并做缩放点积注意力（原生路径或手工 batched matmul+softmax），最后经输出投影。
         private Tensor VisionSelfAttention(Tensor input, string prefix, int numPatches, int headDim)
         {
             using var q = LinearForwardWithBias(input, $"{prefix}.attn_q.weight", $"{prefix}.attn_q.bias");
@@ -266,6 +274,7 @@ namespace TensorSharp.Models
             return LinearForwardWithBias(flatContig, $"{prefix}.attn_out.weight", $"{prefix}.attn_out.bias");
         }
 
+        // 中文：视觉前馈网络（MLP），先经 ffn_down 升维、GELU 激活，再经 ffn_up 投影回隐藏维度。
         private Tensor VisionMLP(Tensor input, string prefix)
         {
             using var fc1Out = LinearForwardWithBias(input, $"{prefix}.ffn_down.weight", $"{prefix}.ffn_down.bias");
@@ -277,6 +286,7 @@ namespace TensorSharp.Models
         /// Multi-modal projector: vision output → text space.
         /// Steps: reshape to 2D grid → average pool → RMSNorm → linear projection.
         /// </summary>
+        // 中文：多模态投影器，将视觉输出重排为 2D 网格做平均池化下采样，再经 RMSNorm 与线性投影映射到文本嵌入空间。
         private unsafe Tensor MultiModalProject(Tensor visionOutput, int patchesPerSide, int numPatches)
         {
             int kernelSize = patchesPerSide / (int)MathF.Sqrt(_tokensPerImage);
@@ -332,6 +342,7 @@ namespace TensorSharp.Models
         /// In Ollama, this weight is transposed before Mulmat (GGML convention), which
         /// effectively computes y = x @ W where W has TensorSharp shape [hiddenSize, projDim].
         /// </summary>
+        // 中文：无偏置线性投影 y = x @ W（不转置权重），用于多模态输入投影。
         private Tensor LinearProjection(Tensor input, string weightName)
         {
             var weight = _weights[weightName];
@@ -343,6 +354,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：带偏置的线性层前向，使用缓存的转置权重做矩阵乘，必要时先令输入连续，最后加偏置。
         private unsafe Tensor LinearForwardWithBias(Tensor input, string weightName, string biasName)
         {
             var weight = _weights[weightName];
@@ -363,17 +375,20 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：按权重名取出 gamma/beta 参数，对输入执行带偏置的 LayerNorm 归一化。
         private Tensor LayerNormOp(Tensor input, string weightName, string biasName)
         {
             _weights.TryGetValue(biasName, out var bias);
             return Ops.LayerNorm(null, input, _weights[weightName], bias, _eps);
         }
 
+        // 中文：对输入执行无偏置的 RMSNorm 归一化（多模态投影前使用）。
         private Tensor RMSNormOp(Tensor input, string weightName)
         {
             return Ops.RMSNorm(null, input, _weights[weightName], null, _eps);
         }
 
+        // 中文：调试辅助，打印张量首行/末行的前若干元素及其 L2 范数，用于核对中间激活值。
         private unsafe void DumpTensor(Tensor t, string label, int numRows)
         {
             float* ptr = GetFloatPtr(t);
@@ -390,9 +405,11 @@ namespace TensorSharp.Models
             Console.WriteLine($"] norm0={MathF.Sqrt(norm0):F4} normLast={MathF.Sqrt(normLast):F4}");
         }
 
+        // 中文：获取张量底层 Float32 数据的原始指针，用于手工逐元素计算。
         private static unsafe float* GetFloatPtr(Tensor t) =>
             TensorComputePrimitives.GetFloatPointer(t);
 
+        // 中文：惰性获取并缓存权重的连续转置版本，避免每次线性层前向重复转置。
         private Tensor GetOrCreateTransposedWeight(string weightName)
         {
             if (_transposedWeights.TryGetValue(weightName, out var transposed))
@@ -404,6 +421,7 @@ namespace TensorSharp.Models
             return transposed;
         }
 
+        // 中文：释放所有缓存的转置权重与原始权重张量并清空字典，回收资源。
         public void Dispose()
         {
             foreach (var w in _transposedWeights.Values)

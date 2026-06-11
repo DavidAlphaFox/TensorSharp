@@ -42,6 +42,7 @@ namespace TensorSharp.Models
         // Override via TS_MLX_EVAL_EVERY_N_LAYERS. GptOss has 24 layers; eval=16
         // means one boundary at layer 16.
         private static readonly int MlxEvalEveryNLayers = ResolveMlxEvalEveryNLayers();
+        // 中文：从环境变量 TS_MLX_EVAL_EVERY_N_LAYERS 解析 MLX 惰性图每隔多少层强制求值一次（默认 16）。
         private static int ResolveMlxEvalEveryNLayers()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_EVAL_EVERY_N_LAYERS");
@@ -58,6 +59,7 @@ namespace TensorSharp.Models
         // path scales linearly with kvLen on the multi-GB cache download.
         // Override via TS_MLX_SINKS_ATTN_MIN_KV_LEN if a workload regresses.
         private static readonly int MlxSinksAttnMinKvLen = ResolveMlxSinksAttnMinKvLen();
+        // 中文：从环境变量 TS_MLX_SINKS_ATTN_MIN_KV_LEN 解析启用 MLX 设备端带 sinks 解码注意力的最小 KV 长度（默认 1，即始终启用）。
         private static int ResolveMlxSinksAttnMinKvLen()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_SINKS_ATTN_MIN_KV_LEN");
@@ -122,6 +124,7 @@ namespace TensorSharp.Models
         private float[][] _layerDownBiasStacked;    // shape [hidden_dim * num_experts] per layer
         private int _layerStackedReady;             // 1 once InitMoeStackedWeights has run
 
+        // 中文：构造函数，从 GGUF 文件加载 GPT OSS（MoE）模型：解析架构/MoE/滑动窗口等配置与分词器，加载并融合权重（专家 Gate+Up、QKV），初始化 KV 缓存与各类预计算常量。
         public GptOssModel(string ggufPath, BackendType backend)
             : base(ggufPath, backend)
         {
@@ -170,6 +173,7 @@ namespace TensorSharp.Models
         // collapses them. Returns float[layer][expert*biasDim + d]. Caller is
         // responsible for dimension consistency. Returns null if no biases found
         // for the first layer (some MoE models don't ship gate/up biases).
+        // 中文：在专家 Gate/Up 权重融合销毁原始偏置之前，按 [层][专家*biasDim+d] 快照每个专家的偏置数组，供后续构建融合 MoE 内核所需的按专家堆叠偏置表（无偏置时返回 null）。
         private float[][] SnapshotPerExpertBiases(string kind, int biasDim)
         {
             int numLayers = Config.NumLayers;
@@ -201,6 +205,7 @@ namespace TensorSharp.Models
         // the original 3D `_exps.weight` blocks loaded by ModelBase. Stacked
         // biases are small contiguous f32 arrays built once from the per-expert
         // biases captured prior to FuseExpertGateUpWeights.
+        // 中文：为融合 MoE 预填充内核构建每层的按专家堆叠权重视图（零拷贝指向原始 3D 专家权重块）与堆叠后的 Gate/Up、Down 偏置数组，并记录就绪状态。
         private unsafe void InitMoeStackedWeights(float[][] preFuseGateBias, float[][] preFuseUpBias)
         {
             int numLayers = Config.NumLayers;
@@ -270,6 +275,7 @@ namespace TensorSharp.Models
 
         #region Weight Fusion and Pre-computation
 
+        // 中文：将每层中按 [专家, biasDim] 打包的 MoE 专家偏置张量（gate/up/down）拆分为逐专家独立的偏置张量并存回权重表，移除并释放原打包张量。
         private void SplitExpertBiases()
         {
             int split = 0;
@@ -301,6 +307,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Split expert biases: {split} tensors");
         }
 
+        // 中文：将每个专家的 Gate 与 Up 投影权重（及其偏置）融合为单个 gate_up 张量（量化优先用视图融合，失败则拷贝拼接），以把两次矩阵乘合并为一次。
         private unsafe void FuseExpertGateUpWeights()
         {
             int fused = 0;
@@ -363,6 +370,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Fused expert Gate+Up projections: {fused}");
         }
 
+        // 中文：将每层的 Q、K、V 投影权重（及其偏置）融合为单个 QKV 张量（量化优先视图融合，否则拷贝拼接），把三次矩阵乘合并为一次。
         private unsafe void FuseQKVWeights()
         {
             int fused = 0;
@@ -433,6 +441,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Fused projections: {fused} QKV");
         }
 
+        // 中文：预计算前向所需的常量与零分配字符串表：Q/K 维度、是否 QKV 融合、各层权重名数组、各层各专家权重名数组、各层注意力 sinks 数组以及 MoE 路由用的复用缓冲区。
         private void PrecomputeConstants()
         {
             int numLayers = Config.NumLayers;
@@ -517,6 +526,7 @@ namespace TensorSharp.Models
 
         private int _kvCacheCapacity;
 
+        // 中文：初始化各层 KV 缓存张量（按模型对齐选择 F32/F16 数据类型），设置初始容量与最大上下文长度，并将缓存序列长度清零。
         private void InitKVCache(int initialSeqLen, int maxSeqLen)
         {
             _maxContextLength = maxSeqLen;
@@ -548,6 +558,7 @@ namespace TensorSharp.Models
             _cacheSeqLen = 0;
         }
 
+        // 中文：按需扩容 KV 缓存：当所需序列长度超过当前容量时按倍增策略（上限为最大上下文）分配更大缓存、拷贝已有内容并释放旧缓存；超过最大上下文则抛异常。
         private void EnsureCacheCapacity(int requiredSeqLen)
         {
             if (requiredSeqLen <= _kvCacheCapacity)
@@ -590,6 +601,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"Expanded GPT-OSS attention cache to {newCapacity} tokens.");
         }
 
+        // 中文：重置所有层的 KV 缓存张量并将缓存长度清零，同时清空各项性能计时器与前向计数。
         public override void ResetKVCache()
         {
             for (int l = 0; l < Config.NumLayers; l++)
@@ -603,6 +615,7 @@ namespace TensorSharp.Models
             _forwardSw.Reset();
         }
 
+        // 中文：将 KV 缓存截断到指定 token 数（调用基类逻辑），并使各层 K/V 缓存的设备端缓存失效以保证一致性。
         public override void TruncateKVCache(int tokenCount)
         {
             base.TruncateKVCache(tokenCount);
@@ -613,14 +626,18 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：指示是否支持 KV 状态快照（当 K/V 缓存均已分配时为真）。
         public override bool SupportsKVStateSnapshot => _kvCacheK != null && _kvCacheV != null;
 
+        // 中文：返回唯一标识 KV 状态布局的指纹字符串（架构、层数、头数、KV 头数、头维与缓存数据类型），用于校验快照兼容性。
         public override string KVStateFingerprint =>
             $"gptoss|arch={Config.Architecture}|L={Config.NumLayers}|H={Config.NumHeads}|KV={Config.NumKVHeads}|D={Config.HeadDim}|dtype={_kvCacheDtype.ToShortString()}";
 
+        // 中文：计算指定 token 数量对应的 KV 缓存块字节大小。
         public override long ComputeKVBlockByteSize(int tokenCount)
             => KvBlockTransfer.ComputeBlockByteSize(_kvCacheK, _kvCacheV, tokenCount);
 
+        // 中文：将指定区间的 KV 缓存块提取到字节缓冲区（不支持快照时返回 false）。
         public override bool TryExtractKVBlock(int startToken, int tokenCount, Span<byte> destination)
         {
             if (!SupportsKVStateSnapshot)
@@ -630,6 +647,7 @@ namespace TensorSharp.Models
                 startToken, tokenCount, destination);
         }
 
+        // 中文：将外部字节缓冲区中的 KV 块注入到指定位置（先扩容缓存），成功后更新缓存长度并使各层设备端缓存失效。
         public override bool TryInjectKVBlock(int destToken, int tokenCount, ReadOnlySpan<byte> source)
         {
             if (!SupportsKVStateSnapshot)
@@ -653,6 +671,7 @@ namespace TensorSharp.Models
         // Chunk size for ForwardRefill: long prompts are processed in this-many-token
         // chunks so the per-layer attention-score allocation stays bounded.
         // Override with TS_PREFILL_CHUNK when tuning.
+        // 中文：从环境变量 TS_PREFILL_CHUNK 解析长提示分块预填充时每块的 token 数（默认 2048），用于控制每层注意力分数分配的上限。
         private static int ResolvePrefillChunkSize()
         {
             string env = Environment.GetEnvironmentVariable("TS_PREFILL_CHUNK");
@@ -661,6 +680,7 @@ namespace TensorSharp.Models
             return 2048;
         }
 
+        // 中文：对长提示做分块预填充：将除最后一个 token 外的序列按块送入 PrefillWithoutLogits 填充 KV 缓存，再对最后一个 token 执行 Forward 返回 logits。
         public override float[] ForwardRefill(int[] tokens)
         {
             if (tokens == null || tokens.Length <= 1)
@@ -682,6 +702,7 @@ namespace TensorSharp.Models
             return Forward(new[] { tokens[lastIdx] });
         }
 
+        // 中文：仅做预填充而不计算输出 logits：对一段 token 走嵌入与逐层 Transformer 前向，把 K/V 写入缓存并推进缓存长度，用于分块填充提示。
         private void PrefillWithoutLogits(int[] tokens)
         {
             if (tokens == null || tokens.Length == 0)
@@ -713,6 +734,7 @@ namespace TensorSharp.Models
             _forwardSw.Stop();
         }
 
+        // 中文：完整前向推理：嵌入 -> 逐层 Transformer 块 -> 末层 RMSNorm -> 取最后一个 token -> LM head 投影，得到词表 logits 并推进 KV 缓存长度。
         public override float[] Forward(int[] tokens)
         {
             _forwardSw.Start();
@@ -769,6 +791,7 @@ namespace TensorSharp.Models
             return _logitsBuffer;
         }
 
+        // 中文：单层 Transformer 计算：注意力子层（优先走融合预填充内核，否则 RMSNorm+Attention+残差）后接 MoE FFN 子层（RMSNorm+MoEForward+残差），末层仅对最后一个 token 计算 FFN 以省算力。
         private Tensor TransformerBlock(Tensor hidden, int layer, int seqLen, int startPos, bool isLastLayer)
         {
             string[] wn = _layerNames[layer];
@@ -866,6 +889,7 @@ namespace TensorSharp.Models
         ///
         /// Caller is expected to fall back to the legacy per-op path.
         /// </summary>
+        // 中文：尝试以单次 ggml 计算图完成整层注意力预填充（RMSNorm+融合QKV+RoPE+写KV缓存+因果/SWA掩码+带 sinks 的 softmax+注意力+输出投影+残差），就地写回 hidden；条件不满足时返回 false 由调用方回退到逐算子路径。
         private unsafe bool TryFusedAttnLayerPrefill(
             Tensor hidden, int layer, string[] wn, int seqLen, int startPos)
         {
@@ -952,6 +976,7 @@ namespace TensorSharp.Models
         // Returns an MLX-backed [numHeads] Float32 tensor populated from
         // the host-side `_layerSinks[layer]` array, allocated on first
         // call per layer and reused thereafter.
+        // 中文：按层惰性创建并缓存一个由 _layerSinks 数组填充的 MLX 后端 [numHeads] Float32 张量，供设备端带 sinks 注意力使用；后续调用直接复用。
         private Tensor GetOrCreateSinksMlxTensor(int layer, float[] sinksArray, int numHeads)
         {
             if (_layerSinksMlx == null)
@@ -972,6 +997,7 @@ namespace TensorSharp.Models
         // across calls (and pin only once per layer).
         private System.Runtime.InteropServices.GCHandle[] _sinksHandles;
 
+        // 中文：按层将 sinks 浮点数组固定（pin）并缓存其 GCHandle，返回稳定的指针给原生内核使用（每层只 pin 一次，可被缓存主机指针路径识别）。
         private unsafe float* GetFloatArrayPtr(float[] arr, int layer)
         {
             if (arr == null) return null;
@@ -984,6 +1010,7 @@ namespace TensorSharp.Models
             return (float*)_sinksHandles[layer].AddrOfPinnedObject();
         }
 
+        // 中文：逐算子注意力实现：QKV 投影（融合或分离）+RoPE+写 KV 缓存，按偶数层 SWA/奇数层全因果选择掩码，并融入注意力 sinks；解码（seqLen==1）走单 token GQA 带 sinks 路径，预填充走批量打分+掩码 softmax+加权 V，最后做输出投影。
         private Tensor Attention(Tensor input, int layer, string[] wn, int seqLen, int startPos)
         {
             int numHeads = Config.NumHeads;
@@ -1195,6 +1222,7 @@ namespace TensorSharp.Models
             return output;
         }
 
+        // 中文：从源张量按列偏移截取指定宽度的连续切片并返回新张量（CUDA 有专用核则用之，否则用 Narrow 视图再连续化）。
         private Tensor SliceColumnsContiguous(Tensor src, int colOffset, int width)
         {
             var result = new Tensor(_allocator, DType.Float32, src.Sizes[0], width);
@@ -1206,6 +1234,7 @@ namespace TensorSharp.Models
             return Ops.NewContiguous(view);
         }
 
+        // 中文：对注意力分数施加滑动窗口（SWA）掩码：将每个查询位置之外、早于其滑动窗口范围的键位置置为负无穷。
         private unsafe void ApplySWAMask(Tensor scores, int numHeads, int seqLen, int totalSeqLen, int startPos)
         {
             float* ptr = GetFloatPtr(scores);
@@ -1222,6 +1251,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：对注意力分数逐行做带 attention sinks 的 softmax：将每个头的 sink 偏置作为一个虚拟 token 参与 max 与指数和的归一化（无 sinks 时退化为普通 softmax）。
         private unsafe void ApplySoftmaxWithSinks(Tensor scores, int numHeads, int seqLen, int totalSeqLen, float[] sinks)
         {
             if (sinks == null)
@@ -1256,6 +1286,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：单 token 解码的 CPU 端 GQA 注意力回退实现，融合 attention sinks 与可选 SWA：按 KV 缓存数据类型分派（F16 转交专门变体，否则按 F32 逐头计算点积打分、带 sink 的稳定 softmax、加权累加 V）。
         private unsafe void AttentionDecodeWithSinks(Tensor q, Tensor kCache, Tensor vCache,
             Tensor result, int numHeads, int numKVHeads, int headDim, int totalSeqLen, float scale, float[] sinks, bool isSWA)
         {
@@ -1326,6 +1357,7 @@ namespace TensorSharp.Models
         /// the F32 path; only the cache load is widened. Parallelised over
         /// query heads to amortise the per-head F16-&gt;F32 widening.
         /// </summary>
+        // 中文：AttentionDecodeWithSinks 的 F16 缓存变体：在点积/加权累加热循环中把 K/V 由半精度即时转 F32，数学与 F32 路径一致，并按查询头并行以摊薄 F16->F32 加宽开销。
         private unsafe void AttentionDecodeWithSinksF16(Tensor q, Tensor kCache, Tensor vCache,
             Tensor result, int numHeads, int numKVHeads, int headDim, int totalSeqLen, float scale, float[] sinks, bool isSWA)
         {
@@ -1391,6 +1423,7 @@ namespace TensorSharp.Models
             });
         }
 
+        // 中文：就地对 Q 或 K 张量施加 RoPE（NeoX 风格、含 yarn 缩放）位置编码：按 startPos+s 构造各行位置，reshape 为多头后调用 RoPEEx，再展平返回。
         private Tensor ApplyRoPEInPlace(Tensor data, int numHeads, int headDim, int seqLen, int startPos)
         {
             int totalRows = seqLen * numHeads;
@@ -1417,6 +1450,7 @@ namespace TensorSharp.Models
 
         #region MoE
 
+        // 中文：MoE 前向入口：先做 TopK 路由得到选中专家与归一化权重，再根据 seqLen 分派到单 token 或批量专家计算，输出聚合后的隐藏状态。
         private unsafe Tensor MoEForward(Tensor hiddenState, int layer, int seqLen)
         {
             string[] wn = _layerNames[layer];
@@ -1436,6 +1470,7 @@ namespace TensorSharp.Models
             return output;
         }
 
+        // 中文：单 token（解码）MoE FFN：优先用融合的 ggml_mul_mat_id 内核一次完成所有选中专家计算，否则回退为逐专家调用 ExpertFFN 并按路由权重加权累加到输出。
         private unsafe void MoEForwardSingleToken(Tensor hiddenState, Tensor output,
             float[] routingWeights, int[] selectedExperts, int layer, int hiddenDim)
         {
@@ -1478,6 +1513,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：批量（预填充）MoE FFN：短序列优先走融合内核；否则将各 token 按选中专家分桶、把同专家的 token 聚成一个批次做一次 ExpertFFN，再按路由权重把结果散回各 token 输出。
         private unsafe void MoEForwardBatched(Tensor hiddenState, Tensor output,
             float[] routingWeights, int[] selectedExperts, int layer, int seqLen, int hiddenDim)
         {
@@ -1594,6 +1630,7 @@ namespace TensorSharp.Models
         /// can't handle the layout and the caller should fall back to the
         /// legacy batched-by-expert path.
         /// </summary>
+        // 中文：尝试用 GgmlBasicOps.MoEFFNPrefillSwiGLU 融合内核以单次计算图完成整层 MoE FFN（gate+up+加偏置+clamped-SiLU/SwiGLU-OAI+down+加偏置+按路由权重聚合）；内核不支持该布局时返回 false 让调用方回退。
         private unsafe bool TryMoEPrefillFused(
             Tensor hiddenState,
             Tensor output,
@@ -1649,6 +1686,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：MoE 路由：用门控线性层（带偏置）算出各专家打分，对每个 token 选出 TopK 专家并在选中专家上做数值稳定 softmax 归一化，返回路由权重与选中专家索引（复用刷新的草稿缓冲区）。
         private unsafe (float[] routingWeights, int[] selectedExperts) MoERoute(
             Tensor input, string routerWeightName, string routerBiasName, int seqLen)
         {
@@ -1706,6 +1744,7 @@ namespace TensorSharp.Models
             return (routingWeights, selectedExperts);
         }
 
+        // 中文：单个专家的 FFN 计算：融合 Gate+Up 投影（带偏置）-> SwiGLU-OAI 激活（含 alpha 缩放与 clamp）-> Down 投影（带偏置），CUDA 有专用核则优先使用。
         private unsafe Tensor ExpertFFN(Tensor input, string gateUpWeightName, string gateUpBiasName,
             string downWeightName, string downBiasName, int seqLen)
         {
@@ -1752,6 +1791,7 @@ namespace TensorSharp.Models
             return down;
         }
 
+        // 中文：就地计算 GPT-OSS 的 SwiGLU-OAI 激活：gate 上限 clamp、up 双向 clamp，按 x*sigmoid(alpha*x)*(y+1) 公式输出（SIMD 向量化加标量收尾），结果写回 gate。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void ApplySwiGluOaiInPlace(float* gate, float* up, int n)
         {
@@ -1788,6 +1828,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：SIMD 向量化的 exp 近似：先 clamp 输入，做 range reduction（n=x/ln2，余项 r）后用多项式逼近，再通过构造 2^n 的浮点位模式还原指数，供激活函数热循环使用。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static Vector<float> VecExpApprox(Vector<float> x)
         {
@@ -1826,6 +1867,7 @@ namespace TensorSharp.Models
 
         #region Linear with Bias
 
+        // 中文：带偏置的线性投影：先做 LinearForward 矩阵乘，再逐行加上偏置（CUDA 有融合加偏置核则优先，否则用 SIMD 标量加），返回结果张量。
         private unsafe Tensor LinearForwardWithBias(Tensor input, string weightName, string biasName)
         {
             Tensor result = LinearForward(input, weightName);
@@ -1853,6 +1895,7 @@ namespace TensorSharp.Models
 
         #endregion
 
+        // 中文：释放模型占用的资源：各层 K/V 缓存张量、MLX sinks 张量、已固定的 sinks GCHandle，并调用基类释放。
         public override void Dispose()
         {
             if (_kvCacheK != null)

@@ -41,6 +41,7 @@ namespace TensorSharp.Models
         private static readonly float[] Window = BuildHannWindow();
         private static readonly float[] MelFilters = BuildSlaneyMelFilterBank(NFFT / 2 + 1, MelBins, SampleRate);
 
+        // 中文：根据文件扩展名将音频文件（wav/mp3/ogg）解码为 16kHz 单声道浮点采样。
         public static float[] DecodeAudioFile(string path)
         {
             string ext = Path.GetExtension(path).ToLowerInvariant();
@@ -54,6 +55,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：解码 MP3 文件，逐块读取采样后混音并重采样为 16kHz 单声道。
         public static float[] DecodeMp3(string path)
         {
             using var stream = File.OpenRead(path);
@@ -71,6 +73,7 @@ namespace TensorSharp.Models
             return ToMono16k(allSamples.AsSpan(), srcSampleRate, channels);
         }
 
+        // 中文：解码 OGG/Vorbis 文件，逐块读取采样后混音并重采样为 16kHz 单声道。
         public static float[] DecodeOgg(string path)
         {
             using var vorbis = new VorbisReader(path);
@@ -87,6 +90,7 @@ namespace TensorSharp.Models
             return ToMono16k(allSamples.AsSpan(), srcSampleRate, channels);
         }
 
+        // 中文：解析 WAV 字节流（遍历各 chunk 读取 fmt/data），解码为单声道并按需重采样到 16kHz。
         public static float[] DecodeWAV(byte[] data)
         {
             if (data.Length < 12) throw new InvalidDataException("WAV file too short");
@@ -141,6 +145,7 @@ namespace TensorSharp.Models
             return mono;
         }
 
+        // 中文：将 WAV 原始 PCM/浮点字节按位深与格式逐帧转换为 [-1,1] 浮点并跨声道平均成单声道。
         private static float[] DecodeWAVSamples(byte[] data, ushort format, int bits, int channels)
         {
             int bytesPerSample = bits / 8;
@@ -185,6 +190,7 @@ namespace TensorSharp.Models
             return mono;
         }
 
+        // 中文：将交错的多声道浮点采样混音为单声道，并按需重采样到 16kHz。
         private static float[] ToMono16k(ReadOnlySpan<float> interleaved, int srcSampleRate, int channels)
         {
             int totalFrames = interleaved.Length / channels;
@@ -202,6 +208,7 @@ namespace TensorSharp.Models
                 : ResampleLinear(mono, srcSampleRate, SampleRate);
         }
 
+        // 中文：使用线性插值将采样从源采样率重采样到目标采样率。
         private static float[] ResampleLinear(float[] samples, int fromRate, int toRate)
         {
             if (fromRate <= 0 || toRate <= 0 || samples.Length == 0) return samples;
@@ -225,6 +232,7 @@ namespace TensorSharp.Models
         /// Compute the Parakeet mel spectrogram. Returns (mel data laid out as
         /// <c>frames * MelBins</c> in time-major order, totalFrames, validFrames).
         /// </summary>
+        // 中文：计算 Parakeet 风格梅尔频谱——预加重、分帧加窗 STFT、梅尔滤波取对数功率，再按有效帧做每梅尔通道均值方差归一化。
         public static (float[] mel, int frames, int validFrames) ComputeParakeetMelSpectrogram(float[] samples)
         {
             if (samples == null || samples.Length == 0)
@@ -303,6 +311,7 @@ namespace TensorSharp.Models
             return (result, frames, validFrames);
         }
 
+        // 中文：构建长度为 WinLength 的 Hann 窗系数表。
         private static float[] BuildHannWindow()
         {
             float[] win = new float[WinLength];
@@ -311,6 +320,7 @@ namespace TensorSharp.Models
             return win;
         }
 
+        // 中文：构建 Slaney 风格梅尔滤波器组（三角滤波器并做面积归一化），输出展平的 [numMels x numFreqBins] 权重。
         private static float[] BuildSlaneyMelFilterBank(int numFreqBins, int numMels, int sampleRate)
         {
             static double HzToMel(double f) => f < 1000 ? 3 * f / 200 : 15 + Math.Log(f / 1000) * 27 / Math.Log(6.4);
@@ -351,6 +361,7 @@ namespace TensorSharp.Models
         /// <summary>
         /// In-place radix-2 Cooley-Tukey FFT for power-of-two lengths.
         /// </summary>
+        // 中文：对 2 的幂长度的复数序列执行原地基-2 Cooley-Tukey 快速傅里叶变换。
         private static void FFTInPlace(Span<Complex> x)
         {
             int n = x.Length;
@@ -399,12 +410,14 @@ namespace TensorSharp.Models
             private float[] _arr;
             private int _len;
 
+            // 中文：构造可增长浮点缓冲区，从数组池租用初始容量。
             public ResizableFloatBuffer(int initialCapacity)
             {
                 _arr = ArrayPool<float>.Shared.Rent(Math.Max(1024, initialCapacity));
                 _len = 0;
             }
 
+            // 中文：向缓冲区追加数据，容量不足时翻倍扩容并归还旧数组。
             public void Append(ReadOnlySpan<float> data)
             {
                 if (_len + data.Length > _arr.Length)
@@ -419,8 +432,10 @@ namespace TensorSharp.Models
                 _len += data.Length;
             }
 
+            // 中文：以只读 Span 形式返回当前已写入的有效数据。
             public ReadOnlySpan<float> AsSpan() => _arr.AsSpan(0, _len);
 
+            // 中文：释放缓冲区，将租用的数组归还给数组池。
             public void Dispose()
             {
                 if (_arr != null)

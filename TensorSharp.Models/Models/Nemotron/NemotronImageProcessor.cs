@@ -40,6 +40,7 @@ namespace TensorSharp.Models
         public float[] ImageMean { get; }
         public float[] ImageStd { get; }
 
+        // 中文：构造图像处理器，初始化图像/patch 尺寸、最大瓦片数、动态分辨率 patch 范围及 CLIP 归一化均值/方差等参数（对无效值给默认）。
         public NemotronImageProcessor(
             int imageSize,
             int patchSize,
@@ -64,6 +65,7 @@ namespace TensorSharp.Models
             ImageStd = imageStd ?? new float[] { 0.26862954f, 0.26130258f, 0.27577711f };
         }
 
+        // 中文：结合模型配置、环境变量 TS_NEMOTRON_IMAGE_MAX_TILES 与默认延迟上限，解析运行时实际最大瓦片数。
         public static int ResolveRuntimeMaxTiles(int modelMaxTiles)
         {
             int configured = modelMaxTiles > 0 ? modelMaxTiles : 12;
@@ -83,6 +85,7 @@ namespace TensorSharp.Models
             public int PatchesY => Height / 16;
         }
 
+        // 中文：处理图像主入口——读取并解码为 RGBA、合成到白底，再根据是否启用动态分辨率分派到对应处理流程。
         public List<ProcessedTile> ProcessImage(string imagePath)
         {
             byte[] file = File.ReadAllBytes(imagePath);
@@ -94,8 +97,10 @@ namespace TensorSharp.Models
                 : ProcessTiled(rgba, origW, origH);
         }
 
+        // 中文：判断是否启用动态分辨率模式（存在最小或最大 patch 数配置时）。
         private bool UseDynamicResolution() => MinNumPatches > 0 || MaxNumPatches > 0;
 
+        // 中文：瓦片化处理——选取最匹配宽高比的网格，双三次缩放后裁切成多个方形瓦片并归一化，必要时追加缩略图瓦片。
         private List<ProcessedTile> ProcessTiled(byte[] rgba, int origW, int origH)
         {
             var ratios = NemotronTargetRatios(MaxTiles);
@@ -139,6 +144,7 @@ namespace TensorSharp.Models
             return tiles;
         }
 
+        // 中文：动态分辨率处理——按 patch 网格计算目标尺寸，双三次缩放并归一化后输出单个瓦片。
         private List<ProcessedTile> ProcessDynamicResolution(byte[] rgba, int origW, int origH)
         {
             var (patchesW, patchesH) = DynamicPatchGrid(origW, origH);
@@ -157,6 +163,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：根据原始尺寸与 min/max patch 约束计算动态 patch 网格的宽高（含缩放、上调与 pixel-shuffle 对齐）。
         private (int width, int height) DynamicPatchGrid(int origW, int origH)
         {
             int patchesH = Math.Max(1, (int)Math.Round((double)origH / PatchSize + 0.5));
@@ -184,6 +191,7 @@ namespace TensorSharp.Models
             return (targetW, targetH);
         }
 
+        // 中文：将 patch 网格边长向上或向下取整到 divisor 的倍数以满足 pixel-shuffle 要求，并受最大 patch 数限制。
         private static int RoundPatchGridForPixelShuffle(int v, int other, int maxPatches, int divisor)
         {
             if (divisor <= 1) return v;
@@ -200,12 +208,17 @@ namespace TensorSharp.Models
         {
             public readonly int Width;
             public readonly int Height;
+            // 中文：构造表示瓦片网格宽高比的值类型。
             public NemotronImageRatio(int w, int h) { Width = w; Height = h; }
+            // 中文：按宽高判定两个比例是否相等。
             public bool Equals(NemotronImageRatio other) => Width == other.Width && Height == other.Height;
+            // 中文：与任意对象比较相等性的重载。
             public override bool Equals(object obj) => obj is NemotronImageRatio r && Equals(r);
+            // 中文：基于宽高计算哈希码。
             public override int GetHashCode() => (Width * 397) ^ Height;
         }
 
+        // 中文：枚举所有瓦片数不超过 maxTiles 的候选网格宽高比，去重后按面积升序排序。
         private static List<NemotronImageRatio> NemotronTargetRatios(int maxTiles)
         {
             var raw = new List<NemotronImageRatio>(maxTiles * maxTiles);
@@ -232,6 +245,7 @@ namespace TensorSharp.Models
             return unique;
         }
 
+        // 中文：在候选比例中找出与源图宽高比差异最小的网格，平局时优先面积更大的网格。
         private static (int width, int height) FindClosestAspectRatio(
             double aspectRatio, List<NemotronImageRatio> targetRatios, int width, int height, int imageSize)
         {
@@ -260,6 +274,7 @@ namespace TensorSharp.Models
         /// values in [0,1]. Matches torch.nn.functional.interpolate(mode="bicubic",
         /// align_corners=False, antialias=False) up to floating point precision.
         /// </summary>
+        // 中文：与 PyTorch 对齐的双三次插值缩放，将 RGBA 字节转为通道优先 [C,H,W]、取值 [0,1] 的浮点张量。
         private static float[] ResizeImageBicubicCHW(byte[] rgba, int srcW, int srcH, int dstW, int dstH)
         {
             int srcPlane = srcW * srcH;
@@ -319,6 +334,7 @@ namespace TensorSharp.Models
             return dstArr;
         }
 
+        // 中文：从通道优先 [C,H,W] 张量中按行块复制裁切出指定矩形区域。
         private static float[] CropCHWRegion(float[] values, int width, int height, int channels,
             int left, int top, int cropW, int cropH)
         {
@@ -339,6 +355,7 @@ namespace TensorSharp.Models
             return outArr;
         }
 
+        // 中文：对通道优先张量逐通道做 (x-mean)/std 原地归一化。
         private static void NormalizeVisionCHWInPlace(float[] values, float[] mean, float[] std)
         {
             int channelSize = values.Length / 3;
@@ -352,6 +369,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：按 PyTorch 双三次核（a=-0.75）计算给定分数位置 t 处四个邻点的插值权重。
         private static void TorchBicubicWeights(double t, Span<double> weights)
         {
             const double a = -0.75;
@@ -361,14 +379,18 @@ namespace TensorSharp.Models
             weights[3] = BicubicConvolution2(2.0 - t, a);
         }
 
+        // 中文：双三次卷积核内侧区间（|x|<=1）的多项式取值。
         private static double BicubicConvolution1(double x, double a) =>
             ((a + 2) * x - (a + 3)) * x * x + 1;
 
+        // 中文：双三次卷积核外侧区间（1<|x|<2）的多项式取值。
         private static double BicubicConvolution2(double x, double a) =>
             ((a * x - 5 * a) * x + 8 * a) * x - 4 * a;
 
+        // 中文：将值钳制到 [0,1] 区间。
         private static double ClampUnit(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
 
+        // 中文：将索引钳制到 [lo,hi] 区间（用于边界采样）。
         private static int ClampIndex(int v, int lo, int hi) =>
             v < lo ? lo : (v > hi ? hi : v);
 
@@ -378,6 +400,7 @@ namespace TensorSharp.Models
         /// with each token packed as channel, patch-row, patch-col. Mirrors
         /// <c>packVisionPatchesCHW</c> in the reference Go implementation.
         /// </summary>
+        // 中文：将瓦片像素打包为视觉编码器所需的 patch 优先布局，每个 token 按通道-patch行-patch列展平。
         public static float[] PackPatchesCHW(float[] values, int width, int height, int channels, int patchSize)
         {
             int patchesX = width / patchSize;

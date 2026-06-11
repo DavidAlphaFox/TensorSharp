@@ -11,6 +11,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】经典（非分页）KV 缓存的状态记录器。
+// 【主要类型】KVCache：记录模型 KV 张量当前持有的「规范 token 序列」及最近一次前向产生的
+//             下一 token logits，是「模型正算到哪里」的唯一真相来源。它只在托管内存中保存
+//             token 序列与 logits 缓冲，真正的 K/V 激活仍存放在模型各层张量里。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Runtime
 {
     /// <summary>

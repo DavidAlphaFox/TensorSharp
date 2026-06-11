@@ -37,6 +37,7 @@ namespace TensorSharp.Models
         private int _pagedNumBlocks;
         private int _pagedBlockSize;
 
+        // 中文：连续批处理（continuous batching）分页注意力前向主入口，处理多序列拼接、KV 分页缓冲、视觉嵌入注入、逐层 Transformer 计算并返回每序列最后一个 token 的 logits。
         public IReadOnlyList<float[]> ForwardBatch(BatchedForwardContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
@@ -254,6 +255,7 @@ namespace TensorSharp.Models
         /// Per-(token,head) RoPE through <see cref="Ops.RoPEEx"/>, passing the
         /// YaRN scaling parameters that Mistral 3 GGUFs carry.
         /// </summary>
+        // 中文：对 Q/K 按每 (token,head) 位置施加 RoPE 旋转位置编码，并传入 Mistral 3 的 YaRN 缩放参数（extFactor/betaFast/betaSlow/attnFactor）。
         private Tensor ApplyBatchedRoPE(Tensor data, Tensor positionsTensor, int numTokens, int numHeads, int headDim)
         {
             using var reshaped = data.View(1, numTokens, numHeads, headDim);
@@ -276,6 +278,7 @@ namespace TensorSharp.Models
         /// in the batched path each token carries its own absolute position
         /// via <paramref name="positions"/>.
         /// </summary>
+        // 中文：YaRN 位置相关的 Q 缩放：按每个 token 的绝对位置计算 (1 + beta*log(1+floor(pos/origCtx))) 标量，对该 token 整行 Q 做就地缩放。
         private unsafe void ApplyBatchedPositionScale(Tensor qTensor, int[] positions, int numTokens, int qDim)
         {
             float* ptr = GetFloatPtr(qTensor);
@@ -291,6 +294,7 @@ namespace TensorSharp.Models
 
         private enum PagedAttentionKernel { Native, Tensor, Managed }
 
+        // 中文：根据环境变量 TS_PAGED_ATTN_KERNEL 解析所选分页注意力内核（native/tensor/managed），默认 native。
         private static PagedAttentionKernel ResolvePagedAttentionKernel()
         {
             string raw = Environment.GetEnvironmentVariable("TS_PAGED_ATTN_KERNEL");
@@ -318,6 +322,7 @@ namespace TensorSharp.Models
         // Native paged-attention entry point expects per-seq block tables in
         // one concatenated int[] with per-seq offsets. Keep the engine's
         // int[][] abstraction unchanged; flatten right at the call site.
+        // 中文：将引擎的 int[][] 每序列 block table 展平为单个拼接 int[] 加每序列偏移数组，供原生分页注意力入口使用。
         private static (int[] flat, int[] offsets) FlattenBlockTables(int[][] tables)
         {
             int total = 0;
@@ -333,6 +338,7 @@ namespace TensorSharp.Models
             return (flat, offsets);
         }
 
+        // 中文：将每 token 的位置广播扩展到每个注意力头，构建 RoPE 所需的 (token*head) 位置整型张量。
         private Tensor BuildRoPEPositionsTensor(int[] tokenPositions, int numHeads)
         {
             int total = tokenPositions.Length * numHeads;
@@ -343,6 +349,7 @@ namespace TensorSharp.Models
             return CreateIntTensor(expanded, total);
         }
 
+        // 中文：按需分配或扩容每层私有的分页 K/V 缓冲区（容量倍增），扩容时复制保留旧 KV 数据，避免已存在序列的 prefill KV 被清零而生成乱码。
         private void EnsurePagedBuffersAllocated(int numBlocks, int blockSize, int numKvHeads, int headDim)
         {
             if (_pagedKBuf != null && _pagedNumBlocks >= numBlocks && _pagedBlockSize == blockSize)

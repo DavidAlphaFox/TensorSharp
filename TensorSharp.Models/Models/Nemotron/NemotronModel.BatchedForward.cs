@@ -54,6 +54,7 @@ namespace TensorSharp.Models
         // Re-read each call so tests can toggle between paths after the model
         // has already loaded — a static readonly would capture the env var at
         // class-init time, before tests get a chance to set it.
+        // 中文：读取 TS_NEMOTRON_BATCHED 环境变量判断是否启用批量分页注意力前向（默认开启）。
         private static bool NemoBatchedOptIn()
         {
             string raw = Environment.GetEnvironmentVariable("TS_NEMOTRON_BATCHED");
@@ -72,6 +73,7 @@ namespace TensorSharp.Models
         // which sequence each entry belongs to. We trust the upstream engine
         // to serialize multimodal requests (only one sequence at a time has
         // pending embeddings), matching the Mistral 3 batched stance.
+        // 中文：是否在批量路径内处理多模态（视觉/音频）嵌入注入，跟随批量开关同步启用。
         public bool SupportsBatchedMultimodal => NemoBatchedOptIn();
 
         // ----- Phase 2: per-layer paged K/V + per-slot Mamba2 state pool -----
@@ -139,6 +141,7 @@ namespace TensorSharp.Models
         /// allocated). The Mamba2 slot pool is sized independently in
         /// <see cref="EnsureNemoMambaSlotCapacity"/> because Mamba2 slots are
         /// allocated per active RequestId, not per attention block id.</summary>
+        // 中文：按 block 池形状确保各注意力层的分页 K/V 缓冲存在，按 2 倍余量增长并在扩容时保留已写入的 K/V。
         private void EnsureNemoPagedBuffers(int numBlocks, int blockSize, int numLayers)
         {
             EnsureNemoLayerOuterArrays(numLayers);
@@ -191,6 +194,7 @@ namespace TensorSharp.Models
         /// known. Called from both <see cref="EnsureNemoPagedBuffers"/> and
         /// <see cref="EnsureNemoMambaSlotCapacity"/> so each is safe to call
         /// first.</summary>
+        // 中文：构建 Mamba2 slot 池与各层 KV 维度缓存的外层 per-layer 数组（幂等，依据层类型向量初始化）。
         private void EnsureNemoLayerOuterArrays(int numLayers)
         {
             if (_nemoSlotConvBuf == null || _nemoSlotConvBuf.Length != numLayers)
@@ -219,6 +223,7 @@ namespace TensorSharp.Models
         /// <paramref name="requiredCapacity"/> slots. Grows with 2× slack and
         /// preserves previously-allocated slot references — in-flight
         /// sequences depend on their slot's persistent recurrent state.</summary>
+        // 中文：确保各层 Mamba2 slot 池容量不小于 requiredCapacity，按 2 倍余量增长并保留在用序列的 slot 状态引用。
         private void EnsureNemoMambaSlotCapacity(int numLayers, int requiredCapacity)
         {
             EnsureNemoLayerOuterArrays(numLayers);
@@ -294,6 +299,7 @@ namespace TensorSharp.Models
         /// prefix-cache hit (typical for chat workloads) still get distinct
         /// Mamba2 recurrent-state slots and don't trample each other's
         /// hidden state.</summary>
+        // 中文：按 RequestId（而非首个注意力 block id）返回该序列的 Mamba2 状态 slot，首次出现时从空闲栈或新索引分配并重置其陈旧状态。
         private int GetOrAllocateMambaSlot(SequenceState seq, int numLayers)
         {
             if (_nemoMambaSlotByReqId.TryGetValue(seq.RequestId, out int existing))
@@ -331,6 +337,7 @@ namespace TensorSharp.Models
         /// preempted, errored, aborted). Releases the Mamba2 state slot back
         /// to the free pool so a later sequence can reuse it. Idempotent —
         /// safe to call multiple times for the same RequestId.</summary>
+        // 中文：引擎在序列终止时的回调，将其 Mamba2 状态 slot 归还空闲池并标记各层状态需重新初始化（幂等）。
         public void OnSequenceReleased(string requestId)
         {
             if (requestId == null) return;
@@ -365,6 +372,7 @@ namespace TensorSharp.Models
         /// same float[] references and accumulate state across forward calls
         /// for that slot. Re-zeroes when a slot is reused for a fresh sequence
         /// (NumComputedTokens == 0 in the caller).</summary>
+        // 中文：首次触碰时惰性分配该 slot 的 Mamba2 conv 环形缓冲与 SSM 状态并清零，GGML 后端下还惰性分配 per-slot 解码暂存张量。
         private void EnsureNemoSlotAllocated(int layer, int slot)
         {
             int convDim = Math.Max(0, _ssmDConv - 1);
@@ -409,6 +417,7 @@ namespace TensorSharp.Models
         ///
         /// Block-quantised attention caches (Q8_0) aren't supported by the
         /// migration code (only F32/F16 dequant is implemented).</summary>
+        // 中文：判断模型是否能把序列的 K/V 历史与 Mamba2 循环状态从旧版 per-model 数组迁移到分页/per-slot 存储（块量化缓存不支持）。
         public bool SupportsLinearKVMigration =>
             _kvCacheK != null && _kvCacheV != null
             && _convState != null && _ssmState != null
@@ -429,6 +438,7 @@ namespace TensorSharp.Models
         ///       unique per active RequestId even when the owner's first
         ///       attention block is shared via prefix-cache hit.
         ///   - FFN: stateless, nothing to migrate.</summary>
+        // 中文：把指定 owner 序列的在途状态从旧版存储迁入分页/per-slot 存储，注意力层按 block table 写入分页 K/V，Mamba2 层写入 per-request slot，FFN 无状态。
         public bool TryMigrateLinearKVToPaged(SequenceState owner, int blockSize)
         {
             if (owner == null) return false;
@@ -495,6 +505,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：将某注意力层的线性 K/V 缓存逐 token 按 block table 映射散写入分页 K/V 缓冲（每个 KV 头按 headDim 块拷贝）。
         private bool MigrateAttentionLayerToPaged(
             int layer, SequenceState owner, int ownerTokens, int headDim, int blockSize)
         {
@@ -536,6 +547,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：将某 Mamba2 层的 model-level conv/SSM 状态拷入指定 slot 的 per-slot 缓冲，并标记需重新同步 GPU 侧 native-decode 影子状态。
         private void MigrateMamba2LayerToSlot(int layer, int slot)
         {
             // EnsureNemoSlotAllocated lazily creates the slot's buffers AND
@@ -567,6 +579,7 @@ namespace TensorSharp.Models
             _nemoSlotMamba2NativeDecodeStateInitialized[layer][slot] = false;
         }
 
+        // 中文：将 K/V 缓存张量按 F32 读出（F32 直接取，F16 转换为 F32），块量化类型返回 false。
         private static unsafe bool TryReadCacheAsF32(Tensor cache, int totalElems, out float[] flat)
         {
             if (cache.ElementType == DType.Float32)
@@ -588,6 +601,7 @@ namespace TensorSharp.Models
             return false;
         }
 
+        // 中文：continuous batching 批量前向主入口，拼接各序列扁平 token 做嵌入，按混合层类型（注意力/Mamba2/FFN-MoE）逐层计算，最终归一化并对每序列最后一个 token 做 LM head 得到 logits。
         public IReadOnlyList<float[]> ForwardBatch(BatchedForwardContext ctx)
         {
             if (ctx == null) throw new ArgumentNullException(nameof(ctx));
@@ -743,6 +757,7 @@ namespace TensorSharp.Models
         // (which carries YaRN scaling + per-layer ropeBase). Q/K/V projection
         // over the batched input, scatter K/V into paged buffers, paged-attention
         // gather, output projection + residual add.
+        // 中文：批量计算单个注意力层（Nemotron-H 无 RoPE）：归一化后做 Q/K/V 投影，按 slot mapping 散写新 K/V 入分页缓冲，调用分页注意力 gather，再做输出投影并残差相加。
         private Tensor RunBatchedAttentionLayer(
             Tensor hiddenStates, int layer, int numTokens, int numSeqs,
             int[] queryStartLoc, int[] slotMapping, int[] seqLens, int[] positions,
@@ -828,6 +843,7 @@ namespace TensorSharp.Models
         // Nemotron's dense FFN is token-parallel: LinearForward(up) + ReluSquared
         // + LinearForward(down) all work on batched [numTokens, hidden] input
         // unchanged.
+        // 中文：批量计算单个稠密 FFN 层（token 并行的 up 投影 + ReLU² + down 投影 + 残差相加）。
         private Tensor RunBatchedFFNLayer(Tensor hiddenStates, int layer)
         {
             string prefix = _layerPrefixes[layer];
@@ -861,6 +877,7 @@ namespace TensorSharp.Models
         // so the batched-decode case (n>1, each seq 1 token) gets the
         // batched-by-expert routed-input path for free instead of the
         // per-step single-token routing.
+        // 中文：批量计算单个 MoE FFN 层，归一化后将整个批量张量交给逐 token 路由的 MoEForward（seqLen=numTokens），再残差相加。
         private Tensor RunBatchedMoELayer(Tensor hiddenStates, int layer, int numTokens)
         {
             string prefix = _layerPrefixes[layer];
@@ -904,10 +921,12 @@ namespace TensorSharp.Models
         // set TS_NEMOTRON_MAMBA2_BATCHED_NATIVE=1 to route through the new path.
         // Property (not static readonly) so tests can toggle after class load —
         // same reason NemoBatchedOptIn() is a method.
+        // 中文：读取 TS_NEMOTRON_MAMBA2_BATCHED_NATIVE 环境变量判断是否启用原生批量 Mamba2 内核（默认关闭）。
         private static bool NemoMamba2BatchedNative() =>
             string.Equals(Environment.GetEnvironmentVariable("TS_NEMOTRON_MAMBA2_BATCHED_NATIVE"),
                           "1", StringComparison.Ordinal);
 
+        // 中文：单个 Mamba2 层批量计算的分发入口，根据开关与后端选择原生批量内核或 per-seq 状态交换路径。
         private Tensor RunBatchedMamba2Layer(
             Tensor hiddenStates, BatchedForwardContext ctx, int layer,
             int numTokens, int numSeqs, int[] queryStartLoc)
@@ -919,6 +938,7 @@ namespace TensorSharp.Models
                 hiddenStates, ctx, layer, numTokens, numSeqs, queryStartLoc);
         }
 
+        // 中文：以逐序列方式批量计算 Mamba2 层，通过引用交换把各 slot 的持久 conv/SSM 状态换入 model-level 指针后调用单序列 Mamba2Block，循环结束后还原原始状态。
         private Tensor RunBatchedMamba2LayerPerSeq(
             Tensor hiddenStates, BatchedForwardContext ctx, int layer,
             int numTokens, int numSeqs, int[] queryStartLoc)
@@ -1031,6 +1051,7 @@ namespace TensorSharp.Models
         // win is replacing N C# → C transitions with one, plus opportunity
         // for cross-head parallelism that C# Parallel.For doesn't always hit
         // for small head counts.
+        // 中文：用单次原生批量步替代 N 次 per-seq 调用计算 Mamba2 层，先批量做输入投影，再 pin 各 slot 的 conv/SSM 状态调用原生 conv1d+SSM 扫描内核（无转置 conv 权重时回退 per-seq），最后做输出投影并残差相加。
         private unsafe Tensor RunBatchedMamba2LayerNative(
             Tensor hiddenStates, BatchedForwardContext ctx, int layer,
             int numTokens, int numSeqs, int[] queryStartLoc)
@@ -1155,6 +1176,7 @@ namespace TensorSharp.Models
 
         // Flatten per-seq block tables into a single int[] + offsets[] for the
         // native paged-attention entry point. Same packing Mistral 3 uses.
+        // 中文：将各序列的 block table 扁平化为单个 int[] 加 offsets[]，供原生分页注意力入口使用。
         private static (int[] flat, int[] offsets) FlattenBlockTables(int[][] perSeq)
         {
             int total = 0;

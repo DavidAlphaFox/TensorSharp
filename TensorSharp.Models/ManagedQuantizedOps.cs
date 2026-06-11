@@ -17,6 +17,12 @@ using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Threading.Tasks;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】纯托管（C# / SIMD）量化算子实现。
+// 【主要类型】ManagedQuantizedOps：在不反量化为 FP32 的前提下，直接对 GGUF 量化权重
+//             （Q4_0 / Q4_K / Q8_0 / MXFP4 / IQ2_XXS 等）做矩阵乘等运算，借助硬件内建
+//             指令（AVX 等）加速；作为无原生库时 CPU 后端的量化计算路径。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Models
 {
     internal static class ManagedQuantizedOps

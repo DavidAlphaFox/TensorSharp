@@ -20,6 +20,7 @@ namespace TensorSharp.Models
         public int ShortestEdge { get; }
         public int LongestEdge { get; }
 
+        // 中文：构造函数，初始化 patch 尺寸、合并尺寸、对齐因子（patchSize*mergeSize）以及面积上下限。
         public Qwen35ImageProcessor(int patchSize = 14, int mergeSize = 2,
             int shortestEdge = 64 * 1024, int longestEdge = 2 * 1024 * 1024)
         {
@@ -30,11 +31,13 @@ namespace TensorSharp.Models
             LongestEdge = longestEdge;
         }
 
+        // 中文：读取图片文件的宽高尺寸（委托给 Gemma3 图像处理器）。
         public static (int width, int height) ReadImageDimensions(string path)
         {
             return Gemma3ImageProcessor.ReadImageDimensions(path);
         }
 
+        // 中文：智能缩放，将高宽对齐到 factor 的整数倍，并在超出面积上限或低于下限时按比例缩放回区间。
         public (int height, int width) SmartResize(int height, int width)
         {
             int factor = Factor;
@@ -60,6 +63,7 @@ namespace TensorSharp.Models
             return (hBar, wBar);
         }
 
+        // 中文：根据原始高宽计算图像最终生成的视觉 token 数（缩放后网格按合并尺寸下采样的乘积）。
         public int ComputeImageTokenCount(int origHeight, int origWidth)
         {
             var (resizedH, resizedW) = SmartResize(origHeight, origWidth);
@@ -68,12 +72,14 @@ namespace TensorSharp.Models
             return (gridH / MergeSize) * (gridW / MergeSize);
         }
 
+        // 中文：从图片路径读取尺寸并计算其视觉 token 数。
         public int ComputeImageTokenCount(string imagePath)
         {
             var (width, height) = ReadImageDimensions(imagePath);
             return ComputeImageTokenCount(height, width);
         }
 
+        // 中文：根据原始高宽返回缩放后的 patch 网格高宽（resized 尺寸除以 patchSize）。
         public (int gridHeight, int gridWidth) GetPatchGrid(int origHeight, int origWidth)
         {
             var (resizedH, resizedW) = SmartResize(origHeight, origWidth);
@@ -84,6 +90,7 @@ namespace TensorSharp.Models
         /// Full image processing pipeline: load, composite, resize, normalize to channel-first float array.
         /// Returns (normalizedPixels, resizedHeight, resizedWidth).
         /// </summary>
+        // 中文：完整图像处理流水线：读取文件、解码为 RGBA、智能缩放、归一化为通道优先 float 数组并返回缩放后尺寸。
         public (float[] pixels, int resizedH, int resizedW) ProcessImage(string imagePath)
         {
             byte[] fileBytes = File.ReadAllBytes(imagePath);

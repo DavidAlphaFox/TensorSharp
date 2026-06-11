@@ -50,6 +50,7 @@ namespace TensorSharp.Models
         private Gemma3VisionEncoder _visionEncoder;
         private List<(Tensor embeddings, int position)> _pendingVisionEmbeddingsList = new();
 
+        // 中文：构造函数，从 GGUF 文件加载 Gemma3 模型，解析配置（SWA 窗口、RoPE 本地/全局基数、softcap 等）、分词器与权重，融合 gate/up 权重，预计算 RoPE 并初始化 KV 缓存。
         public Gemma3Model(string ggufPath, BackendType backend) : base(ggufPath, backend)
         {
             Config = new ModelConfig { Architecture = _gguf.GetString("general.architecture") };
@@ -91,8 +92,10 @@ namespace TensorSharp.Models
             InitKVCache(ResolveConfiguredContextLength());
         }
 
+        // 中文：判断指定层是否为全局（全因果）注意力层；每 6 层中第 6 层为全局，其余为局部滑动窗口层。
         private bool IsGlobalLayer(int layer) => (layer + 1) % GlobalCacheInterval == 0;
 
+        // 中文：预计算 RoPE 逆频率表，分别为局部层与全局层生成（全局层频率额外除以 RoPE 缩放因子）。
         private void PrecomputeRoPE()
         {
             int halfDim = _attnKeyLen / 2;
@@ -109,6 +112,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：按最大序列长度为每一层分配并初始化 K/V 缓存张量（形状含 KV 头数与 key/value 维度，按对齐的 KV 数据类型）。
         private void InitKVCache(int maxSeqLen)
         {
             _maxContextLength = maxSeqLen;
@@ -126,6 +130,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：重置 KV 缓存，将缓存序列长度清零并逐层清空 K/V 缓存张量。
         public override void ResetKVCache()
         {
             _cacheSeqLen = 0;
@@ -142,6 +147,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 KV 缓存截断到指定 token 数，并使各层 K/V 缓存的设备端副本失效以便后续重新同步。
         public override void TruncateKVCache(int tokenCount)
         {
             base.TruncateKVCache(tokenCount);
@@ -159,9 +165,11 @@ namespace TensorSharp.Models
         public override string KVStateFingerprint =>
             $"gemma3|arch={Config.Architecture}|L={Config.NumLayers}|H={Config.NumHeads}|KV={Config.NumKVHeads}|kL={_attnKeyLen}|vL={_attnValLen}|swa={_slidingWindow}|dtype={_kvCacheDtype.ToShortString()}";
 
+        // 中文：计算指定 token 数对应的 KV 缓存块字节大小，用于快照导出/注入的缓冲区分配。
         public override long ComputeKVBlockByteSize(int tokenCount)
             => KvBlockTransfer.ComputeBlockByteSize(_kvCacheK, _kvCacheV, tokenCount);
 
+        // 中文：从 KV 缓存中提取指定区间的块到目标字节缓冲区（用于缓存状态快照），不支持快照时返回 false。
         public override bool TryExtractKVBlock(int startToken, int tokenCount, Span<byte> destination)
         {
             if (!SupportsKVStateSnapshot)
@@ -171,6 +179,7 @@ namespace TensorSharp.Models
                 startToken, tokenCount, destination);
         }
 
+        // 中文：将字节缓冲区中的 KV 块注入到缓存指定位置，更新缓存序列长度并使各层设备端缓存失效；失败或不支持快照时返回 false。
         public override bool TryInjectKVBlock(int destToken, int tokenCount, ReadOnlySpan<byte> source)
         {
             if (!SupportsKVStateSnapshot)
@@ -189,12 +198,14 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：加载多模态视觉编码器（从 mmproj 文件），并将本模型设为其宿主以便复用张量分配器/权重。
         public void LoadVisionEncoder(string mmProjPath)
         {
             _visionEncoder = new Gemma3VisionEncoder(mmProjPath, _allocator);
             _visionEncoder.SetHostModel(this);
         }
 
+        // 中文：登记一组待注入的视觉嵌入及其插入位置，待下一次前向计算时替换对应图像占位符位置的文本嵌入。
         public void SetVisionEmbeddings(Tensor embeddings, int insertPosition)
         {
             _pendingVisionEmbeddingsList.Add((embeddings, insertPosition));
@@ -202,6 +213,7 @@ namespace TensorSharp.Models
 
         public Gemma3VisionEncoder VisionEncoder => _visionEncoder;
 
+        // 中文：模型前向计算主入口——做嵌入并缩放、注入视觉嵌入、逐层运行 Transformer 块、最终归一化、取末位隐藏态、计算 logits（含 softcap）并拷回缓冲区，同时推进 KV 缓存长度。
         public override float[] Forward(int[] tokens)
         {
             _forwardSw.Start();
@@ -284,6 +296,7 @@ namespace TensorSharp.Models
         /// Replace token embeddings at image placeholder positions with vision encoder output.
         /// The vision embeddings tensor has shape [numTokens, projDim] where projDim == hiddenSize.
         /// </summary>
+        // 中文：将视觉编码器输出的嵌入逐 token 内存拷贝到隐藏态张量中图像占位符所在位置，覆盖原文本嵌入。
         private unsafe void InjectVisionEmbeddings(Tensor hidden, Tensor visionEmbeddings, int insertPos, int startPos)
         {
             int numVisionTokens = (int)visionEmbeddings.Sizes[0];
@@ -304,12 +317,14 @@ namespace TensorSharp.Models
             Console.WriteLine($"Injected {numVisionTokens} vision tokens at chunk-offset {insertPos} (absolute position {startPos + insertPos})");
         }
 
+        // 中文：对嵌入张量按 sqrt(hidden_size) 进行缩放（Gemma 的嵌入归一化处理）。
         private void ScaleEmbedding(Tensor hidden)
         {
             float scale = MathF.Sqrt(Config.HiddenSize);
             Ops.Mul(hidden, hidden, scale);
         }
 
+        // 中文：对最终 logits 施加 softcap：logits = cap * tanh(logits / cap)，限制输出幅度。
         private void ApplyLogitSoftcap(Tensor logits)
         {
             float cap = _finalLogitSoftcap;
@@ -318,6 +333,7 @@ namespace TensorSharp.Models
             Ops.Mul(logits, logits, cap);
         }
 
+        // 中文：单个 Transformer 层的前向计算——含前置/后置注意力 RMSNorm、自注意力、前置/后置 FFN RMSNorm 与 GeGLU 前馈，并完成两次残差连接（Gemma3 每层 4 个 RMSNorm）。
         private Tensor TransformerBlock(Tensor hidden, int layer, int seqLen, int startPos)
         {
             string prefix = $"blk.{layer}";
@@ -351,6 +367,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：GeGLU 前馈网络——用融合的 gate_up 权重一次线性投影后切分为 gate/up，计算 GELU(gate)*up，再经 down 权重投影回隐藏维度。
         private Tensor FFNGelu(Tensor input, string gateUpWeightName, string downWeightName, int seqLen)
         {
             Tensor gateUp = LinearForward(input, gateUpWeightName);
@@ -380,6 +397,7 @@ namespace TensorSharp.Models
             return down;
         }
 
+        // 中文：自注意力计算——投影 Q/K/V，做 QK-Norm 与 NeoX RoPE（按全局/局部层选不同 RoPE 基数），Q 缩放，写入 KV 缓存，按层类型应用全因果或滑动窗口掩码，分 decode（seqLen==1）与 prefill 两条路径计算注意力并经输出投影。
         private Tensor Attention(Tensor input, int layer, string prefix, int seqLen, int startPos)
         {
             long t0 = Stopwatch.GetTimestamp();
@@ -482,6 +500,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：对多 token 批量的每个头按 head 维度做 RMSNorm（用于 prefill 阶段的 QK-Norm），归一化后还原回展平形状。
         private Tensor ApplyBatchRMSNorm(Tensor data, string weightName, int numHeads, int seqLen, int headDim)
         {
             var alpha = _weights[weightName];
@@ -497,6 +516,7 @@ namespace TensorSharp.Models
         /// NeoX-style RoPE: pairs (x[j], x[j + d/2]) — first half with second half.
         /// GGML GGML_ROPE_TYPE_NEOX uses n_offset = n_dims/2.
         /// </summary>
+        // 中文：解码阶段（单 token）逐头施加 NeoX 风格 RoPE 旋转，将前半与后半维度配对按位置角度旋转。
         private unsafe void ApplyNeoXRoPEDecode(Tensor data, int numHeads, int headDim, int position, float[] freqs)
         {
             float* ptr = GetFloatPtr(data);
@@ -518,6 +538,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：prefill 阶段（多 token）施加 RoPE——为每行构造绝对位置张量并调用 RoPEEx 算子（NeoX 模式），返回展平结果。
         private Tensor ApplyRoPEPrefill(Tensor data, int numHeads, int headDim,
             int seqLen, int startPos, float ropeBase, float freqScale)
         {
@@ -540,6 +561,7 @@ namespace TensorSharp.Models
             return flat;
         }
 
+        // 中文：将张量按给定标量原地缩放。
         private void ScaleTensor(Tensor t, float scale)
         {
             Ops.Mul(t, t, scale);
@@ -549,6 +571,7 @@ namespace TensorSharp.Models
         /// Attention decode with optional sliding window.
         /// attendStart..totalSeqLen-1 is the window of positions to attend to.
         /// </summary>
+        // 中文：解码阶段单 token 的注意力核心计算——支持 GQA 分组与滑动窗口，逐头在 [attendStart,totalSeqLen) 范围对缓存 K/V 做点积打分、softmax 并加权求和得到输出。
         private unsafe void AttentionDecodeWithWindow(Tensor q, Tensor kCache, Tensor vCache,
             Tensor result, int numHeads, int numKVHeads, int keyDim, int valDim,
             int attendStart, int totalSeqLen, float scale)
@@ -600,6 +623,7 @@ namespace TensorSharp.Models
         /// Apply causal mask to attention scores with optional sliding window.
         /// For sliding window, only positions within windowSize of the query are attended to.
         /// </summary>
+        // 中文：对 prefill 阶段的注意力分数施加因果掩码，并在滑动窗口模式下（windowSize>0）用缓存的逐行宽度向量化地屏蔽窗口外的早期位置。
         private unsafe void ApplyCausalMask(Tensor scores, int queryLen, int totalKVLen, int windowSize)
         {
             int startPos = totalKVLen - queryLen;
@@ -639,6 +663,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：调试用——比较批量计算与单行计算在 RMSNorm 和 Q 线性投影上的数值差异，验证 matmul 精度。
         private unsafe void TestMatmulPrecision(Tensor hidden, int seqLen)
         {
             int dim = Config.HiddenSize;
@@ -662,6 +687,7 @@ namespace TensorSharp.Models
             CompareRows(batchQ, singleQ, seqLen - 1, qDim, "Linear(Q)");
         }
 
+        // 中文：调试用——逐元素比较两张量指定行的差异（最大/平均差、非零个数）并打印前若干元素。
         private unsafe void CompareRows(Tensor batch, Tensor single, int rowIdx, int dim, string label)
         {
             float* batchPtr = GetFloatPtr(batch);
@@ -685,6 +711,7 @@ namespace TensorSharp.Models
             Console.WriteLine();
         }
 
+        // 中文：调试用——打印指定层末位 token 隐藏态的前几个分量及其 L2 范数。
         private unsafe void DumpHiddenState(Tensor hidden, int seqLen, int layer)
         {
             float* ptr = GetFloatPtr(hidden);
@@ -700,6 +727,7 @@ namespace TensorSharp.Models
             Console.WriteLine($" norm={MathF.Sqrt(sum):F6}");
         }
 
+        // 中文：释放资源——销毁视觉编码器、待注入的视觉嵌入、各层 K/V 缓存张量，并调用基类释放。
         public override void Dispose()
         {
             _visionEncoder?.Dispose();

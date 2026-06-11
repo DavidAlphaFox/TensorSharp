@@ -24,6 +24,11 @@ using TensorSharp.Cli.Logging;
 using TensorSharp.Cpu;
 using TensorSharp.Runtime;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】命令行入口（CLI）。
+// 【主要类型】Program：解析命令行参数、选择计算后端、加载 GGUF 模型，
+//             支持「一次性生成」与「交互式 REPL」两种运行模式（交互逻辑见 InteractiveSession）。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Cli
 {
     class Program

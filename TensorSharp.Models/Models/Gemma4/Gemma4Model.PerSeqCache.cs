@@ -76,12 +76,15 @@ namespace TensorSharp.Models
         /// per-request holders swap (with <see cref="RefreshDecodeArraysKvCache"/>
         /// repointing the fused-decode pointer arrays), so MoE and dense share
         /// the exact same per-request-cache machinery below.</summary>
+        // 中文：是否支持按序列融合前向（并发 N>=2 时每请求用各自 KV 缓存做单图融合解码）；要求 GGML 后端且支持全模型融合解码或为 MoE 模型。
         public bool SupportsPerSequenceFusedForward =>
             IsGgmlBackend && (_canUseFusedFullModelDecode || _numExperts > 0);
 
+        // 中文：判断指定 requestId 是否已存在对应的按序列融合 KV 缓存 holder。
         public bool HasFusedSequenceCache(string requestId)
             => requestId != null && _fusedHolders != null && _fusedHolders.ContainsKey(requestId);
 
+        // 中文：把当前活动 KV 缓存字段（K/V 张量、大小、容量、序列长度、脏标志）快照打包成一个 holder 返回（零拷贝，仅引用）。
         private Gemma4KvCacheHolder SnapshotActiveCache() => new Gemma4KvCacheHolder
         {
             K = _kvCacheK,
@@ -92,6 +95,7 @@ namespace TensorSharp.Models
             HostDirty = _kvCacheHostDirty,
         };
 
+        // 中文：将给定 holder 的 K/V 等状态装载回模型活动缓存字段，并刷新融合解码内核所用的 K/V 指针数组。
         private void LoadCacheHolder(Gemma4KvCacheHolder h)
         {
             _kvCacheK = h.K;
@@ -105,6 +109,7 @@ namespace TensorSharp.Models
             RefreshDecodeArraysKvCache();
         }
 
+        // 中文：分配一套全新的空 KV 缓存张量并包装为 holder（SeqLen=0），用于首次见到某请求时创建其专属缓存。
         private Gemma4KvCacheHolder CreateFreshHolder()
         {
             AllocateKvCacheArrays(_initialGlobalCacheLength,
@@ -126,6 +131,7 @@ namespace TensorSharp.Models
         /// fused-decode pointer arrays. Returns true when the cache was freshly
         /// created, so the caller knows to inject any prefix-cache-reused prefix
         /// (NumComputedTokens &gt; 0 at admission) before the first Forward.</summary>
+        // 中文：将指定请求的 KV 缓存切换为模型活动缓存（首次出现则新建空缓存）；先快照保存当前活动缓存再装载目标 holder，返回是否为新建（提示调用方注入前缀缓存）。
         public bool BindSequenceCache(string requestId)
         {
             if (string.IsNullOrEmpty(requestId))
@@ -164,6 +170,7 @@ namespace TensorSharp.Models
         /// primary a fresh empty allocation for later N==1 use. Called by the
         /// executor on the first multi-sequence step when a prior owner exists,
         /// so that owner's history is preserved as its own per-request cache.</summary>
+        // 中文：零拷贝地把当前 N==1 主缓存（含 owner 活动 K/V）收编为该请求的融合 holder，并给主缓存重新分配一套空张量供后续 N==1 使用；仅在主缓存当前活动时生效。
         public void AdoptPrimaryCacheToFused(string requestId)
         {
             if (string.IsNullOrEmpty(requestId)) return;
@@ -203,6 +210,7 @@ namespace TensorSharp.Models
         /// episode so the legacy single-sequence path (which resets/injects the
         /// active cache in place) never clobbers a concurrent request's holder.
         /// No-op when the primary cache is already active.</summary>
+        // 中文：在 N==1 步骤前把主缓存重新设为活动缓存；先保存当前检出的融合 holder 再换回主缓存快照，避免单序列路径就地重置时破坏并发请求的 holder。主缓存已活动时为空操作。
         public void RestorePrimaryCache()
         {
             if (_activeFusedKey == null)
@@ -221,6 +229,7 @@ namespace TensorSharp.Models
         /// engine calls this from InferenceEngine when a sequence leaves the
         /// scheduler. Frees the holder's tensors (after restoring the primary if
         /// the released holder happened to be the active one).</summary>
+        // 中文：释放已完成/中止请求的按序列缓存；若该 holder 正被检出则先换回主缓存避免活动字段悬空，然后从字典移除并销毁其张量。
         public void OnSequenceReleased(string requestId)
         {
             if (_fusedHolders == null || string.IsNullOrEmpty(requestId))
@@ -244,6 +253,7 @@ namespace TensorSharp.Models
             DisposeHolder(holder);
         }
 
+        // 中文：销毁 holder 的逐层 K/V 张量；用 HashSet 去重避免重复释放，并跳过别名其它层的 donor 层。
         private void DisposeHolder(Gemma4KvCacheHolder holder)
         {
             if (holder?.K == null) return;
@@ -260,6 +270,7 @@ namespace TensorSharp.Models
         /// primary snapshot). Called on model dispose. Does not touch the
         /// currently-active arrays (those are the model's _kvCacheK, disposed by
         /// the normal cache teardown).</summary>
+        // 中文：模型销毁时释放所有按序列融合 holder 及主缓存快照；跳过与活动 _kvCacheK 共享数组的 holder（由主缓存拆解负责释放），最后清空字典与活动键。
         private void DisposeAllFusedHolders()
         {
             if (_fusedHolders != null)

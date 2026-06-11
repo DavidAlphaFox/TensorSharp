@@ -7,7 +7,12 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
-﻿namespace TensorSharp
+﻿// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】后端张量算子接口的历史定义（当前以注释形式保留，作为算子清单参考）。
+// 【说明】实际算子的注册与分发由 OpRegistry + 特性注解完成，各后端按约束匹配实现；
+//         未实现的算子统一回退到 CPU，从而保证各后端结果一致。
+// ───────────────────────────────────────────────────────────────────────────
+namespace TensorSharp
 {
     /*
     public interface IBasicOps

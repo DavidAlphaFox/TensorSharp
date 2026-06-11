@@ -22,6 +22,12 @@ using TensorSharp.Cuda;
 using TensorSharp.GGML;
 using TensorSharp.MLX;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】所有模型架构的统一基类与共享构件（本文件体量很大，是模型层的核心）。
+// 【主要类型】ModelBase：封装通用前向 / 解码流程、各层张量与权重管理、采样接入等，
+//             Gemma / Qwen / GptOss / Nemotron / Mistral 等具体架构在此基础上派生；
+//             QuantizedWeight：量化权重容器，持有原生内存指针，供免反量化的矩阵乘使用。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Models
 {
     public class QuantizedWeight : IDisposable

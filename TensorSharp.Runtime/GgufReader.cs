@@ -15,6 +15,11 @@ using System.IO.MemoryMappedFiles;
 using System.Runtime.InteropServices;
 using System.Text;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】GGUF 模型文件解析器——模型加载的入口。
+// 【主要类型】GgufReader（及 GgufValueType 等）：通过内存映射读取 GGUF 文件的元数据
+//             （架构、超参、分词器等）与张量目录，为上层构建具体模型提供权重与配置。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Runtime
 {
     public enum GgufValueType : uint

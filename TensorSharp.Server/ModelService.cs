@@ -15,6 +15,11 @@ using System.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】模型服务——服务端的对外业务门面。
+// 【主要类型】ModelService：管理模型的加载 / 卸载与生命周期，持有会话与生成流水线，
+//             向各协议适配器（Ollama / OpenAI / WebUI）提供统一的会话级推理调用入口。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Server
 {
     public class ModelService : IDisposable

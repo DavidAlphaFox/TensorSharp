@@ -37,6 +37,7 @@ namespace TensorSharp.Models
         public const int ImgBreakTokenId = 12;
         public const int ImgEndTokenId = 13;
 
+        // 中文：构造函数，初始化图像处理器的图像尺寸、patch 大小、通道数与最长边等配置参数。
         public Mistral3ImageProcessor(int imageSize = 1540, int patchSize = 14,
             int numChannels = 3, int longestEdge = 1540)
         {
@@ -51,6 +52,7 @@ namespace TensorSharp.Models
         /// Returns (pixelValues, finalWidth, finalHeight).
         /// pixelValues is in channel-first format [C, H, W], normalized with CLIP mean/std.
         /// </summary>
+        // 中文：图像处理主流程：读取并解码图像、白底合成、按最长边保持比例缩放、向上取整对齐 patch_size 得到最终宽高，再缩放归一化，返回通道优先的像素数组及最终宽高。
         public (float[] pixels, int width, int height) ProcessImage(string imagePath)
         {
             byte[] fileBytes = File.ReadAllBytes(imagePath);
@@ -87,6 +89,7 @@ namespace TensorSharp.Models
         /// Bilinear resize + CLIP normalization in a single pass.
         /// Output is channel-first: [R..., G..., B...].
         /// </summary>
+        // 中文：单次遍历完成双线性缩放并按 CLIP 均值/方差归一化，输出通道优先的浮点像素数组（并行按行处理）。
         private float[] ResizeAndNormalize(byte[] rgba, int srcW, int srcH, int dstW, int dstH)
         {
             int pixels = dstW * dstH;
@@ -133,6 +136,7 @@ namespace TensorSharp.Models
         /// After patch merging, tokens = (patchesW / mergeSize) * (patchesH / mergeSize).
         /// Each row becomes [IMG]...[IMG] tokens, rows separated by [IMG_BREAK], ending with [IMG_END].
         /// </summary>
+        // 中文：计算处理后图像的视觉 token 数量：按 patch 数除以空间合并大小得到合并后网格，再加上每行的 [IMG_BREAK]/[IMG_END] 分隔 token。
         public int ComputeVisionTokenCount(int imageWidth, int imageHeight, int spatialMergeSize)
         {
             int patchesW = imageWidth / PatchSize;
