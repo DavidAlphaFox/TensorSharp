@@ -15,6 +15,7 @@ namespace TensorSharp.Core
     public static class TensorConcatenation
     {
         // Requires an implementation of *copy* for the given tensor types
+        // 中文：沿指定维度拼接多个张量，按各输入区域逐块拷贝到结果张量并返回。
         public static Tensor Concat(Tensor result, int dimension, params Tensor[] inputs)
         {
             if (inputs.Length < 2)
@@ -55,11 +56,13 @@ namespace TensorSharp.Core
 
 
 
+        // 中文：取张量在指定维度上的尺寸，超出维数范围时按 1 处理。
         private static long GetDimSize(Tensor tensor, int dim)
         {
             return dim < tensor.DimensionCount ? tensor.Sizes[dim] : 1;
         }
 
+        // 中文：计算拼接结果各维尺寸：拼接维相加，其余维须一致否则抛异常。
         private static long[] ConcatTensorSize(int ndim, int dimension, Tensor[] tensors)
         {
             long[] result = new long[ndim];

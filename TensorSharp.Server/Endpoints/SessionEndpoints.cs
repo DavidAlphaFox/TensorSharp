@@ -23,6 +23,7 @@ namespace TensorSharp.Server.Endpoints
     /// </summary>
     internal static class SessionEndpoints
     {
+        // 中文：注册聊天会话生命周期路由：POST 创建会话、DELETE 释放会话（释放其 KV 缓存）。
         public static IEndpointRouteBuilder MapSessionEndpoints(this IEndpointRouteBuilder endpoints)
         {
             endpoints.MapPost("/api/sessions",

@@ -17,6 +17,7 @@ namespace TensorSharp.GGML
         private readonly GgmlContext context;
         private readonly int deviceId;
 
+        // 中文：构造分配器，校验并保存 GGML 上下文与设备号。
         public GgmlAllocator(GgmlContext context, int deviceId)
         {
             this.context = context ?? throw new ArgumentNullException(nameof(context));
@@ -29,6 +30,7 @@ namespace TensorSharp.GGML
 
         public GgmlContext Context => context;
 
+        // 中文：校验元素类型是否为 GGML 支持类型后创建并返回 GgmlStorage 存储。
         public Storage Allocate(DType elementType, long elementCount)
         {
             // Float16 storage is permitted only for KV-cache use (the Tensor framework
@@ -52,6 +54,7 @@ namespace TensorSharp.GGML
             return new GgmlStorage(this, context, elementType, elementCount);
         }
 
+        // 中文：返回已分配内存占比，GGML 后端不统计故恒返回 0。
         public float GetAllocatedMemoryRatio()
         {
             return 0.0f;

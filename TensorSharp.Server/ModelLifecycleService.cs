@@ -23,6 +23,7 @@ namespace TensorSharp.Server
         private string _loadedMmProjPath;
         private BackendType _backend;
 
+        // 中文：构造函数，注入日志记录器（为空时回退到空记录器）。
         public ModelLifecycleService(ILogger logger)
         {
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
@@ -38,11 +39,13 @@ namespace TensorSharp.Server
         public ModelBase Model => _model;
         public BackendType Backend => _backend;
 
+        // 中文：判断当前已加载模型的名称是否与给定名称（忽略大小写）一致。
         public bool IsModelAlreadyLoaded(string modelName)
         {
             return _model != null && string.Equals(LoadedModelName, modelName, StringComparison.OrdinalIgnoreCase);
         }
 
+        // 中文：加载模型——卸载旧模型、解析后端、创建新模型并（如有）加载多模态投影器，记录耗时与错误。
         public void LoadModel(string modelPath, string mmProjPath, string backendStr)
         {
             _logger.LogInformation(LogEventIds.ModelLoadStarted,
@@ -94,6 +97,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：释放资源——销毁当前模型并清空已加载模型与投影路径状态。
         public void Dispose()
         {
             _model?.Dispose();
@@ -102,11 +106,13 @@ namespace TensorSharp.Server
             _loadedMmProjPath = null;
         }
 
+        // 中文：为当前模型加载多模态编码器/投影器。
         private void LoadEncoders(string mmProjPath)
         {
             _model?.MultimodalInjector.LoadProjectors(mmProjPath);
         }
 
+        // 中文：将后端字符串规范化并映射为BackendType枚举（默认回退到GgmlCpu）。
         private static BackendType ResolveBackend(string backendStr)
         {
             return BackendCatalog.Canonicalize(backendStr) switch
@@ -121,6 +127,7 @@ namespace TensorSharp.Server
             };
         }
 
+        // 中文：安全获取文件字节大小，路径无效或发生异常时返回0。
         private static long SafeGetFileSize(string path)
         {
             if (string.IsNullOrEmpty(path))

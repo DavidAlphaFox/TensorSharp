@@ -24,6 +24,7 @@ namespace TensorSharp.Server.RequestParsers
     /// </summary>
     internal static class ToolFunctionParser
     {
+        // 中文：解析 Ollama 的 tools 字段，逐个取出嵌套 function 并解析，无工具时返回 null。
         public static List<ToolFunction> ParseOllama(JsonElement body)
         {
             if (!body.TryGetProperty("tools", out var toolsEl) || toolsEl.ValueKind != JsonValueKind.Array)
@@ -41,6 +42,7 @@ namespace TensorSharp.Server.RequestParsers
             return tools.Count > 0 ? tools : null;
         }
 
+        // 中文：解析 OpenAI 的 tools 字段，仅处理 type 为 function 的项，无工具时返回 null。
         public static List<ToolFunction> ParseOpenAI(JsonElement body)
         {
             if (!body.TryGetProperty("tools", out var toolsEl) || toolsEl.ValueKind != JsonValueKind.Array)
@@ -60,6 +62,7 @@ namespace TensorSharp.Server.RequestParsers
             return tools.Count > 0 ? tools : null;
         }
 
+        // 中文：从 function JSON 元素解析出名称、描述、参数属性（含类型/描述/枚举）及必填字段列表。
         private static ToolFunction ParseFunction(JsonElement fnEl)
         {
             var tf = new ToolFunction

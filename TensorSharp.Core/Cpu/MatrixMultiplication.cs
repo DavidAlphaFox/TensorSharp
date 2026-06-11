@@ -82,11 +82,13 @@ namespace TensorSharp.Cpu
         private const int ParallelWorkThreshold = 1 << 15;
         private static readonly SGEMM ManagedSgemm = new SGEMM();
 
+        // 中文：静态构造函数，为本程序集注册自定义 DllImport 解析器以加载 MKL 原生库。
         static MatrixMultiplication()
         {
             NativeLibrary.SetDllImportResolver(typeof(MatrixMultiplication).Assembly, ImportResolver);
         }
 
+        // 中文：DllImport 解析回调，在 Linux 上把 MKL 库名映射为 mkl_rt 进行加载。
         private static IntPtr ImportResolver(string libraryName, System.Reflection.Assembly assembly, DllImportSearchPath? searchPath)
         {
             IntPtr libHandle = IntPtr.Zero;
@@ -104,6 +106,7 @@ namespace TensorSharp.Cpu
 
 
 
+        // 中文：将内部 BlasOp 枚举转换为对应的 Transpose 枚举（非转置/转置/共轭转置）。
         public static Transpose ConvertBlasOp(BlasOp op)
         {
             if (op == BlasOp.NonTranspose)
@@ -118,12 +121,14 @@ namespace TensorSharp.Cpu
             return Transpose.ConjTrans;
         }
 
+        // 中文：根据外层与内层工作量判断是否值得并行化（超过阈值才并行）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool ShouldParallelize(int outerWork, int innerWork)
         {
             return outerWork > 1 && (long)outerWork * innerWork >= ParallelWorkThreshold;
         }
 
+        // 中文：判断三个张量是否都不使用 MKL，从而走托管 BLAS 实现路径。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool UsesManagedBlas(Tensor a, Tensor b, Tensor c)
         {
@@ -132,6 +137,7 @@ namespace TensorSharp.Cpu
                    c.Allocator.BlasEnum != BlasEnum.MKL;
         }
 
+        // 中文：判断张量是否为行优先连续的二维 Float32 矩阵。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IsRowMajorContiguous2D(Tensor tensor)
         {
@@ -141,6 +147,7 @@ namespace TensorSharp.Cpu
                    tensor.Strides[0] == tensor.Sizes[1];
         }
 
+        // 中文：判断张量是否为列优先连续的二维 Float32 矩阵。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IsColumnMajorContiguous2D(Tensor tensor)
         {
@@ -150,6 +157,7 @@ namespace TensorSharp.Cpu
                    tensor.Strides[1] == tensor.Sizes[0];
         }
 
+        // 中文：判断张量是否为行优先连续的三维（批量）Float32 矩阵。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IsRowMajorContiguous3D(Tensor tensor)
         {
@@ -160,6 +168,7 @@ namespace TensorSharp.Cpu
                    tensor.Strides[0] == tensor.Sizes[1] * tensor.Sizes[2];
         }
 
+        // 中文：判断张量是否为列优先连续的三维（批量）Float32 矩阵。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool IsColumnMajorContiguous3D(Tensor tensor)
         {
@@ -170,18 +179,21 @@ namespace TensorSharp.Cpu
                    tensor.Strides[0] == tensor.Sizes[1] * tensor.Sizes[2];
         }
 
+        // 中文：从非对齐指针处读取一个 SIMD 向量。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe Vector<float> LoadVec(float* ptr)
         {
             return Unsafe.ReadUnaligned<Vector<float>>(ref *(byte*)ptr);
         }
 
+        // 中文：将一个 SIMD 向量写入非对齐指针处。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void StoreVec(float* ptr, Vector<float> value)
         {
             Unsafe.WriteUnaligned(ref *(byte*)ptr, value);
         }
 
+        // 中文：计算两段连续内存的点积（基于 TensorPrimitives.Dot）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe float DotContiguous(float* lhs, float* rhs, int length)
         {
@@ -190,6 +202,7 @@ namespace TensorSharp.Cpu
                 new ReadOnlySpan<float>(rhs, length));
         }
 
+        // 中文：对一行 C 元素就地乘以 beta 系数（beta=1 跳过，beta=0 清零，否则向量化缩放）。
         private static unsafe void ApplyBeta(float* row, int length, float beta)
         {
             if (beta == 1.0f)
@@ -217,6 +230,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：托管 GEMM 单行内核（A、B 均行优先），计算一行 C = alpha*A行*B + beta*C。
         private static unsafe void ManagedGemmRowRowOne(float alpha, float* aRow, float* bBase, int bRowStride, float beta, float* cRow, int n, int k)
         {
             ApplyBeta(cRow, n, beta);
@@ -249,6 +263,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：托管 GEMM 四行分块内核（A、B 均行优先），一次计算四行 C 以提升缓存与 SIMD 利用率。
         private static unsafe void ManagedGemmRowRowFour(
             float alpha,
             float* aRow0, float* aRow1, float* aRow2, float* aRow3,
@@ -337,6 +352,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：将四个左向量分别与同一右向量做点积（向量化），一次输出四个结果。
         private static unsafe void DotContiguousFour(
             float* lhs0, float* lhs1, float* lhs2, float* lhs3,
             float* rhs,
@@ -373,6 +389,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：4x4 分块点积内核，将四个左向量与四个右向量两两点积，一次输出十六个结果。
         private static unsafe void DotContiguousFourByFour(
             float* lhs0, float* lhs1, float* lhs2, float* lhs3,
             float* rhs0, float* rhs1, float* rhs2, float* rhs3,
@@ -477,6 +494,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：托管 GEMM 单行内核（A 行优先、B 列优先），按列对 B 做点积计算一行 C。
         private static unsafe void ManagedGemmRowColOne(float alpha, float* aRow, float* bBase, int bColStride, float beta, float* cRow, int n, int k)
         {
             if (alpha == 0.0f)
@@ -492,6 +510,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：托管 GEMM 四行分块内核（A 行优先、B 列优先），用 4x4 点积一次计算四行 C。
         private static unsafe void ManagedGemmRowColFour(
             float alpha,
             float* aRow0, float* aRow1, float* aRow2, float* aRow3,
@@ -593,6 +612,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：尝试用托管 SIMD 实现 2D GEMM（按 B 的行/列优先选择内核并决定是否并行），成功返回 true。
         private static unsafe bool TryManagedGemm(float alpha, Tensor a, Tensor b, float beta, Tensor c)
         {
             if (!UsesManagedBlas(a, b, c) || !IsRowMajorContiguous2D(a) || !IsRowMajorContiguous2D(c))
@@ -750,6 +770,7 @@ namespace TensorSharp.Cpu
             return true;
         }
 
+        // 中文：尝试用托管 SIMD 实现批量 3D GEMM（按 B 布局选择内核并按批并行），成功返回 true。
         private static unsafe bool TryManagedGemmBatch(float alpha, Tensor a, Tensor b, float beta, Tensor c)
         {
             if (!UsesManagedBlas(a, b, c) || !IsRowMajorContiguous3D(a) || !IsRowMajorContiguous3D(c))
@@ -869,6 +890,7 @@ namespace TensorSharp.Cpu
         }
 
 
+        // 中文：计算两个一维向量的点积，校验类型/维度后按 Float32/Float64 分派到对应实现。
         public static Tensor Dot(Tensor result, Tensor lhs, Tensor rhs)
         {
             if (lhs.ElementType != rhs.ElementType || (result != null && result.ElementType != lhs.ElementType))
@@ -919,6 +941,7 @@ namespace TensorSharp.Cpu
             return writeTarget;
         }
 
+        // 中文：单精度向量点积，调用 OpenBLAS 的 sdot_ 计算结果。
         private static void Run_Dot_float(Tensor result, Tensor lhs, Tensor rhs)
         {
             unsafe
@@ -934,6 +957,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：双精度向量点积，调用 OpenBLAS 的 ddot_ 计算结果。
         private static void Run_Dot_double(Tensor result, Tensor lhs, Tensor rhs)
         {
             unsafe
@@ -949,6 +973,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：矩阵乘向量（M×V），校验后将 lhs 规整为行优先并按数据类型分派计算。
         public static Tensor Mul_M_V(Tensor result, Tensor lhs, Tensor rhs)
         {
             if (lhs.ElementType != rhs.ElementType || (result != null && result.ElementType != lhs.ElementType))
@@ -1020,6 +1045,7 @@ namespace TensorSharp.Cpu
             return writeTarget;
         }
 
+        // 中文：单精度矩阵乘向量，要求行优先并以转置方式调用 OpenBLAS 的 sgemv_。
         private static void Run_M_V_float(Tensor result, Tensor mat, Tensor vec)
         {
             // Require lhs to be row-major. This means we must tell BLAS to transpose it (BLAS expects column-major matrices)
@@ -1046,6 +1072,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：双精度矩阵乘向量，要求行优先并以转置方式调用 OpenBLAS 的 dgemv_。
         private static void Run_M_V_double(Tensor result, Tensor lhs, Tensor rhs)
         {
             // Require lhs to be row-major. This means we must tell BLAS to transpose it (BLAS expects column-major matrices)
@@ -1074,6 +1101,7 @@ namespace TensorSharp.Cpu
 
 
 
+        // 中文：矩阵乘矩阵（M×M），分配结果张量后以 alpha=1、beta=0 调用 Gemm。
         public static Tensor Mul_M_M(Tensor result, Tensor lhs, Tensor rhs)
         {
             if (lhs.ElementType != rhs.ElementType || (result != null && result.ElementType != lhs.ElementType))
@@ -1105,6 +1133,7 @@ namespace TensorSharp.Cpu
         }
 
         
+        // 中文：通用矩阵乘 C=alpha*A*B+beta*C，先试托管实现，否则按 C/A/B 的连续性整理布局与转置标志后调用 BLAS。
         public static void Gemm(float alpha, Tensor a, Tensor b, float beta, Tensor c)
         {
             if (a.Sizes[0] != c.Sizes[0] || b.Sizes[1] != c.Sizes[1] || a.Sizes[1] != b.Sizes[0])
@@ -1226,6 +1255,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：批量通用矩阵乘，先试托管批量实现；托管 BLAS 则逐批调用 Gemm，否则整理布局后调用 MKL 批量内核。
         public static void GemmBatch(float alpha, Tensor a, Tensor b, float beta, Tensor c)
         {
             if (a.Sizes[1] != c.Sizes[1] || b.Sizes[2] != c.Sizes[2] || a.Sizes[2] != b.Sizes[1])
@@ -1374,9 +1404,11 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：MKL CBLAS 单精度矩阵乘 cblas_sgemm 的 P/Invoke 声明。
         [DllImport(mklDllName)]
         public static extern unsafe void cblas_sgemm(Order order, byte transa, byte transb, int m, int n, int k, float alpha, float* a, int lda, float* b, int ldb, float beta, float* c, int ldc);
 
+        // 中文：列优先 GEMM 底层调用，按数据类型分派到 MKL/托管 SGEMM 或 OpenBLAS dgemm_。
         private static void GemmOp(BlasOp transA, BlasOp transB, float alpha, Tensor a, Tensor b, float beta, Tensor c)
         {
             if (a.Strides[0] != 1)
@@ -1450,9 +1482,11 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：MKL CBLAS 跨步批量单精度矩阵乘 cblas_sgemm_batch_strided 的 P/Invoke 声明。
         [DllImport(mklDllName)]
         public static extern unsafe void cblas_sgemm_batch_strided(Order order, byte transa, byte transb, int m, int n, int k, float alpha, float* a, int lda, int stra, float* b, int ldb, int strb, float beta, float* c, int ldc, int stridec, int batch_size);
 
+        // 中文：列优先批量 GEMM 底层调用，单精度时调用 MKL 跨步批量内核（双精度暂不支持）。
         private static void GemmOpBatch(BlasOp transA, BlasOp transB, float alpha, Tensor a, Tensor b, float beta, Tensor c)
         {
             if (a.Strides[1] != 1)

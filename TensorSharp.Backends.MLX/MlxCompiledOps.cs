@@ -31,6 +31,7 @@ namespace TensorSharp.MLX
         private static MlxNative.CompiledClosure rmsNormScaledClosure;
         private static readonly object initLock = new();
 
+        // 中文：双检锁懒编译指定算子的 MLX 闭包并缓存到槽位，线程安全。
         private static MlxNative.CompiledClosure EnsureCompiled(ref MlxNative.CompiledClosure slot, MlxNative.TraceFunc trace)
         {
             // Double-checked locking: the read after the lock catches the case
@@ -49,6 +50,7 @@ namespace TensorSharp.MLX
         }
 
         // silu(x) = x * sigmoid(x). One fused kernel instead of two-op chain.
+        // 中文：编译并应用 SiLU 融合核 x*sigmoid(x)。
         public static MlxNative.MlxArray SiLU(MlxNative.MlxArray x)
         {
             var c = EnsureCompiled(ref siluClosure, inputs =>
@@ -71,12 +73,14 @@ namespace TensorSharp.MLX
         // GELU tanh approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
         // Currently produced eagerly via 13 op calls; once compiled, MLX
         // fuses into a single kernel.
+        // 中文：编译并应用 GELU tanh 近似的融合核。
         public static MlxNative.MlxArray GeluTanh(MlxNative.MlxArray x)
         {
             var c = EnsureCompiled(ref geluTanhClosure, inputs => new[] { GeluTanhTrace(inputs[0]) });
             return MlxNative.ApplyClosure1(c, x);
         }
 
+        // 中文：构建 GELU tanh 近似的计算图（供编译追踪与 GeGLU 复用）。
         private static MlxNative.MlxArray GeluTanhTrace(MlxNative.MlxArray input)
         {
             // Allocate scalars inside the trace so they participate in the
@@ -128,6 +132,7 @@ namespace TensorSharp.MLX
         }
 
         // SwiGLU = silu(gate) * up. The common LLaMA/Qwen FFN activation.
+        // 中文：编译并应用 SwiGLU 融合核 silu(gate)*up。
         public static MlxNative.MlxArray SwiGLU(MlxNative.MlxArray gate, MlxNative.MlxArray up)
         {
             var c = EnsureCompiled(ref swiGluClosure, inputs =>
@@ -152,6 +157,7 @@ namespace TensorSharp.MLX
         }
 
         // GeGLU = gelu(gate) * up. Used by Gemma family MLP and MoE paths.
+        // 中文：编译并应用 GeGLU 融合核 gelu(gate)*up。
         public static MlxNative.MlxArray GeGLU(MlxNative.MlxArray gate, MlxNative.MlxArray up)
         {
             var c = EnsureCompiled(ref geGluClosure, inputs =>
@@ -174,6 +180,7 @@ namespace TensorSharp.MLX
 
         // SigmoidMul = x * sigmoid(gate). Variant used by some attention
         // gating paths.
+        // 中文：编译并应用 x*sigmoid(gate) 融合核。
         public static MlxNative.MlxArray SigmoidMul(MlxNative.MlxArray x, MlxNative.MlxArray gate)
         {
             var c = EnsureCompiled(ref sigmoidMulClosure, inputs =>
@@ -198,6 +205,7 @@ namespace TensorSharp.MLX
         // norm + scalar multiply that the Qwen3.5 GDN path does for Q and K
         // (`q * (1/dim)`, `k * (1/sqrt(dim))`) into a single Metal kernel.
         // Saves 2 kernel launches per GDN layer × 30 GDN layers/forward.
+        // 中文：编译并应用 fast_rms_norm(x,weight,eps)*scalar 融合核。
         public static MlxNative.MlxArray RmsNormScaled(
             MlxNative.MlxArray x,
             MlxNative.MlxArray weight,
@@ -236,6 +244,7 @@ namespace TensorSharp.MLX
         // ~480 kernel launches per decode token.
         // The scalar is passed as a 0-D MLX array input so the same compiled
         // closure works regardless of its value (no per-call recompile).
+        // 中文：编译并应用 output+scalar*src 融合核（MoE 累加器用）。
         public static MlxNative.MlxArray AddScaled(MlxNative.MlxArray output, MlxNative.MlxArray src, MlxNative.MlxArray scalar)
         {
             var c = EnsureCompiled(ref addScaledClosure, inputs =>

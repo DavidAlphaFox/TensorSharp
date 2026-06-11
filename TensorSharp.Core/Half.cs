@@ -19,21 +19,25 @@ namespace TensorSharp
     {
         public ushort x;
 
+        // 中文：由 float 构造 half，内部存储为 16 位编码。
         public half(float value)
         {
             x = FloatToHalf(value);
         }
 
+        // 中文：half 到 float 的隐式转换运算符。
         public static implicit operator float(half h)
         {
             return HalfToFloat(h.x);
         }
 
+        // 中文：float 到 half 的隐式转换运算符。
         public static implicit operator half(float f)
         {
             return new half(f);
         }
 
+        // 中文：按 IEEE 754 位运算将 float 编码为 16 位半精度（处理下溢与上溢饱和）。
         private static ushort FloatToHalf(float value)
         {
             int bits = System.BitConverter.SingleToInt32Bits(value);
@@ -49,6 +53,7 @@ namespace TensorSharp
             return (ushort)(sign | (exponent << 10) | (mantissa >> 13));
         }
 
+        // 中文：将 16 位半精度编码解码为 float（处理非规格化数、Inf 与 NaN）。
         private static float HalfToFloat(ushort value)
         {
             int sign = (value >> 15) & 1;

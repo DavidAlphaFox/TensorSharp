@@ -5,6 +5,7 @@ namespace TensorSharp.Cuda
 {
     internal static class CudaBlas
     {
+        // 中文：尝试用 cuBLAS 的 Sgemm 执行二维矩阵乘加运算 result = beta*src + alpha*(m1·m2)。
         public static bool TryAddmm(Tensor result, float beta, Tensor src, float alpha, Tensor m1, Tensor m2)
         {
             if (!TryGetCudaStorage(result, out CudaStorage resultStorage) ||
@@ -89,6 +90,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：尝试用 cuBLAS 的 SgemmStridedBatched 执行三维批量矩阵乘加运算。
         public static bool TryAddmmBatch(Tensor result, float beta, Tensor src, float alpha, Tensor m1, Tensor m2)
         {
             if (!TryGetCudaStorage(result, out CudaStorage resultStorage) ||
@@ -180,17 +182,20 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：尝试从张量获取其底层 CudaStorage，非 CUDA 存储则返回 false。
         private static bool TryGetCudaStorage(Tensor tensor, out CudaStorage storage)
         {
             storage = tensor?.Storage as CudaStorage;
             return storage != null;
         }
 
+        // 中文：判断二维张量是否为行优先（连续）布局。
         private static bool IsRowMajorMatrix(Tensor tensor)
         {
             return tensor.Strides[1] == 1 && tensor.Strides[0] == tensor.Sizes[1];
         }
 
+        // 中文：判断三维批量张量是否为行优先（连续）布局。
         private static bool IsRowMajorBatchMatrix(Tensor tensor)
         {
             return tensor.Strides[2] == 1 &&
@@ -198,6 +203,7 @@ namespace TensorSharp.Cuda
                 tensor.Strides[0] == tensor.Sizes[1] * tensor.Sizes[2];
         }
 
+        // 中文：根据二维右操作数的步幅推断 cuBLAS 转置标志与 lda，不支持的布局返回 false。
         private static bool TryGetRightOperand(Tensor tensor, out int transa, out int lda)
         {
             int logicalRows = checked((int)tensor.Sizes[0]);
@@ -222,6 +228,7 @@ namespace TensorSharp.Cuda
             return false;
         }
 
+        // 中文：根据三维批量右操作数的步幅推断 cuBLAS 转置标志与 lda，不支持的布局返回 false。
         private static bool TryGetRightOperandBatch(Tensor tensor, out int transa, out int lda)
         {
             int logicalRows = checked((int)tensor.Sizes[1]);

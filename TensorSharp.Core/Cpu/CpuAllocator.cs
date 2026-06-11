@@ -18,6 +18,7 @@ namespace TensorSharp.Cpu
         public BlasEnum BlasEnum => m_blasEnum;
         public int DeviceId => 0;
 
+        // 中文：构造 CPU 分配器，记录 BLAS 类型并在使用 MKL 时设置指令集环境变量。
         public CpuAllocator(BlasEnum blasEnum, string mklInstructions = "AVX2")
         {
             m_blasEnum = blasEnum;
@@ -28,11 +29,13 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：分配并返回指定类型与元素数量的 CPU 存储。
         public Storage Allocate(DType elementType, long elementCount)
         {
             return new CpuStorage(this, elementType, elementCount);
         }
 
+        // 中文：返回已分配内存占比，CPU 分配器固定返回 0。
         public float GetAllocatedMemoryRatio()
         {
             return 0.0f;

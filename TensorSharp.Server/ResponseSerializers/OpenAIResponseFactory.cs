@@ -27,11 +27,13 @@ namespace TensorSharp.Server.ResponseSerializers
         private const string ChunkObject = "chat.completion.chunk";
         private const string CompletionObject = "chat.completion";
 
+        // 中文：生成 chatcmpl- 前缀的请求 ID（截取为 30 字符）。
         public static string NewRequestId()
         {
             return $"chatcmpl-{Guid.NewGuid():N}".Substring(0, 30);
         }
 
+        // 中文：构建流式 chunk 的排队进度块，附带排队位置与待处理数量。
         public static object QueueChunk(string requestId, string model, int position, int pending) => new
         {
             id = requestId,
@@ -43,6 +45,7 @@ namespace TensorSharp.Server.ResponseSerializers
             queue_pending = pending,
         };
 
+        // 中文：构建流式正文增量 chunk，仅在 delta.content 中携带文本片段。
         public static object ContentChunk(string requestId, string model, string contentChunk) => new
         {
             id = requestId,
@@ -60,6 +63,7 @@ namespace TensorSharp.Server.ResponseSerializers
             },
         };
 
+        // 中文：构建结构化输出的流式 chunk，将归一化后的内容作为完整 assistant delta 发送。
         public static object StructuredContentChunk(string requestId, string model, string normalizedContent) => new
         {
             id = requestId,
@@ -77,6 +81,7 @@ namespace TensorSharp.Server.ResponseSerializers
             },
         };
 
+        // 中文：构建流式终结 chunk，设置 finish_reason 并附带 usage 用量统计。
         public static object EndChunk(
             string requestId,
             string model,
@@ -101,6 +106,7 @@ namespace TensorSharp.Server.ResponseSerializers
             usage = BuildUsage(promptTokens, evalTokens, kvCacheReusedTokens),
         };
 
+        // 中文：构建错误流式 chunk，将错误信息以 "Error: ..." 形式放入 delta 并以 stop 结束。
         public static object ErrorContentChunk(string requestId, string model, string errorMessage) => new
         {
             id = requestId,
@@ -118,6 +124,7 @@ namespace TensorSharp.Server.ResponseSerializers
             },
         };
 
+        // 中文：构建非流式完整 chat.completion 响应，包装消息、finish_reason 与 usage 统计。
         public static object Completion(
             string requestId,
             string model,
@@ -143,6 +150,7 @@ namespace TensorSharp.Server.ResponseSerializers
             usage = BuildUsage(promptTokens, evalTokens, kvCacheReusedTokens),
         };
 
+        // 中文：构建已解析的 assistant 消息对象，含正文、思考内容与转换后的工具调用。
         public static object ParsedAssistantMessage(
             string content,
             string thinking,
@@ -157,18 +165,21 @@ namespace TensorSharp.Server.ResponseSerializers
             };
         }
 
+        // 中文：构建仅含正文的简单 assistant 消息对象。
         public static object PlainAssistantMessage(string content) => new
         {
             role = "assistant",
             content,
         };
 
+        // 中文：构建结构化输出的 assistant 消息对象，正文为归一化后的内容。
         public static object StructuredAssistantMessage(string normalizedContent) => new
         {
             role = "assistant",
             content = normalizedContent,
         };
 
+        // 中文：将内部 ToolCall 列表转换为 OpenAI 工具调用格式（含 call_ ID、function 名与序列化参数），空列表返回 null。
         private static IReadOnlyList<object> BuildToolCalls(IReadOnlyList<ToolCall> toolCalls)
         {
             if (toolCalls == null || toolCalls.Count == 0)
@@ -182,6 +193,7 @@ namespace TensorSharp.Server.ResponseSerializers
             }).ToArray();
         }
 
+        // 中文：返回当前 UTC 的 Unix 秒级时间戳，作为 created 字段。
         private static long UnixNow() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         /// <summary>
@@ -190,6 +202,7 @@ namespace TensorSharp.Server.ResponseSerializers
         /// reason about KV cache hit rates (matches the official OpenAI shape so
         /// SDKs that already parse <c>cached_tokens</c> work unchanged).
         /// </summary>
+        // 中文：构建 OpenAI usage 用量块，含总 token 数及 prompt_tokens_details.cached_tokens 缓存扩展。
         private static object BuildUsage(int promptTokens, int evalTokens, int kvCacheReusedTokens) => new
         {
             prompt_tokens = promptTokens,

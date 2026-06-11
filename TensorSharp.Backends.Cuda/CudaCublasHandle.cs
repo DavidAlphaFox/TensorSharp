@@ -8,6 +8,7 @@ namespace TensorSharp.Cuda
     {
         private IntPtr handle;
 
+        // 中文：私有构造函数，保存底层 cuBLAS 句柄。
         private CudaCublasHandle(IntPtr handle)
         {
             this.handle = handle;
@@ -15,6 +16,7 @@ namespace TensorSharp.Cuda
 
         public IntPtr Handle => handle;
 
+        // 中文：创建 cuBLAS 句柄并启用 Tensor Core 数学模式，失败时销毁句柄。
         public static CudaCublasHandle Create()
         {
             CublasApi.cublasCreate(out IntPtr handle).ThrowOnCublasError();
@@ -30,6 +32,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：将 cuBLAS 句柄绑定到指定 CUDA 流，已释放则抛异常。
         public void SetStream(IntPtr stream)
         {
             if (handle == IntPtr.Zero)
@@ -38,6 +41,7 @@ namespace TensorSharp.Cuda
             CublasApi.cublasSetStream(handle, stream).ThrowOnCublasError();
         }
 
+        // 中文：销毁 cuBLAS 句柄（仅执行一次）。
         public void Dispose()
         {
             IntPtr nativeHandle = Interlocked.Exchange(ref handle, IntPtr.Zero);

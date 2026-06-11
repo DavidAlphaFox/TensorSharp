@@ -17,27 +17,33 @@ namespace TensorSharp.Cpu
         private const string dll = "libopenblas.dll";
         private const CallingConvention cc = CallingConvention.Cdecl;
 
+        // 中文：绑定 OpenBLAS sgemm_，单精度通用矩阵乘法 C = alpha*A*B + beta*C。
         [DllImport(dll, CallingConvention = cc)]
         public static extern unsafe void sgemm_(byte* transa, byte* transb, int* m, int* n, int* k,
             float* alpha, float* a, int* lda, float* b, int* ldb, float* beta, float* c, int* ldc);
 
+        // 中文：绑定 OpenBLAS dgemm_，双精度通用矩阵乘法 C = alpha*A*B + beta*C。
         [DllImport(dll, CallingConvention = cc)]
         public static extern unsafe void dgemm_(byte* transa, byte* transb, int* m, int* n, int* k,
             double* alpha, double* a, int* lda, double* b, int* ldb, double* beta, double* c, int* ldc);
 
 
+        // 中文：绑定 OpenBLAS sgemv_，单精度矩阵-向量乘法 y = alpha*A*x + beta*y。
         [DllImport(dll, CallingConvention = cc)]
         public static extern unsafe void sgemv_(byte* trans, int* m, int* n,
             float* alpha, float* a, int* lda, float* x, int* incx, float* beta, float* y, int* incy);
 
+        // 中文：绑定 OpenBLAS dgemv_，双精度矩阵-向量乘法 y = alpha*A*x + beta*y。
         [DllImport(dll, CallingConvention = cc)]
         public static extern unsafe void dgemv_(byte* trans, int* m, int* n,
             double* alpha, double* a, int* lda, double* x, int* incx, double* beta, double* y, int* incy);
 
 
+        // 中文：绑定 OpenBLAS sdot_，单精度向量点积。
         [DllImport(dll, CallingConvention = cc)]
         public static extern unsafe float sdot_(int* n, float* x, int* incx, float* y, int* incy);
 
+        // 中文：绑定 OpenBLAS ddot_，双精度向量点积。
         [DllImport(dll, CallingConvention = cc)]
         public static extern unsafe double ddot_(int* n, double* x, int* incx, double* y, int* incy);
     }

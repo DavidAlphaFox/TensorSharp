@@ -16,6 +16,7 @@ namespace TensorSharp.MLX
     {
         private static readonly CpuAllocator CpuAllocator = new(BlasEnum.DotNet);
 
+        // 中文：算子回退入口，分派到 CPU 实现并把结果回写到 MLX 张量。
         public static object Invoke(string opName, MlxFallbackReturnKind returnKind, int[] modifiedTensorIndexes, object[] args)
         {
             if (string.Equals(opName, "SiLUMulSplit", StringComparison.Ordinal))
@@ -62,6 +63,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：把张量参数映射为 CPU 张量后调用 CPU 算子注册表执行。
         private static object InvokeCpu(string opName, object[] args, out Dictionary<Tensor, Tensor> mappedTensors)
         {
             mappedTensors = new Dictionary<Tensor, Tensor>(ReferenceEqualityComparer.Instance);
@@ -88,6 +90,7 @@ namespace TensorSharp.MLX
             return OpRegistry.Invoke(opName, cpuArgs);
         }
 
+        // 中文：新建同形 CPU 张量并把源张量数据逻辑拷贝过去。
         private static Tensor ToCpuTensor(Tensor source)
         {
             Tensor cpu = new(CpuAllocator, source.ElementType, source.Sizes);
@@ -95,6 +98,7 @@ namespace TensorSharp.MLX
             return cpu;
         }
 
+        // 中文：复用入参中的 MLX 分配器，新建与源同形的 MLX 张量。
         private static Tensor CreateMlxLike(Tensor source, object[] originalArgs)
         {
             IAllocator allocator = null;
@@ -111,6 +115,7 @@ namespace TensorSharp.MLX
             return new Tensor(allocator, source.ElementType, source.Sizes);
         }
 
+        // 中文：校验形状一致后按逻辑顺序在两张量间逐元素拷贝。
         internal static void CopyLogical(Tensor destination, Tensor source)
         {
             if (destination == null)
@@ -139,6 +144,7 @@ namespace TensorSharp.MLX
             CopyRecursive(destination, source, 0, destination.StorageOffset, source.StorageOffset);
         }
 
+        // 中文：按维度递归遍历各下标，逐元素完成跨步拷贝。
         private static void CopyRecursive(Tensor destination, Tensor source, int dimension, long destinationOffset, long sourceOffset)
         {
             if (dimension == source.DimensionCount)
@@ -161,6 +167,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：经栈上临时缓冲区在两存储间拷贝单个元素的字节。
         private static unsafe void CopyElement(Tensor destination, long destinationOffset, Tensor source, long sourceOffset)
         {
             long byteCount = source.ElementType.Size();
@@ -169,6 +176,7 @@ namespace TensorSharp.MLX
             destination.Storage.CopyToStorage(destinationOffset, (IntPtr)tmp, byteCount);
         }
 
+        // 中文：把 [tokens,2*halfDim] 拆成 gate/up，做 SiLU 门控乘的 CPU 回退。
         private static Tensor SiLUMulSplit(Tensor result, Tensor gateUp, int halfDim)
         {
             if (gateUp == null)
@@ -184,6 +192,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：缩放点积注意力的 CPU 回退实现（含 softmax 与掩码）。
         private static Tensor ScaledDotProductAttention(Tensor result, Tensor query, Tensor key, Tensor value, Tensor mask, float scale)
         {
             if (query == null)
@@ -257,6 +266,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：按掩码张量的秩（2/3/4）读取对应位置的注意力掩码值。
         private static float ReadAttentionMask(Tensor mask, long b, long h, long q, long k)
         {
             if (mask == null)
@@ -273,6 +283,7 @@ namespace TensorSharp.MLX
             };
         }
 
+        // 中文：去重释放临时映射的 CPU 张量及返回张量。
         private static void DisposeMapped(Dictionary<Tensor, Tensor> mappedTensors, Tensor returnedTensor)
         {
             var disposed = new HashSet<Tensor>(ReferenceEqualityComparer.Instance);

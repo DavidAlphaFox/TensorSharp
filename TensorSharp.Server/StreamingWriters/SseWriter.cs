@@ -23,6 +23,7 @@ namespace TensorSharp.Server.StreamingWriters
     /// </summary>
     internal static class SseWriter
     {
+        // 中文：设置 SSE 流的响应头（text/event-stream、禁用缓存、保持连接）。
         public static void ApplyHeaders(HttpResponse response)
         {
             response.ContentType = "text/event-stream";
@@ -35,6 +36,7 @@ namespace TensorSharp.Server.StreamingWriters
         /// frame and flush it. Honours <paramref name="cancellationToken"/> so
         /// callers can abort quickly when the client disappears.
         /// </summary>
+        // 中文：将载荷序列化为单个 data: SSE 帧写入并刷新，遵从取消令牌以便客户端断开时快速中止。
         public static async Task WriteEventAsync(
             HttpResponse response,
             object payload,
@@ -51,6 +53,7 @@ namespace TensorSharp.Server.StreamingWriters
         /// but without a cancellation token; used by best-effort "final flush"
         /// paths that must not throw on already-cancelled requests.
         /// </summary>
+        // 中文：无取消令牌版本的 SSE 帧写入，用于不应在请求已取消时抛异常的尽力而为收尾刷新。
         public static async Task WriteEventAsync(
             HttpResponse response,
             object payload,
@@ -65,6 +68,7 @@ namespace TensorSharp.Server.StreamingWriters
         /// Write the literal <c>data: [DONE]</c> sentinel used by the OpenAI
         /// streaming chat-completions API.
         /// </summary>
+        // 中文：写入 OpenAI 流式接口使用的 data: [DONE] 结束哨兵。
         public static Task WriteDoneSentinelAsync(HttpResponse response, CancellationToken cancellationToken)
         {
             return response.WriteAsync("data: [DONE]\n\n", cancellationToken);

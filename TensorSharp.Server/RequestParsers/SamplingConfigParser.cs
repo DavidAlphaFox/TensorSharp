@@ -35,6 +35,7 @@ namespace TensorSharp.Server.RequestParsers
         /// Parse the Web UI body which accepts both snake_case (kept for API
         /// parity with Ollama/OpenAI) and camelCase (preferred by the JS UI).
         /// </summary>
+        // 中文：解析 Web UI 采样参数（同时兼容 snake_case 与 camelCase），仅覆盖请求中显式存在的字段。
         public static SamplingConfig ParseWebUi(JsonElement body, SamplingConfig defaults = null)
         {
             var cfg = SeedFromDefaults(defaults);
@@ -83,6 +84,7 @@ namespace TensorSharp.Server.RequestParsers
         /// Parse Ollama's body where every sampler value lives inside a nested
         /// <c>options</c> object (e.g. <c>{ "options": { "temperature": 0.7 } }</c>).
         /// </summary>
+        // 中文：解析 Ollama 采样参数，所有采样值位于嵌套的 options 对象中。
         public static SamplingConfig ParseOllama(JsonElement body, SamplingConfig defaults = null)
         {
             var cfg = SeedFromDefaults(defaults);
@@ -110,6 +112,7 @@ namespace TensorSharp.Server.RequestParsers
         /// Parse OpenAI's flat body. The OpenAI spec also allows <c>stop</c> to
         /// be a single string instead of an array.
         /// </summary>
+        // 中文：解析 OpenAI 扁平采样参数，stop 可为字符串或数组两种形式。
         public static SamplingConfig ParseOpenAI(JsonElement body, SamplingConfig defaults = null)
         {
             var cfg = SeedFromDefaults(defaults);
@@ -142,6 +145,7 @@ namespace TensorSharp.Server.RequestParsers
         /// instance) so per-request overrides cannot bleed into the shared
         /// server-wide defaults singleton.
         /// </summary>
+        // 中文：返回可写的解析起点：有默认值时克隆默认值，否则新建带内置默认的 SamplingConfig，避免污染共享单例。
         private static SamplingConfig SeedFromDefaults(SamplingConfig defaults)
         {
             return defaults != null ? defaults.Clone() : new SamplingConfig();

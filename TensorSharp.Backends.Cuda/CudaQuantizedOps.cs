@@ -15,6 +15,7 @@ namespace TensorSharp.Cuda
             public long Ne1;
             public int DeviceId;
 
+            // 中文：释放该量化权重在 CUDA 设备上分配的显存。
             public void Dispose()
             {
                 if (DevicePtr != IntPtr.Zero)
@@ -28,6 +29,7 @@ namespace TensorSharp.Cuda
         private static readonly object Sync = new object();
         private static readonly Dictionary<CacheKey, DeviceWeight> Cache = new Dictionary<CacheKey, DeviceWeight>();
 
+        // 中文：判断给定的 GGML 量化类型是否被本 CUDA 量化算子支持。
         public static bool SupportsQuantizedType(int ggmlType)
         {
             return ggmlType == 2 ||  // Q4_0
@@ -42,6 +44,7 @@ namespace TensorSharp.Cuda
                 ggmlType == 16;      // IQ2_XXS
         }
 
+        // 中文：将量化权重从主机预加载到设备并缓存，供后续矩阵乘复用。
         public static void PreloadQuantizedWeight(
             CudaAllocator allocator,
             IntPtr cacheKey,
@@ -56,6 +59,7 @@ namespace TensorSharp.Cuda
             EnsureWeight(allocator, cacheKey, hostData, ggmlType, ne0, ne1, rawBytes);
         }
 
+        // 中文：从设备缓存中释放并移除指定缓存键对应的量化权重显存。
         public static void ReleaseQuantizedWeight(CudaAllocator allocator, IntPtr cacheKey)
         {
             if (allocator == null || cacheKey == IntPtr.Zero)
@@ -73,6 +77,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：清空并释放指定设备上缓存的所有量化权重显存。
         public static void ClearDeviceCache(CudaAllocator allocator)
         {
             if (allocator == null)
@@ -96,6 +101,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：尝试用量化权重与 float32 输入执行矩阵乘（addmm），按量化类型分派对应 CUDA 内核。
         public static bool TryAddmmQuantizedToFloat32(
             Tensor result,
             Tensor input,
@@ -183,6 +189,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：尝试按索引从量化权重中取行并反量化为 float32（用于 embedding 查表）。
         public static bool TryGetRowsQuantizedToFloat32(
             Tensor result,
             IntPtr cacheKey,
@@ -227,6 +234,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：确保量化权重已驻留设备缓存，未命中时从主机分配显存并拷贝上传后缓存返回。
         private static DeviceWeight EnsureWeight(
             CudaAllocator allocator,
             IntPtr cacheKey,
@@ -277,6 +285,7 @@ namespace TensorSharp.Cuda
 
         private readonly struct CacheKey : IEquatable<CacheKey>
         {
+            // 中文：构造由设备 ID 与权重指针组成的缓存键。
             public CacheKey(int deviceId, IntPtr key)
             {
                 DeviceId = deviceId;
@@ -286,16 +295,19 @@ namespace TensorSharp.Cuda
             public int DeviceId { get; }
             public IntPtr Key { get; }
 
+            // 中文：按设备 ID 与键指针判断两个缓存键是否相等。
             public bool Equals(CacheKey other)
             {
                 return DeviceId == other.DeviceId && Key == other.Key;
             }
 
+            // 中文：与任意对象比较相等性的重写实现。
             public override bool Equals(object obj)
             {
                 return obj is CacheKey other && Equals(other);
             }
 
+            // 中文：基于设备 ID 与键指针计算哈希码。
             public override int GetHashCode()
             {
                 return HashCode.Combine(DeviceId, Key);

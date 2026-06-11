@@ -5,6 +5,7 @@ namespace TensorSharp.Cuda.Interop
 {
     internal static class CudaErrorHelper
     {
+        // 中文：检查 CUDA Driver 返回码，非 0 时查询错误描述并抛出 CudaException
         public static void ThrowOnError(this int result)
         {
             if (result == 0)
@@ -17,6 +18,7 @@ namespace TensorSharp.Cuda.Interop
             throw new CudaException(result, message);
         }
 
+        // 中文：检查 cuBLAS 返回码，非 0 时将状态码映射为可读信息并抛出 CudaException
         public static void ThrowOnCublasError(this int result)
         {
             if (result == 0)

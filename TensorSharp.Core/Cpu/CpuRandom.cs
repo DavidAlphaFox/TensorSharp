@@ -18,12 +18,14 @@ namespace TensorSharp.Cpu
         private static readonly Random seedGen = new Random();
 
 
+        // 中文：默认构造函数，无额外初始化。
         public CpuRandom()
         {
         }
 
 
         // allArgs should start with a null placeholder for the RNG object
+        // 中文：创建并按种子初始化原生 RNG，调用指定随机方法后再销毁 RNG。
         private static void InvokeWithRng(int? seed, MethodInfo method, params object[] allArgs)
         {
             if (!seed.HasValue)
@@ -40,30 +42,37 @@ namespace TensorSharp.Cpu
 
         private readonly MethodInfo uniform_func = NativeWrapper.GetMethod("TS_RandomUniform");
         [RegisterOpStorageType("random_uniform", typeof(CpuStorage))]
+        // 中文：以 [min, max] 均匀分布填充结果张量。
         public void Uniform(Tensor result, int? seed, float min, float max) { InvokeWithRng(seed, uniform_func, null, result, min, max); }
 
         private readonly MethodInfo normal_func = NativeWrapper.GetMethod("TS_RandomNormal");
         [RegisterOpStorageType("random_normal", typeof(CpuStorage))]
+        // 中文：以给定均值和标准差的正态分布填充结果张量。
         public void Normal(Tensor result, int? seed, float mean, float stdv) { InvokeWithRng(seed, normal_func, null, result, mean, stdv); }
 
         private readonly MethodInfo exponential_func = NativeWrapper.GetMethod("TS_RandomExponential");
         [RegisterOpStorageType("random_exponential", typeof(CpuStorage))]
+        // 中文：以参数 lambda 的指数分布填充结果张量。
         public void Exponential(Tensor result, int? seed, float lambda) { InvokeWithRng(seed, exponential_func, null, result, lambda); }
 
         private readonly MethodInfo cauchy_func = NativeWrapper.GetMethod("TS_RandomCauchy");
         [RegisterOpStorageType("random_cauchy", typeof(CpuStorage))]
+        // 中文：以给定中位数和尺度参数的柯西分布填充结果张量。
         public void Cauchy(Tensor result, int? seed, float median, float sigma) { InvokeWithRng(seed, cauchy_func, null, result, median, sigma); }
 
         private readonly MethodInfo log_normal_func = NativeWrapper.GetMethod("TS_RandomLogNormal");
         [RegisterOpStorageType("random_lognormal", typeof(CpuStorage))]
+        // 中文：以给定均值和标准差的对数正态分布填充结果张量。
         public void LogNormal(Tensor result, int? seed, float mean, float stdv) { InvokeWithRng(seed, log_normal_func, null, result, mean, stdv); }
 
         private readonly MethodInfo geometric_func = NativeWrapper.GetMethod("TS_RandomGeometric");
         [RegisterOpStorageType("random_geometric", typeof(CpuStorage))]
+        // 中文：以参数 p 的几何分布填充结果张量。
         public void Geometric(Tensor result, int? seed, float p) { InvokeWithRng(seed, geometric_func, null, result, p); }
 
         private readonly MethodInfo bernoulli_func = NativeWrapper.GetMethod("TS_RandomBernoulli");
         [RegisterOpStorageType("random_bernoulli", typeof(CpuStorage))]
+        // 中文：以成功概率 p 的伯努利分布填充结果张量。
         public void Bernoulli(Tensor result, int? seed, float p) { InvokeWithRng(seed, bernoulli_func, null, result, p); }
     }
 }

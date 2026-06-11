@@ -18,11 +18,13 @@ namespace TensorSharp.Cpu
 {
     public static class NativeWrapper
     {
+        // 中文：按名称反射获取 CpuOpsNative 中的公共静态方法信息。
         public static MethodInfo GetMethod(string name)
         {
             return typeof(CpuOpsNative).GetMethod(name, BindingFlags.Public | BindingFlags.Static);
         }
 
+        // 中文：逐元素运算入口，必要时按另一参数张量尺寸创建结果张量后调用原生方法。
         public static Tensor InvokeNullableResultElementwise(MethodInfo method, params object[] args)
         {
             Tensor resultTensor;
@@ -43,6 +45,7 @@ namespace TensorSharp.Cpu
             return resultTensor;
         }
 
+        // 中文：按维度规约运算入口，校验维度并以缩减后尺寸创建结果张量后调用原生方法。
         public static Tensor InvokeNullableResultDimensionwise(MethodInfo method, Tensor result, Tensor src, int dimension, params object[] extraArgs)
         {
             if (dimension < 0 || dimension >= src.Sizes.Length)
@@ -66,6 +69,7 @@ namespace TensorSharp.Cpu
         }
 
 
+        // 中文：仅创建按维度规约的结果张量（指定维度尺寸置 1），不执行运算。
         public static Tensor CreateResultDimensionwise(Tensor result, Tensor src, int dimension)
         {
             if (dimension < 0 || dimension >= src.Sizes.Length)
@@ -80,6 +84,7 @@ namespace TensorSharp.Cpu
             return resultTensor;
         }
 
+        // 中文：校验所有张量参数元素类型一致后再调用原生方法。
         public static void InvokeTypeMatch(MethodInfo method, params object[] args)
         {
             IEnumerable<Tensor> tensors = args.OfType<Tensor>();
@@ -97,6 +102,7 @@ namespace TensorSharp.Cpu
         }
 
 
+        // 中文：为张量构建原生 TensorRef64 结构指针，返回可释放对象用于回收非托管内存。
         public static IDisposable BuildTensorRefPtr(Tensor tensor, out IntPtr tensorRefPtr)
         {
             TensorRef64 tensorRef = NativeWrapper.AllocTensorRef(tensor);
@@ -112,6 +118,7 @@ namespace TensorSharp.Cpu
             });
         }
 
+        // 中文：将张量参数转换为原生 TensorRef64 指针后反射调用原生方法，结束后释放并检查返回码。
         public static void Invoke(MethodInfo method, params object[] args)
         {
             List<TensorRef64> freeListTensor = new List<TensorRef64>();
@@ -160,6 +167,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：检查原生调用返回码，非零时抛出携带原生错误信息的异常。
         public static void CheckResult(int result)
         {
             if (result != 0)
@@ -168,6 +176,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：从原生层获取并转换最近一次错误信息字符串。
         private static string GetLastError()
         {
             IntPtr strPtr = CpuOpsNative.TS_GetLastError();
@@ -175,6 +184,7 @@ namespace TensorSharp.Cpu
         }
 
 
+        // 中文：根据张量构建 TensorRef64（缓冲区指针、维度、尺寸、步幅、元素类型）。
         public static TensorRef64 AllocTensorRef(Tensor tensor)
         {
             TensorRef64 tensorRef = new TensorRef64
@@ -188,6 +198,7 @@ namespace TensorSharp.Cpu
             return tensorRef;
         }
 
+        // 中文：在非托管堆上分配并拷贝 long 数组，返回其指针。
         private static IntPtr AllocArray(ReadOnlySpan<long> data)
         {
             IntPtr result = Marshal.AllocHGlobal(sizeof(long) * data.Length);
@@ -196,6 +207,7 @@ namespace TensorSharp.Cpu
             return result;
         }
 
+        // 中文：释放 TensorRef64 中尺寸与步幅数组占用的非托管内存。
         public static void FreeTensorRef(TensorRef64 tensorRef)
         {
             Marshal.FreeHGlobal(tensorRef.sizes);

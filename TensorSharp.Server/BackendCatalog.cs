@@ -23,6 +23,7 @@ namespace TensorSharp.Server
             new("cpu", "CPU (Pure C#)", GgmlBackendType.Cpu, AlwaysAvailable: true),
         };
 
+        // 中文：根据各后端可用性探测（MLX/CUDA/GGML）过滤出当前环境支持的后端选项列表。
         internal static IReadOnlyList<BackendOption> GetSupportedBackends(
             Func<GgmlBackendType, bool> isGgmlBackendAvailable = null,
             Func<bool> isCudaBackendAvailable = null,
@@ -43,6 +44,7 @@ namespace TensorSharp.Server
                 .ToArray();
         }
 
+        // 中文：解析默认后端——若配置后端受支持则采用，否则回退到首个受支持后端。
         internal static string ResolveDefaultBackend(string configuredBackend, IReadOnlyList<BackendOption> supportedBackends)
         {
             string canonicalBackend = Canonicalize(configuredBackend);
@@ -55,6 +57,7 @@ namespace TensorSharp.Server
             return supportedBackends.FirstOrDefault()?.Value ?? canonicalBackend ?? configuredBackend;
         }
 
+        // 中文：将后端名各种别名规范化为标准取值，空白返回 null，未知值原样小写返回。
         internal static string Canonicalize(string backend)
         {
             if (string.IsNullOrWhiteSpace(backend))
@@ -72,6 +75,7 @@ namespace TensorSharp.Server
             };
         }
 
+        // 中文：将 BackendType 枚举映射为对应的后端字符串取值。
         internal static string ToBackendValue(BackendType backendType)
         {
             return backendType switch
@@ -86,6 +90,7 @@ namespace TensorSharp.Server
             };
         }
 
+        // 中文：轻量探测指定 GGML 后端是否可用（仅做编译标志/平台检查，不真正初始化设备），异常时视为不可用。
         private static bool IsGgmlBackendAvailable(GgmlBackendType backendType)
         {
             try

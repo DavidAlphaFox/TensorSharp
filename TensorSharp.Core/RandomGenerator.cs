@@ -15,11 +15,13 @@ namespace TensorSharp
     {
         static Random rnd = new Random(DateTime.Now.Millisecond);
 
+        // 中文：返回一个随机整数作为种子。
         public int NextSeed()
         {
             return rnd.Next();
         }
 
+        // 中文：生成 [min, max) 均匀分布的随机权重数组（长度为各维尺寸之积）。
         public static float[] BuildRandomUniformWeight(long[] sizes, float min, float max)
         {
             long size = 1;
@@ -39,6 +41,7 @@ namespace TensorSharp
         }
 
 
+        // 中文：按概率 p 生成伯努利分布的 0/1 权重数组（长度为各维尺寸之积）。
         public static float[] BuildRandomBernoulliWeight(long[] sizes, float p)
         {
             long size = 1;

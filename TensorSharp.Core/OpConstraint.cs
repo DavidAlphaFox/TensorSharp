@@ -13,6 +13,7 @@ namespace TensorSharp
 {
     public abstract class OpConstraint
     {
+        // 中文：抽象方法，判断给定实参是否满足该约束。
         public abstract bool SatisfiedFor(object[] args);
     }
 
@@ -20,8 +21,10 @@ namespace TensorSharp
     {
         private readonly int argCount;
 
+        // 中文：构造函数，记录期望的参数个数。
         public ArgCountConstraint(int argCount) { this.argCount = argCount; }
 
+        // 中文：判断实参个数是否等于期望值。
         public override bool SatisfiedFor(object[] args)
         {
             return args.Length == argCount;
@@ -33,12 +36,14 @@ namespace TensorSharp
         private readonly int argIndex;
         private readonly Type requiredType;
 
+        // 中文：构造函数，记录受约束的参数下标及要求的类型。
         public ArgTypeConstraint(int argIndex, Type requiredType)
         {
             this.argIndex = argIndex;
             this.requiredType = requiredType;
         }
 
+        // 中文：判断指定下标的实参类型是否可赋给要求的类型。
         public override bool SatisfiedFor(object[] args)
         {
             return requiredType.IsAssignableFrom(args[argIndex].GetType());
@@ -51,6 +56,7 @@ namespace TensorSharp
         private readonly Type requiredType;
         private readonly bool allowNull;
 
+        // 中文：构造函数，记录参数下标、要求的 Storage 类型及是否允许为 null。
         public ArgStorageTypeConstraint(int argIndex, Type requiredType, bool allowNull = true)
         {
             this.argIndex = argIndex;
@@ -58,6 +64,7 @@ namespace TensorSharp
             this.allowNull = allowNull;
         }
 
+        // 中文：判断指定 Tensor 参数的 Storage 类型是否匹配（按 allowNull 处理空值）。
         public override bool SatisfiedFor(object[] args)
         {
             if (allowNull && args[argIndex] == null)

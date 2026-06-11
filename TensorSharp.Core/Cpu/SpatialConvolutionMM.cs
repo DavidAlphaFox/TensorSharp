@@ -21,6 +21,7 @@ namespace TensorSharp.Cpu
         public int padW;
         public int padH;
 
+        // 中文：构造二维卷积描述符，保存卷积核尺寸、步长与填充参数。
         public ConvolutionDesc2d(int kW, int kH, int dW, int dH, int padW, int padH)
         {
             this.kW = kW;
@@ -34,6 +35,7 @@ namespace TensorSharp.Cpu
 
     public static class SpatialConvolutionMM
     {
+        // 中文：根据输入尺寸、权重尺寸与卷积描述符计算卷积输出张量的形状（N、输出通道、高、宽）。
         public static long[] OutputSize(long[] inputSizes, long[] weightSizes, ConvolutionDesc2d cd)
         {
             //int dimf = 1;
@@ -51,12 +53,14 @@ namespace TensorSharp.Cpu
             return new long[] { n, nOutputPlane, outputHeight, outputWidth };
         }
 
+        // 中文：计算 im2col 展开缓冲区 finput 的尺寸（N、kW*kH*通道数、输出像素数）。
         public static long[] FInputSize(long[] inputSizes, long[] outputSizes, ConvolutionDesc2d cd)
         {
             return new long[] { inputSizes[0], cd.kW * cd.kH * inputSizes[1], outputSizes[2] * outputSizes[3] };
         }
 
 
+        // 中文：二维卷积前向传播，校验各张量尺寸后逐 batch 调用单帧实现（im2col + 矩阵乘）。
         public static void Conv2Forward(Tensor input, Tensor output, Tensor weight, Tensor bias, Tensor finput, ConvolutionDesc2d cd)
         {
             int dimf = 1;
@@ -116,6 +120,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：单个样本的卷积前向：im2col 展开输入到 finput，填入偏置后用权重与 finput 做矩阵乘得到输出。
         private static void Conv2ForwardFrame(Tensor input, Tensor output, Tensor weight, Tensor bias, Tensor finput,
           int kW,
           int kH,
@@ -165,6 +170,7 @@ namespace TensorSharp.Cpu
         }
 
 
+        // 中文：卷积对输入的反向传播，校验后转置权重并逐 batch 调用单帧实现求 gradInput。
         public static void Conv2BackwardInput(Tensor input, Tensor gradOutput, Tensor gradInput, Tensor weight, Tensor finput, Tensor fgradInput, ConvolutionDesc2d cd)
         {
             long nOutputPlane = weight.Sizes[0];
@@ -196,6 +202,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：单样本输入反向：权重乘梯度输出得到列展开梯度，再用 col2im（Unfolded_Acc）累加回 gradInput。
         private static void Conv2BackwardInputFrame(Tensor gradOutput, Tensor gradInput, Tensor weight, Tensor fgradInput, ConvolutionDesc2d cd)
         {
             using (Tensor gradOutput2d = gradOutput.View(gradOutput.Sizes[0], gradOutput.Sizes[1] * gradOutput.Sizes[2]))
@@ -214,6 +221,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：卷积对权重/偏置的反向传播，校验后逐 batch 调用单帧实现累加 gradWeight 与 gradBias。
         public static void Conv2BackwardFilter(Tensor input, Tensor gradOutput, Tensor gradWeight, Tensor gradBias, Tensor finput, Tensor fgradInput, ConvolutionDesc2d cd)
         {
             long nOutputPlane = gradWeight.Sizes[0];
@@ -242,6 +250,7 @@ namespace TensorSharp.Cpu
             }
         }
 
+        // 中文：单样本权重反向：梯度输出乘 finput 转置累加到 gradWeight，并对梯度输出按行求和累加到 gradBias。
         private static void Conv2BackwardFilterFrame(Tensor gradOutput, Tensor gradWeight, Tensor gradBias, Tensor finput, ConvolutionDesc2d cd)
         {
             if (gradOutput is null)

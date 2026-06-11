@@ -282,23 +282,29 @@ internal enum GgmlIndexReductionOp
         private const CallingConvention CallingConventionType = CallingConvention.Cdecl;
         private static int s_windowsDependencySearchPathsInitialized;
 
+        // 中文：静态构造函数，注册原生库的 DllImport 解析器。
         static GgmlNative()
         {
             NativeLibrary.SetDllImportResolver(typeof(GgmlNative).Assembly, ImportResolver);
         }
 
+        // 中文：获取原生层最近一次错误的描述字符串指针。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern IntPtr TSGgml_GetLastError();
 
+        // 中文：查询当前环境是否支持 Metal 后端。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_IsMetalAvailable();
 
+        // 中文：检测指定后端类型（Metal/CPU/CUDA）能否被成功初始化。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_CanInitializeBackend(int backendType);
 
+        // 中文：查询指定后端类型当前是否可用。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_IsBackendAvailable(int backendType);
 
+        // 中文：F32 的 addmm 运算 result = beta*src + alpha*(m1·m2)（带偏置的矩阵乘）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_AddmmF32(
             GgmlTensorView2D result,
@@ -308,6 +314,7 @@ internal enum GgmlIndexReductionOp
             float beta,
             float alpha);
 
+        // 中文：输入为 F32、权重 m2 为量化格式的矩阵乘 result = m1·m2。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_AddmmQuantF32(
             GgmlTensorView2D result,
@@ -318,6 +325,7 @@ internal enum GgmlIndexReductionOp
             long m2Ne1,
             long m2RawBytes);
 
+        // 中文：融合算子，先对输入做 RMSNorm 再与量化权重做矩阵乘。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedRmsNormMatMulQuantF32(
             GgmlTensorView2D result,
@@ -331,6 +339,7 @@ internal enum GgmlIndexReductionOp
             long m2Ne1,
             long m2RawBytes);
 
+        // 中文：融合算子，量化矩阵乘后再加上残差 residual += input·m2。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedMatMulQuantAddF32(
             GgmlTensorView2D residual,
@@ -341,6 +350,7 @@ internal enum GgmlIndexReductionOp
             long m2Ne1,
             long m2RawBytes);
 
+        // 中文：融合的 SwiGLU 前馈网络（RMSNorm + gate_up + SwiGLU + down + 残差，量化权重）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedFFNSwiGLUQuantF32(
             GgmlTensorView2D residual,
@@ -360,6 +370,7 @@ internal enum GgmlIndexReductionOp
             long downRawBytes,
             int halfDim);
 
+        // 中文：融合算子，输出投影 + 残差 + 归一化 + MoE 路由器打分（量化权重）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedOutProjNormRouterQuantF32(
             GgmlTensorView2D residual, GgmlTensorView2D input,
@@ -369,6 +380,7 @@ internal enum GgmlIndexReductionOp
             IntPtr routerData, int routerType, long routerNe0, long routerNe1, long routerBytes,
             GgmlTensorView2D routerOut);
 
+        // 中文：视觉编码器的融合 MLP（LayerNorm + 上投影 + 激活 + 下投影，含偏置）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedVisionMLPF32(
             GgmlTensorView2D hidden,
@@ -378,6 +390,7 @@ internal enum GgmlIndexReductionOp
             IntPtr downW, int downNe0, int downNe1, long downBytes,
             IntPtr downB, int downBDim);
 
+        // 中文：融合算子，输出投影 + 残差 + FFN 归一化 + SwiGLU 前馈（量化权重）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedOutProjFFNQuantF32(
             GgmlTensorView2D residual, GgmlTensorView2D input,
@@ -387,6 +400,7 @@ internal enum GgmlIndexReductionOp
             IntPtr dnData, int dnType, long dnNe0, long dnNe1, long dnRawBytes,
             int halfDim);
 
+        // 中文：视觉编码器的融合自注意力（LayerNorm + QKV + RoPE + 注意力 + 输出投影）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedVisionAttentionF32(
             GgmlTensorView2D hidden,
@@ -399,6 +413,7 @@ internal enum GgmlIndexReductionOp
             int numPatches, int numHeads, int headDim, int halfDim,
             float attnScale);
 
+        // 中文：按索引从量化矩阵中取行（get_rows），输出 F32（如词嵌入查表）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_GetRowsQuantF32(
             GgmlTensorView2D result,
@@ -409,6 +424,7 @@ internal enum GgmlIndexReductionOp
             long srcRawBytes,
             GgmlContiguousTensor indices);
 
+        // 中文：MoE 多专家前向（up + down 投影并按路由权重加权聚合，量化权重）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_MoEExpertsForwardF32(
             GgmlTensorView2D result,
@@ -426,6 +442,7 @@ internal enum GgmlIndexReductionOp
             long downRawBytesEach,
             float[] routeWeights);
 
+        // 中文：MoE 多专家 SwiGLU 前向（gate + up + SwiGLU + down 并按路由权重聚合）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_MoEExpertsSwiGLUForwardF32(
             GgmlTensorView2D result,
@@ -448,6 +465,7 @@ internal enum GgmlIndexReductionOp
             long downRawBytesEach,
             float[] routeWeights);
 
+        // 中文：MoE 多专家 SwiGLU 前向并加残差，可选共享专家分支。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_MoEExpertsSwiGLUResidualF32(
             GgmlTensorView2D residual,
@@ -487,6 +505,7 @@ internal enum GgmlIndexReductionOp
             long sharedDownRawBytes,
             float sharedScalar);
 
+        // 中文：批量量化矩阵乘，按权重偏移数组分段对多组权重做 addmm。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_AddmmQuantBatchF32(
             GgmlTensorView2D result,
@@ -499,6 +518,7 @@ internal enum GgmlIndexReductionOp
             long[] weightOffsets,
             long[] weightNe1Arr);
 
+        // 中文：3D 张量的批量 addmm，result = beta*src + alpha*(m1·m2)（按批维并行）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_AddmmBatchF32(
             GgmlTensorView3D result,
@@ -508,6 +528,7 @@ internal enum GgmlIndexReductionOp
             float beta,
             float alpha);
 
+        // 中文：按专家 id 选择权重的索引矩阵乘 mul_mat_id（MoE 专家分发）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_MulMatIdF32(
             GgmlTensorView3D result,
@@ -517,6 +538,7 @@ internal enum GgmlIndexReductionOp
             int idsRows,
             int idsCols);
 
+        // 中文：按专家 id 选择偏置并逐元素相加 add_id（MoE 专家偏置）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_AddIdF32(
             GgmlTensorView3D result,
@@ -526,18 +548,21 @@ internal enum GgmlIndexReductionOp
             int idsRows,
             int idsCols);
 
+        // 中文：沿最后一维做归约（求和/均值），op 指定归约类型。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_ReduceLastDimF32(
             int op,
             GgmlTensorView4D result,
             GgmlTensorView4D src);
 
+        // 中文：沿最后一维做索引归约（argmin/argmax），返回极值的下标。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_IndexReductionF32(
             int op,
             GgmlTensorView4D result,
             GgmlTensorView4D src);
 
+        // 中文：对 4D 张量沿最后一维做 softmax 归一化。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_SoftmaxF32(
             GgmlTensorView4D result,
@@ -546,6 +571,7 @@ internal enum GgmlIndexReductionOp
         // In-place softmax with causal+SWA mask and optional attention sinks.
         // Replaces the GptOss CPU softmax-with-sinks loop. See native side:
         // attention_softmax_with_sinks_f32_impl in ggml_ops_norm_attn.cpp.
+        // 中文：原地注意力 softmax，支持因果+滑动窗口掩码及可选 attention sinks。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_AttentionSoftmaxWithSinksF32(
             GgmlTensorView3D scores,
@@ -561,6 +587,7 @@ internal enum GgmlIndexReductionOp
         // Collapses an entire layer's MoE forward (gate + up + SwiGLU + down +
         // expert weighting + aggregation) into one GGML graph dispatch.
         // See native side: TSGgml_MoEFFNPrefillSwiGLUQuantF32 in ggml_ops_moe.cpp.
+        // 中文：MoE FFN 预填充（基于 mul_mat_id 将整层 MoE 前向融合为单次计算图调度）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_MoEFFNPrefillSwiGLUQuantF32(
             IntPtr hiddenIn,
@@ -588,6 +615,7 @@ internal enum GgmlIndexReductionOp
         // TSGgml_MoEFFNPrefillSwiGLUQuantF32 ABI but adds the residual buffer,
         // the post_ffw_norm_2 weight, and an RMSNorm epsilon.
         // See native side: TSGgml_Gemma4MoEGEGLUResidualF32 in ggml_ops_moe.cpp.
+        // 中文：Gemma 4 的 MoE GEGLU 前向 + post_norm + 残差相加，融合为单次计算图调度。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_Gemma4MoEGEGLUResidualF32(
             IntPtr hiddenIn,
@@ -611,6 +639,7 @@ internal enum GgmlIndexReductionOp
             float oaiAlpha,
             float oaiLimit);
 
+        // 中文：缩放点积注意力（SDPA），可选掩码与缩放因子。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_ScaledDotProductAttentionF32(
             GgmlTensorView4D result,
@@ -621,6 +650,7 @@ internal enum GgmlIndexReductionOp
             int hasMask,
             float scale);
 
+        // 中文：softmax 的反向梯度计算，可选累加到已有梯度。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_SoftmaxGradF32(
             GgmlTensorView4D result,
@@ -628,6 +658,7 @@ internal enum GgmlIndexReductionOp
             GgmlTensorView4D val,
             int addGrad);
 
+        // 中文：交叉熵损失前向，支持标签平滑，输出标量损失值。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_CrossEntropyLossF32(
             out float lossValue,
@@ -636,6 +667,7 @@ internal enum GgmlIndexReductionOp
             float smooth,
             float labelSmooth);
 
+        // 中文：交叉熵损失的反向梯度计算，可选累加到已有梯度。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_CrossEntropyLossBackwardF32(
             GgmlTensorView4D grad,
@@ -646,6 +678,7 @@ internal enum GgmlIndexReductionOp
             float labelSmooth,
             int addGrad);
 
+        // 中文：Adam 优化器原地更新权重，含一阶/二阶动量、梯度裁剪与权重衰减。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_AdamF32(
             GgmlContiguousTensor weight,
@@ -661,6 +694,7 @@ internal enum GgmlIndexReductionOp
             int iter,
             float eps);
 
+        // 中文：单步解码的完整 Transformer 层前向（注意力 + KV cache + FFN，量化权重）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_TransformerLayerDecode(
             IntPtr hiddenData, int hiddenSize,
@@ -678,6 +712,7 @@ internal enum GgmlIndexReductionOp
             int intermediateSize, int ropeMode,
             int kvCacheType);
 
+        // 中文：Gemma 4 单层预填充前向（注意力 + RoPE + SWA + PLE + FFN，写入 KV cache）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_Gemma4LayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
@@ -707,6 +742,7 @@ internal enum GgmlIndexReductionOp
             IntPtr donorK, IntPtr donorV, int donorKvLen,
             int kvCacheType);
 
+        // 中文：Gemma4LayerPrefill 的托管封装，调用原生层并检查返回结果。
         public static void Gemma4LayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
             IntPtr attnNormW,
@@ -764,6 +800,7 @@ internal enum GgmlIndexReductionOp
                 kvCacheType), "gemma4_layer_prefill");
         }
 
+        // 中文：预填充阶段的融合注意力（含因果/滑动窗口掩码与缩放）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedPrefillAttentionF32(
             IntPtr qData, IntPtr kData, IntPtr vData, IntPtr outData,
@@ -772,6 +809,7 @@ internal enum GgmlIndexReductionOp
             int maskStartPos, int slidingWindow,
             float scale, int inputFormat);
 
+        // 中文：单步解码的 Flash Attention，读取并更新 KV cache。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FlashAttnDecodeF32(
             IntPtr qData, IntPtr kData, IntPtr vData,
@@ -781,6 +819,7 @@ internal enum GgmlIndexReductionOp
             int maxSeqLen, int position,
             float scale, int kvCacheType);
 
+        // 中文：分页 KV cache 的注意力前向（PagedAttention，按块表索引访问 KV）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_PagedAttentionForward(
             IntPtr qData,
@@ -801,6 +840,7 @@ internal enum GgmlIndexReductionOp
             int slidingWindow,
             float scale);
 
+        // 中文：带 attention sinks 的分页注意力前向。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_PagedAttentionForwardWithSinks(
             IntPtr qData,
@@ -827,6 +867,7 @@ internal enum GgmlIndexReductionOp
         // instead of round-tripping through host arrays + ggml_backend_synchronize.
         // Eliminates the per-layer queue drain that GetElementsAsFloat would
         // otherwise force.
+        // 中文：GPU 常驻版分页注意力前向，q/out 直接绑定后端缓冲区以实现零拷贝。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_PagedAttentionForwardDevice(
             IntPtr qData,
@@ -847,6 +888,7 @@ internal enum GgmlIndexReductionOp
             int slidingWindow,
             float scale);
 
+        // 中文：GPU 常驻且带 attention sinks 的分页注意力前向。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_PagedAttentionForwardDeviceWithSinks(
             IntPtr qData,
@@ -868,6 +910,7 @@ internal enum GgmlIndexReductionOp
             float scale,
             IntPtr sinksData);
 
+        // 中文：Qwen3.5 单步解码的注意力层前向（QK 归一化 + RoPE + KV cache）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_Qwen35AttentionLayerDecode(
             IntPtr residualData, int hiddenSize,
@@ -881,6 +924,7 @@ internal enum GgmlIndexReductionOp
             float eps, float ropeBase, float ropeFreqScale,
             int ropeMode, int kvCacheType);
 
+        // 中文：GPT-OSS 注意力层预填充前向（含 SWA/sinks、可融合或分离的 QKV 与 RoPE）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_GptOssAttentionLayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
@@ -904,6 +948,7 @@ internal enum GgmlIndexReductionOp
             int kvCacheType,
             float eps);
 
+        // 中文：Qwen3.5 注意力层预填充前向（QK 归一化 + RoPE + 写入 KV cache）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_Qwen35AttentionLayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
@@ -919,6 +964,7 @@ internal enum GgmlIndexReductionOp
             int kvCacheType,
             float eps);
 
+        // 中文：Qwen35AttentionLayerPrefill 的托管封装，调用原生层并检查返回结果。
         public static void Qwen35AttentionLayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
             IntPtr attnNormW,
@@ -946,6 +992,7 @@ internal enum GgmlIndexReductionOp
                 ropeMode, kvCacheType, eps), "qwen35_attention_layer_prefill");
         }
 
+        // 中文：GptOssAttentionLayerPrefill 的托管封装，调用原生层并检查返回结果。
         public static void GptOssAttentionLayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
             IntPtr attnNormW,
@@ -991,6 +1038,7 @@ internal enum GgmlIndexReductionOp
                 eps), "gpt_oss_attention_layer_prefill");
         }
 
+        // 中文：整模型单步解码，将所有 Transformer 层作为一张计算图一次性前向。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_TransformerModelDecode(
             IntPtr hiddenData, int hiddenSize, int numLayers,
@@ -1007,6 +1055,7 @@ internal enum GgmlIndexReductionOp
             int intermediateSize, int ropeMode,
             int kvCacheType);
 
+        // 中文：Gemma 4 整模型单步解码，按层数组传入权重并融合为一张计算图前向。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_Gemma4ModelDecode(
             IntPtr hiddenData, int hiddenSize, int numLayers,
@@ -1033,9 +1082,11 @@ internal enum GgmlIndexReductionOp
             IntPtr[] kArr, int[] kTypeArr, long[] kNe0Arr, long[] kNe1Arr, long[] kBytesArr,
             IntPtr[] vArr, int[] vTypeArr, long[] vNe0Arr, long[] vNe1Arr, long[] vBytesArr);
 
+        // 中文：Gemma 4 MoE 单层单步解码，参数通过描述符结构体一次性传入。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_Gemma4MoELayerDecode(in Gemma4MoELayerDecodeArgs desc);
 
+        // 中文：Gemma4MoELayerDecode 的托管封装，调用原生层并检查返回结果。
         public static void Gemma4MoELayerDecode(in Gemma4MoELayerDecodeArgs desc)
         {
             CheckResult(TSGgml_Gemma4MoELayerDecode(in desc), nameof(TSGgml_Gemma4MoELayerDecode));
@@ -1045,16 +1096,19 @@ internal enum GgmlIndexReductionOp
         // `layers` is one Gemma4MoELayerDecodeArgs per layer (blittable, marshalled
         // as a contiguous TSGgmlGemma4MoELayerDesc array). hidden/position come from
         // the explicit params; the per-element Hidden/Position fields are ignored.
+        // 中文：Gemma 4 MoE 整模型单步解码，按层描述符数组将整个 Transformer 作为一张计算图前向。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_Gemma4MoEModelDecode(
             [In] Gemma4MoELayerDecodeArgs[] layers, int numLayers,
             IntPtr hidden, int hiddenSize, int position);
 
+        // 中文：Gemma4MoEModelDecode 的托管封装，调用原生层并检查返回结果。
         public static void Gemma4MoEModelDecode(Gemma4MoELayerDecodeArgs[] layers, int numLayers, IntPtr hidden, int hiddenSize, int position)
         {
             CheckResult(TSGgml_Gemma4MoEModelDecode(layers, numLayers, hidden, hiddenSize, position), nameof(TSGgml_Gemma4MoEModelDecode));
         }
 
+        // 中文：门控 DeltaNet 线性注意力的分块（chunked）前向，更新循环状态。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_GatedDeltaNetChunkedF32(
             GgmlTensorView3D q,
@@ -1073,6 +1127,7 @@ internal enum GgmlIndexReductionOp
 
         // Mirrors NemoMamba2BatchedSeqDesc in ggml_ops_mamba2.cpp; same 32-byte
         // POD layout on 64-bit (two ints, two padding ints, two pointers).
+        // 中文：Nemotron Mamba2 批量单步推理（含因果卷积 + SSM 扫描 + 归一化）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_NemotronMamba2BatchedStepF32(
             int numSeqs,
@@ -1095,6 +1150,7 @@ internal enum GgmlIndexReductionOp
             float eps,
             IntPtr outBatched);
 
+        // 中文：门控 DeltaNet 批量单步推理，按序列描述符更新各自的循环状态。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_GatedDeltaNetBatchedStepF32(
             int numSeqs,
@@ -1119,6 +1175,7 @@ internal enum GgmlIndexReductionOp
             float eps,
             IntPtr gatedOut);
 
+        // 中文：Nemotron Mamba2 预填充前向，初始化卷积/SSM 状态并输出隐藏态。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_NemotronMamba2PrefillF32(
             GgmlTensorView2D projected,
@@ -1141,6 +1198,7 @@ internal enum GgmlIndexReductionOp
             int dConv,
             float eps);
 
+        // 中文：Nemotron Mamba2 单步解码前向，按状态键复用并可选初始化/回传状态。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_NemotronMamba2DecodeF32(
             ulong stateKey,
@@ -1166,24 +1224,31 @@ internal enum GgmlIndexReductionOp
             int dConv,
             float eps);
 
+        // 中文：清除指定模型键缓存的 Mamba2 解码状态。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_NemotronMamba2DecodeClear(ulong modelKey);
 
+        // 中文：分配对齐的原生内存块并返回指针。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern IntPtr TSGgml_AlignedAlloc(UIntPtr size);
 
+        // 中文：释放由 TSGgml_AlignedAlloc 分配的对齐内存。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_AlignedFree(IntPtr ptr);
 
+        // 中文：清空主机端缓冲区缓存。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_ClearHostBufferCache();
 
+        // 中文：关闭并释放 GGML 后端的全部资源。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_Shutdown();
 
+        // 中文：使指定主机缓冲区缓存失效（强制下次重新同步）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_InvalidateHostBuffer(IntPtr ptr);
 
+        // 中文：将指定主机缓冲区与后端设备内存同步。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_SyncHostBuffer(IntPtr ptr, long byteCount);
 
@@ -1192,44 +1257,56 @@ internal enum GgmlIndexReductionOp
         // chain through the Metal command queue, and host-side reads must call
         // TSGgml_HostReadBarrier first to drain pending GPU work. See
         // GgmlStorage.EnsureHostReadable for the C# entry point that triggers this.
+        // 中文：开启/关闭异步计算（延迟后端同步）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_SetAsyncCompute(int enabled);
 
+        // 中文：查询当前异步计算是否启用。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_GetAsyncCompute();
 
+        // 中文：主机读屏障，排空挂起的 GPU 计算以确保主机端读取数据有效。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_HostReadBarrier();
 
+        // 中文：将量化权重预加载到设备缓存，后续算子可按 cacheKey 复用。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_PreloadQuantizedWeight(IntPtr cacheKey, IntPtr hostData, int ggmlType, long ne0, long ne1, long rawBytes);
 
+        // 中文：注册一个可卸载（可在显存不足时换出）的缓冲区键。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_RegisterOffloadable(IntPtr key);
 
+        // 中文：设置可卸载缓冲区占用的显存预算上限（字节）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_SetOffloadableBudget(long bytes);
 
+        // 中文：清除所有可卸载缓冲区的卸载状态记录。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern void TSGgml_ClearOffloadableState();
 
+        // 中文：返回指定量化类型下一行（ne 个元素）所占的字节数。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern UIntPtr TSGgml_RowSize(int ggmlType, long ne);
 
+        // 中文：将量化数据反量化为 F32 写入目标缓冲区。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_DequantizeToF32(int ggmlType, IntPtr src, long numElements, IntPtr dst);
 
+        // 中文：F32 张量逐元素拷贝（支持跨步的视图复制）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_CopyF32(
             GgmlTensorView4D result,
             GgmlTensorView4D src);
 
+        // 中文：逐元素一元运算（如 Neg/Exp/Relu/SiLU/GELU 等，由 op 指定）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_UnaryF32(
             int op,
             GgmlTensorView4D result,
             GgmlTensorView4D src);
 
+        // 中文：两张量逐元素二元运算（加/减/乘/除，支持广播）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_BinaryTensorF32(
             int op,
@@ -1237,6 +1314,7 @@ internal enum GgmlIndexReductionOp
             GgmlTensorView4D lhs,
             GgmlTensorView4D rhs);
 
+        // 中文：融合的激活后逐元素相乘（如 SiLU(a)*b 等门控运算）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedActMulF32(
             int op,
@@ -1244,6 +1322,7 @@ internal enum GgmlIndexReductionOp
             GgmlTensorView4D a,
             GgmlTensorView4D b);
 
+        // 中文：对 gate_up 拼接张量按 halfDim 切分后做激活并相乘（SwiGLU/GEGLU 门控）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_FusedActMulSplitF32(
             int op,
@@ -1251,6 +1330,7 @@ internal enum GgmlIndexReductionOp
             GgmlTensorView2D gateUp,
             int halfDim);
 
+        // 中文：张量与标量的逐元素运算（加/减/乘/除及其反向变体）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_BinaryScalarF32(
             int op,
@@ -1258,6 +1338,7 @@ internal enum GgmlIndexReductionOp
             GgmlTensorView4D src,
             float scalar);
 
+        // 中文：激活函数的反向梯度计算（Relu/Sigmoid/Tanh/SiLU），可累加。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_ActivationGradF32(
             int op,
@@ -1267,6 +1348,7 @@ internal enum GgmlIndexReductionOp
             GgmlTensorView4D accumulation,
             int hasAccumulation);
 
+        // 中文：归一化前向（LayerNorm 或 RMSNorm），带缩放 gamma 与可选偏置 beta。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_NormF32(
             int op,
@@ -1277,6 +1359,7 @@ internal enum GgmlIndexReductionOp
             int hasBeta,
             float eps);
 
+        // 中文：归一化的反向梯度计算，输出输入梯度及 gamma/beta 梯度。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_NormGradF32(
             int op,
@@ -1289,6 +1372,7 @@ internal enum GgmlIndexReductionOp
             int hasGradBeta,
             float eps);
 
+        // 中文：按索引选取行（index_select），可累加到结果。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_IndexSelectF32(
             GgmlTensorView2D result,
@@ -1296,12 +1380,14 @@ internal enum GgmlIndexReductionOp
             GgmlContiguousTensor indices,
             int addToResult);
 
+        // 中文：index_select 的反向梯度，将上游梯度按索引散射回输入梯度。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_IndexSelectGradF32(
             GgmlTensorView2D grad,
             GgmlTensorView2D adj,
             GgmlContiguousTensor indices);
 
+        // 中文：基础旋转位置编码 RoPE，可累加并可反转位置（用于反向）。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_RoPEF32(
             GgmlTensorView4D result,
@@ -1311,6 +1397,7 @@ internal enum GgmlIndexReductionOp
             int addToResult,
             int invertPositions);
 
+        // 中文：扩展版 RoPE，支持显式位置、NEOX/GLM 模式与 YaRN 频率缩放参数。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_RoPEExF32(
             GgmlTensorView4D result,
@@ -1328,6 +1415,7 @@ internal enum GgmlIndexReductionOp
             int addToResult,
             int invertPositions);
 
+        // 中文：多模态 RoPE（mRoPE），按 sect 段划分维度做多维位置编码。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_RoPEMRoPEF32(
             GgmlTensorView4D result,
@@ -1344,6 +1432,7 @@ internal enum GgmlIndexReductionOp
             float betaFast,
             float betaSlow);
 
+        // 中文：带每维频率因子（freq_factors）的扩展 RoPE，用于长上下文频率缩放。
         [DllImport(DllName, CallingConvention = CallingConventionType)]
         private static extern int TSGgml_RoPEExFreqFactorsF32(
             GgmlTensorView4D result,
@@ -1363,6 +1452,7 @@ internal enum GgmlIndexReductionOp
             IntPtr freqFactors,
             int freqFactorsLen);
 
+        // 中文：确保指定后端可用，不可用或加载失败时抛出明确异常。
         public static void EnsureAvailable(GgmlBackendType backendType)
         {
             if (backendType == GgmlBackendType.Metal && !OperatingSystem.IsMacOS())
@@ -1398,6 +1488,7 @@ internal enum GgmlIndexReductionOp
             }
         }
 
+        // 中文：判断指定后端能否初始化，返回布尔值（不抛异常）。
         public static bool CanInitialize(GgmlBackendType backendType)
         {
             if (backendType == GgmlBackendType.Metal && !OperatingSystem.IsMacOS())
@@ -1424,16 +1515,19 @@ internal enum GgmlIndexReductionOp
             }
         }
 
+        // 中文：Addmm 的托管封装（F32 带偏置矩阵乘）。
         public static void Addmm(GgmlTensorView2D result, GgmlTensorView2D src, GgmlTensorView2D m1, GgmlTensorView2D m2, float beta, float alpha)
         {
             CheckResult(TSGgml_AddmmF32(result, src, m1, m2, beta, alpha), "addmm");
         }
 
+        // 中文：AddmmQuant 的托管封装（量化权重矩阵乘）。
         public static void AddmmQuant(GgmlTensorView2D result, GgmlTensorView2D m1, IntPtr m2Data, int m2GgmlType, long m2Ne0, long m2Ne1, long m2RawBytes)
         {
             CheckResult(TSGgml_AddmmQuantF32(result, m1, m2Data, m2GgmlType, m2Ne0, m2Ne1, m2RawBytes), "addmm_quant");
         }
 
+        // 中文：FusedRmsNormMatMulQuant 的托管封装（RMSNorm + 量化矩阵乘）。
         public static void FusedRmsNormMatMulQuant(
             GgmlTensorView2D result, GgmlTensorView2D input,
             IntPtr normWeightData, int normWeightCount, float eps,
@@ -1444,6 +1538,7 @@ internal enum GgmlIndexReductionOp
                 m2Data, m2GgmlType, m2Ne0, m2Ne1, m2RawBytes), "fused_rms_norm_matmul_quant");
         }
 
+        // 中文：FusedMatMulQuantAdd 的托管封装（量化矩阵乘 + 残差相加）。
         public static void FusedMatMulQuantAdd(
             GgmlTensorView2D residual, GgmlTensorView2D input,
             IntPtr m2Data, int m2GgmlType, long m2Ne0, long m2Ne1, long m2RawBytes)
@@ -1452,6 +1547,7 @@ internal enum GgmlIndexReductionOp
                 residual, input, m2Data, m2GgmlType, m2Ne0, m2Ne1, m2RawBytes), "fused_matmul_quant_add");
         }
 
+        // 中文：FusedFFNSwiGLUQuant 的托管封装（融合 SwiGLU 前馈网络）。
         public static void FusedFFNSwiGLUQuant(
             GgmlTensorView2D residual,
             GgmlTensorView2D input,
@@ -1469,6 +1565,7 @@ internal enum GgmlIndexReductionOp
                 halfDim), "fused_ffn_swiglu_quant");
         }
 
+        // 中文：FusedOutProjNormRouter 的托管封装（输出投影 + 归一化 + 路由打分）。
         public static void FusedOutProjNormRouter(
             GgmlTensorView2D residual, GgmlTensorView2D input,
             IntPtr outProjData, int outProjType, long outNe0, long outNe1, long outBytes,
@@ -1484,6 +1581,7 @@ internal enum GgmlIndexReductionOp
                 routerOut), "fused_outproj_norm_router");
         }
 
+        // 中文：FusedOutProjFFN 的托管封装（输出投影 + FFN）。
         public static void FusedOutProjFFN(
             GgmlTensorView2D residual, GgmlTensorView2D input,
             IntPtr outProjData, int outProjType, long outNe0, long outNe1, long outRawBytes,
@@ -1500,6 +1598,7 @@ internal enum GgmlIndexReductionOp
                 halfDim), "fused_outproj_ffn");
         }
 
+        // 中文：FusedVisionMLP 的托管封装（视觉 MLP）。
         public static void FusedVisionMLP(
             GgmlTensorView2D hidden,
             IntPtr lnW, IntPtr lnB, int lnDim, float eps,
@@ -1514,6 +1613,7 @@ internal enum GgmlIndexReductionOp
                 downW, downNe0, downNe1, downBytes, downB, downBDim), "fused_vision_mlp");
         }
 
+        // 中文：FusedVisionAttention 的托管封装（视觉自注意力）。
         public static void FusedVisionAttention(
             GgmlTensorView2D hidden,
             IntPtr lnW, IntPtr lnB, int lnDim, float eps,
@@ -1533,11 +1633,13 @@ internal enum GgmlIndexReductionOp
                 attnScale), "fused_vision_attention");
         }
 
+        // 中文：GetRowsQuant 的托管封装（量化矩阵按索引取行）。
         public static void GetRowsQuant(GgmlTensorView2D result, IntPtr srcData, int srcGgmlType, long srcNe0, long srcNe1, long srcRawBytes, GgmlContiguousTensor indices)
         {
             CheckResult(TSGgml_GetRowsQuantF32(result, srcData, srcGgmlType, srcNe0, srcNe1, srcRawBytes, indices), "get_rows_quant");
         }
 
+        // 中文：MoEExpertsForward 的托管封装（MoE 多专家前向）。
         public static void MoEExpertsForward(GgmlTensorView2D result, GgmlTensorView2D input,
             int numExperts, IntPtr[] upDataPtrs, IntPtr[] downDataPtrs,
             int upGgmlType, long upNe0, long upNe1, long upRawBytesEach,
@@ -1551,6 +1653,7 @@ internal enum GgmlIndexReductionOp
                 routeWeights), "moe_experts_forward");
         }
 
+        // 中文：MoEExpertsSwiGLUForward 的托管封装（MoE 多专家 SwiGLU 前向）。
         public static void MoEExpertsSwiGLUForward(GgmlTensorView2D result, GgmlTensorView2D input,
             int numExperts,
             IntPtr[] gateDataPtrs, IntPtr[] upDataPtrs, IntPtr[] downDataPtrs,
@@ -1567,6 +1670,7 @@ internal enum GgmlIndexReductionOp
                 routeWeights), "moe_experts_swiglu_forward");
         }
 
+        // 中文：MoEExpertsSwiGLUResidual 的托管封装（MoE SwiGLU 前向 + 残差，可选共享专家）。
         public static void MoEExpertsSwiGLUResidual(GgmlTensorView2D residual, GgmlTensorView2D input,
             int numExperts,
             IntPtr[] gateDataPtrs, IntPtr[] upDataPtrs, IntPtr[] downDataPtrs,
@@ -1595,37 +1699,44 @@ internal enum GgmlIndexReductionOp
                 sharedScalar), "moe_experts_swiglu_residual");
         }
 
+        // 中文：AddmmQuantBatch 的托管封装（批量量化矩阵乘）。
         public static void AddmmQuantBatch(GgmlTensorView2D result, GgmlTensorView2D m1, IntPtr m2Data, int m2GgmlType, long m2Ne0, long m2RawBytes,
             int batchCount, long[] weightOffsets, long[] weightNe1Arr)
         {
             CheckResult(TSGgml_AddmmQuantBatchF32(result, m1, m2Data, m2GgmlType, m2Ne0, m2RawBytes, batchCount, weightOffsets, weightNe1Arr), "addmm_quant_batch");
         }
 
+        // 中文：AddmmBatch 的托管封装（3D 批量 addmm）。
         public static void AddmmBatch(GgmlTensorView3D result, GgmlTensorView3D src, GgmlTensorView3D m1, GgmlTensorView3D m2, float beta, float alpha)
         {
             CheckResult(TSGgml_AddmmBatchF32(result, src, m1, m2, beta, alpha), "addmmbatch");
         }
 
+        // 中文：MulMatId 的托管封装（按专家 id 的索引矩阵乘）。
         public static void MulMatId(GgmlTensorView3D result, GgmlTensorView3D expertWeights, GgmlTensorView3D input, GgmlContiguousTensor ids, int idsRows, int idsCols)
         {
             CheckResult(TSGgml_MulMatIdF32(result, expertWeights, input, ids, idsRows, idsCols), "mulmatid");
         }
 
+        // 中文：AddId 的托管封装（按专家 id 的索引偏置相加）。
         public static void AddId(GgmlTensorView3D result, GgmlTensorView3D src, GgmlTensorView2D bias, GgmlContiguousTensor ids, int idsRows, int idsCols)
         {
             CheckResult(TSGgml_AddIdF32(result, src, bias, ids, idsRows, idsCols), "addid");
         }
 
+        // 中文：ReduceLastDim 的托管封装（沿最后一维归约）。
         public static void ReduceLastDim(GgmlReductionOp op, GgmlTensorView4D result, GgmlTensorView4D src)
         {
             CheckResult(TSGgml_ReduceLastDimF32((int)op, result, src), op.ToString());
         }
 
+        // 中文：IndexReduction 的托管封装（argmin/argmax 索引归约）。
         public static void IndexReduction(GgmlIndexReductionOp op, GgmlTensorView4D result, GgmlTensorView4D src)
         {
             CheckResult(TSGgml_IndexReductionF32((int)op, result, src), op.ToString());
         }
 
+        // 中文：Softmax 的托管封装。
         public static void Softmax(GgmlTensorView4D result, GgmlTensorView4D src)
         {
             CheckResult(TSGgml_SoftmaxF32(result, src), "softmax");
@@ -1642,6 +1753,7 @@ internal enum GgmlIndexReductionOp
         /// on pp2048) because it walked ~6 billion elements through MathF.Exp on
         /// a single thread; folding it into one Metal kernel collapses that.
         /// </summary>
+        // 中文：AttentionSoftmaxWithSinks 的托管封装（原地因果+SWA 掩码 softmax，含 sinks）。
         public static void AttentionSoftmaxWithSinks(
             GgmlTensorView3D scores,
             IntPtr sinksData,
@@ -1658,6 +1770,7 @@ internal enum GgmlIndexReductionOp
                 "attention_softmax_with_sinks");
         }
 
+        // 中文：MoEFFNPrefillSwiGLUQuant 的托管封装（整层 MoE FFN 预填充前向）。
         public static void MoEFFNPrefillSwiGLUQuant(
             IntPtr hiddenIn,
             IntPtr hiddenOut,
@@ -1689,6 +1802,7 @@ internal enum GgmlIndexReductionOp
                 "moe_ffn_prefill_swiglu_quant");
         }
 
+        // 中文：Gemma4MoEGEGLUResidual 的托管封装（MoE GEGLU + post_norm + 残差）。
         public static void Gemma4MoEGEGLUResidual(
             IntPtr hiddenIn,
             IntPtr residualInOut,
@@ -1723,27 +1837,32 @@ internal enum GgmlIndexReductionOp
                 "gemma4_moe_geglu_residual");
         }
 
+        // 中文：ScaledDotProductAttention 的托管封装（缩放点积注意力）。
         public static void ScaledDotProductAttention(GgmlTensorView4D result, GgmlTensorView4D query, GgmlTensorView4D key, GgmlTensorView4D value, GgmlTensorView4D mask, bool hasMask, float scale)
         {
             CheckResult(TSGgml_ScaledDotProductAttentionF32(result, query, key, value, mask, hasMask ? 1 : 0, scale), "scaled_dot_product_attention");
         }
 
+        // 中文：SoftmaxGrad 的托管封装（softmax 反向梯度）。
         public static void SoftmaxGrad(GgmlTensorView4D result, GgmlTensorView4D adj, GgmlTensorView4D val, bool addGrad)
         {
             CheckResult(TSGgml_SoftmaxGradF32(result, adj, val, addGrad ? 1 : 0), "softmaxgrad");
         }
 
+        // 中文：CrossEntropyLoss 的托管封装，返回标量损失值。
         public static float CrossEntropyLoss(GgmlTensorView4D probs, GgmlContiguousTensor targetIndices, float smooth, float labelSmooth)
         {
             CheckResult(TSGgml_CrossEntropyLossF32(out float lossValue, probs, targetIndices, smooth, labelSmooth), "crossentropyloss");
             return lossValue;
         }
 
+        // 中文：CrossEntropyLossBackward 的托管封装（交叉熵反向梯度）。
         public static void CrossEntropyLossBackward(GgmlTensorView4D grad, GgmlTensorView4D probs, GgmlContiguousTensor targetIndices, float lossGradient, float smooth, float labelSmooth, bool addGrad)
         {
             CheckResult(TSGgml_CrossEntropyLossBackwardF32(grad, probs, targetIndices, lossGradient, smooth, labelSmooth, addGrad ? 1 : 0), "crossentropyloss_backward");
         }
 
+        // 中文：Adam 的托管封装（Adam 优化器原地更新权重）。
         public static void Adam(
             GgmlContiguousTensor weight,
             GgmlContiguousTensor gradient,
@@ -1761,71 +1880,85 @@ internal enum GgmlIndexReductionOp
             CheckResult(TSGgml_AdamF32(weight, gradient, v, m, gradNormFactor, stepSize, clipValue, regc, decayRateV, decayRateM, iter, eps), "adam");
         }
 
+        // 中文：Copy 的托管封装（张量逐元素拷贝）。
         public static void Copy(GgmlTensorView4D result, GgmlTensorView4D src)
         {
             CheckResult(TSGgml_CopyF32(result, src), "copy");
         }
 
+        // 中文：Unary 的托管封装（逐元素一元运算）。
         public static void Unary(GgmlUnaryOp op, GgmlTensorView4D result, GgmlTensorView4D src)
         {
             CheckResult(TSGgml_UnaryF32((int)op, result, src), op.ToString());
         }
 
+        // 中文：BinaryTensor 的托管封装（两张量逐元素二元运算）。
         public static void BinaryTensor(GgmlBinaryTensorOp op, GgmlTensorView4D result, GgmlTensorView4D lhs, GgmlTensorView4D rhs)
         {
             CheckResult(TSGgml_BinaryTensorF32((int)op, result, lhs, rhs), op.ToString());
         }
 
+        // 中文：FusedActMul 的托管封装（融合激活后相乘）。
         public static void FusedActMul(GgmlFusedActMulOp op, GgmlTensorView4D result, GgmlTensorView4D a, GgmlTensorView4D b)
         {
             CheckResult(TSGgml_FusedActMulF32((int)op, result, a, b), op.ToString());
         }
 
+        // 中文：FusedActMulSplit 的托管封装（gate_up 切分后激活相乘）。
         public static void FusedActMulSplit(GgmlFusedActMulOp op, GgmlTensorView2D result, GgmlTensorView2D gateUp, int halfDim)
         {
             CheckResult(TSGgml_FusedActMulSplitF32((int)op, result, gateUp, halfDim), op.ToString() + "Split");
         }
 
+        // 中文：BinaryScalar 的托管封装（张量与标量逐元素运算）。
         public static void BinaryScalar(GgmlBinaryScalarOp op, GgmlTensorView4D result, GgmlTensorView4D src, float scalar)
         {
             CheckResult(TSGgml_BinaryScalarF32((int)op, result, src, scalar), op.ToString());
         }
 
+        // 中文：ActivationGrad 的托管封装（激活函数反向梯度）。
         public static void ActivationGrad(GgmlActivationGradOp op, GgmlTensorView4D result, GgmlTensorView4D src, GgmlTensorView4D grad, GgmlTensorView4D accumulation, bool hasAccumulation)
         {
             CheckResult(TSGgml_ActivationGradF32((int)op, result, src, grad, accumulation, hasAccumulation ? 1 : 0), $"{op}Grad");
         }
 
+        // 中文：Norm 的托管封装（LayerNorm/RMSNorm 归一化）。
         public static void Norm(GgmlNormOp op, GgmlTensorView4D result, GgmlTensorView4D src, GgmlTensorView4D gamma, GgmlTensorView4D beta, bool hasBeta, float eps)
         {
             CheckResult(TSGgml_NormF32((int)op, result, src, gamma, beta, hasBeta ? 1 : 0, eps), op.ToString());
         }
 
+        // 中文：NormGrad 的托管封装（归一化反向梯度）。
         public static void NormGrad(GgmlNormOp op, GgmlTensorView4D result, GgmlTensorView4D gradGamma, GgmlTensorView4D gradBeta, GgmlTensorView4D adj, GgmlTensorView4D x, GgmlTensorView4D gamma, bool hasGradBeta, float eps)
         {
             CheckResult(TSGgml_NormGradF32((int)op, result, gradGamma, gradBeta, adj, x, gamma, hasGradBeta ? 1 : 0, eps), $"{op}Grad");
         }
 
+        // 中文：IndexSelect 的托管封装（按索引选取行）。
         public static void IndexSelect(GgmlTensorView2D result, GgmlTensorView2D src, GgmlContiguousTensor indices, bool addToResult)
         {
             CheckResult(TSGgml_IndexSelectF32(result, src, indices, addToResult ? 1 : 0), "indexselect");
         }
 
+        // 中文：IndexSelectGrad 的托管封装（index_select 反向梯度）。
         public static void IndexSelectGrad(GgmlTensorView2D grad, GgmlTensorView2D adj, GgmlContiguousTensor indices)
         {
             CheckResult(TSGgml_IndexSelectGradF32(grad, adj, indices), "indexselectgrad");
         }
 
+        // 中文：RoPE 的托管封装（基础旋转位置编码前向）。
         public static void RoPE(GgmlTensorView4D result, GgmlTensorView4D src, int seqLen, int rowOffset)
         {
             CheckResult(TSGgml_RoPEF32(result, src, seqLen, rowOffset, 0, 0), "rope");
         }
 
+        // 中文：RoPEGrad 的托管封装（RoPE 反向梯度，反转位置）。
         public static void RoPEGrad(GgmlTensorView4D result, GgmlTensorView4D adj, int seqLen, int rowOffset)
         {
             CheckResult(TSGgml_RoPEF32(result, adj, seqLen, rowOffset, 1, 1), "ropegrad");
         }
 
+        // 中文：RoPEEx 的托管封装（扩展 RoPE，含 YaRN 参数）。
         public static void RoPEEx(
             GgmlTensorView4D result,
             GgmlTensorView4D src,
@@ -1861,6 +1994,7 @@ internal enum GgmlIndexReductionOp
                 "rope_ex");
         }
 
+        // 中文：RoPEMRoPE 的托管封装（多模态 mRoPE）。
         public static void RoPEMRoPE(
             GgmlTensorView4D result,
             GgmlTensorView4D src,
@@ -1888,6 +2022,7 @@ internal enum GgmlIndexReductionOp
                 "rope_mrope");
         }
 
+        // 中文：RoPEExWithFreqFactors 的托管封装（带每维频率因子的扩展 RoPE）。
         public static void RoPEExWithFreqFactors(
             GgmlTensorView4D result,
             GgmlTensorView4D src,
@@ -1927,6 +2062,7 @@ internal enum GgmlIndexReductionOp
                 "rope_ex_ff");
         }
 
+        // 中文：TransformerLayerDecode 的托管封装（单步解码完整 Transformer 层）。
         public static void TransformerLayerDecode(
             IntPtr hiddenData, int hiddenSize,
             IntPtr attnNormData,
@@ -1965,6 +2101,7 @@ internal enum GgmlIndexReductionOp
         /// device against the populated portion of the cache. Q, K, V, and the output buffer
         /// must point to F32 contiguous memory in (heads, head_dim) row-major layout.
         /// </summary>
+        // 中文：FusedPrefillAttention 的托管封装（预填充阶段融合注意力）。
         public static void FusedPrefillAttention(
             IntPtr qData, IntPtr kData, IntPtr vData, IntPtr outData,
             int numHeads, int numKvHeads, int headDim,
@@ -1979,6 +2116,7 @@ internal enum GgmlIndexReductionOp
                 maskStartPos, slidingWindow, scale, inputFormat), "fused_prefill_attention");
         }
 
+        // 中文：FlashAttnDecode 的托管封装（单步解码 Flash Attention）。
         public static void FlashAttnDecode(
             IntPtr qData, IntPtr kData, IntPtr vData,
             IntPtr kCacheData, IntPtr vCacheData,
@@ -2012,6 +2150,7 @@ internal enum GgmlIndexReductionOp
         /// <param name="positions">[numTokens] absolute position per query token (drives the causal mask).</param>
         /// <param name="blockTableFlat">Concatenated per-sequence block tables.</param>
         /// <param name="blockTableOffsets">[numSeqs] offset of each seq's table inside blockTableFlat.</param>
+        // 中文：PagedAttentionForward 的托管封装，固定托管数组后调用原生分页注意力。
         public static unsafe void PagedAttentionForward(
             float[] qData,
             float[] pagedKData,
@@ -2055,6 +2194,7 @@ internal enum GgmlIndexReductionOp
         /// degenerates to the regular paged attention. Goes through
         /// ggml_flash_attn_ext_add_sinks under the hood so the Metal/CUDA
         /// flash-attn kernel includes the sink as a virtual softmax position.</summary>
+        // 中文：PagedAttentionForwardWithSinks 的托管封装（带 attention sinks 的分页注意力）。
         public static unsafe void PagedAttentionForwardWithSinks(
             float[] qData,
             float[] pagedKData,
@@ -2107,6 +2247,7 @@ internal enum GgmlIndexReductionOp
         /// <c>ggml_backend_synchronize</c>. K/V paged storage is still passed
         /// as host arrays.
         /// </summary>
+        // 中文：PagedAttentionForwardDevice 的托管封装（GPU 常驻分页注意力，零拷贝绑定 q/out）。
         public static unsafe void PagedAttentionForwardDevice(
             IntPtr qData,
             float[] pagedKData,
@@ -2147,6 +2288,7 @@ internal enum GgmlIndexReductionOp
         /// <summary>GPU-resident paged-attention forward with per-head
         /// attention sinks. Pass <c>null</c> for <paramref name="sinksData"/>
         /// to match <see cref="PagedAttentionForwardDevice"/>.</summary>
+        // 中文：PagedAttentionForwardDeviceWithSinks 的托管封装（GPU 常驻且带 sinks 的分页注意力）。
         public static unsafe void PagedAttentionForwardDeviceWithSinks(
             IntPtr qData,
             float[] pagedKData,
@@ -2187,6 +2329,7 @@ internal enum GgmlIndexReductionOp
             }
         }
 
+        // 中文：Qwen35AttentionLayerDecode 的托管封装（Qwen3.5 单步解码注意力层）。
         public static void Qwen35AttentionLayerDecode(
             IntPtr residualData, int hiddenSize,
             IntPtr attnNormData,
@@ -2211,6 +2354,7 @@ internal enum GgmlIndexReductionOp
                 eps, ropeBase, ropeFreqScale, ropeMode, kvCacheType), "qwen35_attention_layer_decode");
         }
 
+        // 中文：TransformerModelDecode 的托管封装（整模型单步解码）。
         public static void TransformerModelDecode(
             IntPtr hiddenData, int hiddenSize, int numLayers,
             IntPtr[] attnNormArr, IntPtr[] qkvArr, IntPtr[] qNormArr, IntPtr[] kNormArr,
@@ -2241,6 +2385,7 @@ internal enum GgmlIndexReductionOp
                 intermediateSize, ropeMode, kvCacheType), "transformer_model_decode");
         }
 
+        // 中文：Gemma4ModelDecode 的托管封装（Gemma 4 整模型单步解码）。
         public static void Gemma4ModelDecode(
             IntPtr hiddenData, int hiddenSize, int numLayers,
             IntPtr[] attnNormArr, IntPtr[] qkvArr, IntPtr[] qNormArr, IntPtr[] kNormArr,
@@ -2291,6 +2436,7 @@ internal enum GgmlIndexReductionOp
                 vArr, vTypeArr, vNe0Arr, vNe1Arr, vBytesArr), "gemma4_model_decode");
         }
 
+        // 中文：GatedDeltaNetChunked 的托管封装（门控 DeltaNet 分块前向）。
         public static void GatedDeltaNetChunked(
             GgmlTensorView3D q,
             GgmlTensorView3D k,
@@ -2315,6 +2461,7 @@ internal enum GgmlIndexReductionOp
         // Batched per-token Nemotron Mamba2 step. Runs all (seq, token) pairs
         // for an active decode/prefill batch in one native call, indexing each
         // seq's persistent conv FIFO + SSM state via the seqs[] descriptors.
+        // 中文：NemotronMamba2BatchedStep 的托管封装（Mamba2 批量单步推理）。
         public static void NemotronMamba2BatchedStep(
             NemoMamba2BatchedSeqDesc[] seqs,
             int numTokens,
@@ -2349,6 +2496,7 @@ internal enum GgmlIndexReductionOp
         // matching per-slot conv ring + ssm state via the seqs[] descriptors.
         // The descriptors' ConvWriteIdx field is updated in place — caller
         // copies it back to its per-slot bookkeeping after the call returns.
+        // 中文：GatedDeltaNetBatchedStep 的托管封装（Qwen3.5 GDN 批量单步推理）。
         public static void GatedDeltaNetBatchedStep(
             GdnBatchedSeqDesc[] seqs,
             int numTokens,
@@ -2380,6 +2528,7 @@ internal enum GgmlIndexReductionOp
                 "gated_delta_net_batched_step");
         }
 
+        // 中文：NemotronMamba2Prefill 的托管封装（Mamba2 预填充前向）。
         public static void NemotronMamba2Prefill(
             GgmlTensorView2D projected,
             GgmlTensorView2D hiddenOut,
@@ -2409,6 +2558,7 @@ internal enum GgmlIndexReductionOp
                 dInner, dState, nHead, headDim, nGroup, dConv, eps), "nemotron_mamba2_prefill");
         }
 
+        // 中文：NemotronMamba2Decode 的托管封装（Mamba2 单步解码前向）。
         public static void NemotronMamba2Decode(
             ulong stateKey,
             GgmlTensorView2D projected,
@@ -2443,12 +2593,14 @@ internal enum GgmlIndexReductionOp
                 dInner, dState, nHead, headDim, nGroup, dConv, eps), "nemotron_mamba2_decode");
         }
 
+        // 中文：NemotronMamba2DecodeClear 的托管封装（清除 Mamba2 解码缓存状态）。
         public static void NemotronMamba2DecodeClear(ulong modelKey)
         {
             TSGgml_NemotronMamba2DecodeClear(modelKey);
         }
 
         /// <summary>Allocate memory with 16 KB alignment (page-aligned for Metal host_ptr).</summary>
+        // 中文：AlignedAlloc 的托管封装（分配对齐内存，失败抛 OOM）。
         public static IntPtr AlignedAlloc(long size)
         {
             IntPtr ptr = TSGgml_AlignedAlloc(new UIntPtr((ulong)size));
@@ -2458,12 +2610,14 @@ internal enum GgmlIndexReductionOp
         }
 
         /// <summary>Free memory allocated by AlignedAlloc.</summary>
+        // 中文：AlignedFree 的托管封装（释放对齐内存）。
         public static void AlignedFree(IntPtr ptr)
         {
             TSGgml_AlignedFree(ptr);
         }
 
         /// <summary>Free all cached Metal host_ptr buffer objects.</summary>
+        // 中文：ClearHostBufferCache 的托管封装（清空主机缓冲区缓存）。
         public static void ClearHostBufferCache()
         {
             TSGgml_ClearHostBufferCache();
@@ -2477,17 +2631,20 @@ internal enum GgmlIndexReductionOp
         /// outlive the .NET host the assertion aborts the process on exit.
         /// Hook this onto AppDomain.ProcessExit / ApplicationStopped.
         /// </summary>
+        // 中文：Shutdown 的托管封装（关闭并释放 GGML 后端资源）。
         public static void Shutdown()
         {
             TSGgml_Shutdown();
         }
 
+        // 中文：InvalidateHostBuffer 的托管封装（使主机缓冲区缓存失效）。
         public static void InvalidateHostBuffer(IntPtr ptr)
         {
             if (ptr != IntPtr.Zero)
                 TSGgml_InvalidateHostBuffer(ptr);
         }
 
+        // 中文：SyncHostBuffer 的托管封装（同步主机缓冲区与设备内存）。
         public static void SyncHostBuffer(IntPtr ptr, long byteCount)
         {
             if (ptr == IntPtr.Zero || byteCount <= 0)
@@ -2510,12 +2667,14 @@ internal enum GgmlIndexReductionOp
         /// per-op `[cmd_buf waitUntilCompleted]` round-trip overhead (~30-100 µs each
         /// on M-series Macs) that dominates prefill on long prompts.
         /// </summary>
+        // 中文：SetAsyncCompute 的托管封装（开启/关闭异步计算）。
         public static void SetAsyncCompute(bool enabled)
         {
             TSGgml_SetAsyncCompute(enabled ? 1 : 0);
         }
 
         /// <summary>True if async compute is currently enabled on the GGML backend.</summary>
+        // 中文：GetAsyncCompute 的托管封装（查询异步计算是否启用）。
         public static bool GetAsyncCompute()
         {
             return TSGgml_GetAsyncCompute() != 0;
@@ -2526,11 +2685,13 @@ internal enum GgmlIndexReductionOp
         /// work is pending (single atomic exchange on the C++ side); when work is
         /// pending it does one ggml_backend_synchronize on the Metal command queue.
         /// </summary>
+        // 中文：HostReadBarrier 的托管封装（排空挂起的 GPU 计算）。
         public static void HostReadBarrier()
         {
             TSGgml_HostReadBarrier();
         }
 
+        // 中文：PreloadQuantizedWeight 的托管封装（预加载量化权重到设备缓存）。
         public static void PreloadQuantizedWeight(IntPtr cacheKey, IntPtr hostData, int ggmlType, long ne0, long ne1, long rawBytes)
         {
             if (cacheKey == IntPtr.Zero || hostData == IntPtr.Zero || rawBytes <= 0)
@@ -2547,6 +2708,7 @@ internal enum GgmlIndexReductionOp
         /// Registration is sticky; call <see cref="ClearOffloadableState"/> on
         /// model unload to reset.
         /// </summary>
+        // 中文：RegisterOffloadable 的托管封装（注册可卸载缓冲区到 LRU）。
         public static void RegisterOffloadable(IntPtr key)
         {
             if (key == IntPtr.Zero)
@@ -2559,6 +2721,7 @@ internal enum GgmlIndexReductionOp
         /// disables eviction (registered entries still participate in the LRU
         /// but nothing is freed).
         /// </summary>
+        // 中文：SetOffloadableBudget 的托管封装（设置可卸载缓存的显存预算上限）。
         public static void SetOffloadableBudget(long bytes)
         {
             TSGgml_SetOffloadableBudget(bytes > 0 ? bytes : 0);
@@ -2568,17 +2731,20 @@ internal enum GgmlIndexReductionOp
         /// Reset offloadable registrations, LRU state, and byte accounting.
         /// Does not touch the underlying CachedHostBuffer entries.
         /// </summary>
+        // 中文：ClearOffloadableState 的托管封装（清除可卸载缓存的注册与 LRU 状态）。
         public static void ClearOffloadableState()
         {
             TSGgml_ClearOffloadableState();
         }
 
         /// <summary>Bytes for one row along ne[0]; 0 if type/shape invalid.</summary>
+        // 中文：RowSizeBytesOrZero 的托管封装（返回一行字节数，类型无效时为 0）。
         internal static long RowSizeBytesOrZero(int ggmlType, long ne0)
         {
             return (long)TSGgml_RowSize(ggmlType, ne0).ToUInt64();
         }
 
+        // 中文：将 GGUF 量化张量（托管字节数组）反量化为 F32（固定内存后调用原生层）。
         internal static void DequantizeGgufTensorToFloat32(int ggmlType, byte[] src, int srcOffset, float[] dst, int dstOffset, long numElements)
         {
             if (numElements < 0 || numElements > int.MaxValue)
@@ -2624,6 +2790,7 @@ internal enum GgmlIndexReductionOp
             }
         }
 
+        // 中文：将 GGUF 量化张量（原生指针）反量化为 F32。
         internal static void DequantizeGgufTensorToFloat32Native(int ggmlType, IntPtr src, IntPtr dst, long numElements)
         {
             if (src == IntPtr.Zero || dst == IntPtr.Zero || numElements < 0)
@@ -2644,6 +2811,7 @@ internal enum GgmlIndexReductionOp
             }
         }
 
+        // 中文：检查原生调用返回值，非成功时抛出带最近错误信息的异常。
         private static void CheckResult(int result, string opName)
         {
             if (result != 0)
@@ -2654,6 +2822,7 @@ internal enum GgmlIndexReductionOp
             throw new InvalidOperationException($"Native GGML {opName} failed. {GetLastErrorMessage("Unknown native GGML error.")}");
         }
 
+        // 中文：DllImport 解析器，按候选路径查找并加载原生 GgmlOps 库。
         private static IntPtr ImportResolver(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
         {
             if (!string.Equals(libraryName, DllName, StringComparison.Ordinal))
@@ -2674,6 +2843,7 @@ internal enum GgmlIndexReductionOp
             return IntPtr.Zero;
         }
 
+        // 中文：枚举原生库的候选搜索路径（输出目录、程序集目录与仓库构建目录）。
         private static IEnumerable<string> GetCandidatePaths(Assembly assembly)
         {
             string baseDirectory = AppContext.BaseDirectory;
@@ -2697,6 +2867,7 @@ internal enum GgmlIndexReductionOp
             }
         }
 
+        // 中文：从起始目录向上枚举所有疑似仓库根目录。
         private static IEnumerable<string> EnumerateRepoRoots(string startDirectory)
         {
             DirectoryInfo current = new DirectoryInfo(startDirectory);
@@ -2711,6 +2882,7 @@ internal enum GgmlIndexReductionOp
             }
         }
 
+        // 中文：按操作系统返回原生库文件名（dll/dylib/so）。
         private static IEnumerable<string> GetCandidateFileNames()
         {
             yield return OperatingSystem.IsWindows() ? "GgmlOps.dll" :
@@ -2718,11 +2890,13 @@ internal enum GgmlIndexReductionOp
                 "libGgmlOps.so";
         }
 
+        // 中文：判断当前平台（Windows/Linux）是否支持 CUDA 后端。
         private static bool IsCudaPlatformSupported()
         {
             return OperatingSystem.IsWindows() || OperatingSystem.IsLinux();
         }
 
+        // 中文：在 Windows 上将 CUDA 等原生依赖目录加入 PATH（仅初始化一次）。
         private static void EnsureWindowsNativeDependencySearchPaths()
         {
             if (!OperatingSystem.IsWindows())
@@ -2749,6 +2923,7 @@ internal enum GgmlIndexReductionOp
                 string.Join(Path.PathSeparator, additions.Concat(new[] { currentPath })));
         }
 
+        // 中文：枚举 Windows 上 CUDA 工具包的 bin 依赖目录。
         private static IEnumerable<string> EnumerateWindowsNativeDependencyDirectories()
         {
             foreach (string variableName in new[] { "CUDA_PATH", "CUDA_HOME" })
@@ -2767,6 +2942,7 @@ internal enum GgmlIndexReductionOp
                 yield return Path.Combine(versionDir, "bin");
         }
 
+        // 中文：根据解决方案文件或 .git 目录判断给定路径是否为仓库根目录。
         private static bool IsRepoRoot(string path)
         {
             string[] markers =
@@ -2780,6 +2956,7 @@ internal enum GgmlIndexReductionOp
                 || Directory.Exists(Path.Combine(path, ".git"));
         }
 
+        // 中文：读取原生层最近错误信息并转为托管字符串，为空时返回回退文本。
         private static string GetLastErrorMessage(string fallback)
         {
             IntPtr errPtr = TSGgml_GetLastError();
@@ -2787,6 +2964,7 @@ internal enum GgmlIndexReductionOp
             return string.IsNullOrWhiteSpace(message) ? fallback : message;
         }
 
+        // 中文：生成后端不可用时的提示信息（含 CUDA 重新构建建议）。
         private static string GetBackendAvailabilityHint(GgmlBackendType backendType)
         {
             string defaultMessage = "Build the native GGML bridge and ensure the requested GGML backend is available.";

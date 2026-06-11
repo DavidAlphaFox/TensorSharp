@@ -22,6 +22,7 @@ namespace TensorSharp.Server.Hosting
     /// </summary>
     internal sealed class ServerHostingOptions
     {
+        // 中文：构造不可变的托管选项，保存各项配置并由支持后端列表构建快速查找集合。
         public ServerHostingOptions(
             string startupModelPath,
             string startupMmProjPath,

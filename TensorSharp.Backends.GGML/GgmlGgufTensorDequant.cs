@@ -19,6 +19,7 @@ namespace TensorSharp.GGML;
 public static class GgmlGgufTensorDequant
 {
     /// <summary>Bytes for one GGML row along <c>ne0</c>.</summary>
+    // 中文：计算指定 GGML 类型沿 ne0 的一行字节数，类型不支持或未按块对齐则抛异常。
     public static long GetRowSizeBytes(int ggmlType, long ne0)
     {
         long rowBytes = GgmlNative.RowSizeBytesOrZero(ggmlType, ne0);
@@ -32,6 +33,7 @@ public static class GgmlGgufTensorDequant
     }
 
     /// <summary>Total on-disk bytes for a contiguous tensor: <c>ggml_row_size(type, ne0) × ne1 × ne2 × ne3</c>.</summary>
+    // 中文：按行字节数与各维尺寸相乘，计算连续张量的总磁盘字节数。
     public static long GetTensorDataBytes(int ggmlType, long ne0, long ne1, long ne2, long ne3)
     {
         if (ne0 <= 0 || ne1 <= 0 || ne2 <= 0 || ne3 <= 0)
@@ -44,12 +46,14 @@ public static class GgmlGgufTensorDequant
     }
 
     /// <summary>Decodes raw GGUF tensor bytes to FP32 (F32 copy, F16/BF16, or quantized).</summary>
+    // 中文：将托管字节数组中的 GGUF 张量数据反量化为 FP32 写入托管浮点数组。
     public static void DequantizeToFloat32(int ggmlType, byte[] src, int srcOffset, float[] dst, int dstOffset, long numElements)
     {
         GgmlNative.DequantizeGgufTensorToFloat32(ggmlType, src, srcOffset, dst, dstOffset, numElements);
     }
 
     /// <summary>Decodes raw GGUF tensor bytes in unmanaged memory to FP32 in a managed array.</summary>
+    // 中文：校验参数并固定托管数组后，将非托管内存中的 GGUF 数据反量化为 FP32 写入托管数组。
     public static void DequantizeToFloat32(int ggmlType, IntPtr src, float[] dst, int dstOffset, long numElements)
     {
         if (src == IntPtr.Zero)
@@ -84,6 +88,7 @@ public static class GgmlGgufTensorDequant
     }
 
     /// <summary>Decodes raw GGUF tensor bytes in unmanaged memory to FP32 in unmanaged memory.</summary>
+    // 中文：将非托管内存中的 GGUF 张量数据反量化为 FP32 写入非托管内存。
     public static void DequantizeToFloat32Native(int ggmlType, IntPtr src, IntPtr dst, long numElements)
     {
         GgmlNative.DequantizeGgufTensorToFloat32Native(ggmlType, src, dst, numElements);

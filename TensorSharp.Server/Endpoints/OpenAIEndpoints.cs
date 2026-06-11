@@ -20,6 +20,7 @@ namespace TensorSharp.Server.Endpoints
     /// </summary>
     internal static class OpenAIEndpoints
     {
+        // 中文：注册 OpenAI 兼容路由：POST /v1/chat/completions 聊天补全与 GET /v1/models 模型列表。
         public static IEndpointRouteBuilder MapOpenAIEndpoints(this IEndpointRouteBuilder endpoints)
         {
             endpoints.MapPost("/v1/chat/completions",

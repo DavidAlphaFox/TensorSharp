@@ -28,6 +28,7 @@ namespace TensorSharp.Server.Hosting
         private const int DefaultWebMaxTokensFallback = 20000;
         private const int DefaultMaxTextFileChars = 8000;
 
+        // 中文：解析命令行参数与环境变量，构建并返回完整的服务器托管选项。
         public static ServerHostingOptions Build(string[] args, string baseDirectory)
         {
             if (args == null) throw new ArgumentNullException(nameof(args));
@@ -94,6 +95,7 @@ namespace TensorSharp.Server.Hosting
         }
 
         /// <summary>Backend originally requested via <c>--backend</c> / <c>BACKEND</c> (without the OS-default fallback).</summary>
+        // 中文：读取操作员原始指定的后端（--backend 或 BACKEND 环境变量），不应用操作系统默认回退。
         public static string ReadConfiguredBackendInput(string[] args)
         {
             ParseArgs(args, out _, out _, out string configuredBackend, out _, out _);
@@ -117,6 +119,7 @@ namespace TensorSharp.Server.Hosting
         /// <c>BatchExecutor</c> and Qwen3.5's <c>SupportsBatchedMultimodal</c>
         /// read the env vars at runtime on each step.
         /// </summary>
+        // 中文：将连续批处理（及预填充分块大小）相关 CLI 标志翻译为对应环境变量，返回是否有改动。
         public static bool ApplyContinuousBatchingCliFlag(string[] args)
         {
             if (args == null || args.Length == 0)
@@ -167,6 +170,7 @@ namespace TensorSharp.Server.Hosting
         /// builds; the continuous-batching engine reads its scheduler knobs
         /// from <c>TS_SCHED_*</c>.
         /// </summary>
+        // 中文：将 --paged-kv* 系列 CLI 标志翻译为分页 KV 缓存配置所需的环境变量，返回是否有改动。
         public static bool ApplyPagedKvCacheCliFlags(string[] args)
         {
             if (args == null || args.Length == 0)
@@ -259,6 +263,7 @@ namespace TensorSharp.Server.Hosting
             public List<string> StopSequences;
         }
 
+        // 中文：遍历命令行参数，解析出模型、mmproj、后端、最大 token 及各采样覆盖值，遇未知/位置参数则抛错。
         private static void ParseArgs(
             string[] args,
             out string configuredModel,
@@ -420,6 +425,7 @@ namespace TensorSharp.Server.Hosting
         /// character (insertion, deletion, or substitution) — covers `--mproj`
         /// → `--mmproj`, `--temprature` → `--temperature`, etc. Returns null
         /// when no flag is within edit distance 2.</summary>
+        // 中文：基于编辑距离为拼错的标志推荐最接近的已知标志（距离超过 2 则返回 null）。
         private static string SuggestFlagCorrection(string typo)
         {
             string[] knownFlags = new[]
@@ -446,6 +452,7 @@ namespace TensorSharp.Server.Hosting
             return bestDist <= 2 ? best : null;
         }
 
+        // 中文：计算两个字符串之间的 Levenshtein 编辑距离。
         private static int LevenshteinDistance(string a, string b)
         {
             if (string.IsNullOrEmpty(a)) return b?.Length ?? 0;
@@ -462,6 +469,7 @@ namespace TensorSharp.Server.Hosting
             return d[a.Length, b.Length];
         }
 
+        // 中文：以不变文化解析浮点值，失败则针对指定标志抛出参数异常。
         private static float ParseFloat(string flag, string value)
         {
             if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float parsed))
@@ -469,6 +477,7 @@ namespace TensorSharp.Server.Hosting
             return parsed;
         }
 
+        // 中文：以不变文化解析整数值，失败则针对指定标志抛出参数异常。
         private static int ParseInt(string flag, string value)
         {
             if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
@@ -484,6 +493,7 @@ namespace TensorSharp.Server.Hosting
         /// <see cref="SamplingConfig.Clone"/> on it without worrying about it
         /// being missing.
         /// </summary>
+        // 中文：按 CLI > 环境变量 > 类型默认值的优先级合并出最终的默认采样配置。
         private static SamplingConfig ResolveDefaultSamplingConfig(SamplingOverrides overrides)
         {
             var resolved = new SamplingConfig();
@@ -520,6 +530,7 @@ namespace TensorSharp.Server.Hosting
             return resolved;
         }
 
+        // 中文：尝试将指定环境变量解析为浮点值，缺失或非法时返回 false。
         private static bool TryReadEnvFloat(string name, out float value)
         {
             string raw = Environment.GetEnvironmentVariable(name);
@@ -531,6 +542,7 @@ namespace TensorSharp.Server.Hosting
             return float.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
+        // 中文：尝试将指定环境变量解析为整数值，缺失或非法时返回 false。
         private static bool TryReadEnvInt(string name, out int value)
         {
             string raw = Environment.GetEnvironmentVariable(name);
@@ -542,6 +554,7 @@ namespace TensorSharp.Server.Hosting
             return int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
         }
 
+        // 中文：从参数列表读取指定选项的值，支持「--opt value」与「--opt=value」两种写法。
         private static bool TryReadOption(string[] args, ref int index, string option, out string value)
         {
             string arg = args[index];
@@ -565,6 +578,7 @@ namespace TensorSharp.Server.Hosting
             return false;
         }
 
+        // 中文：尝试解析为正整数，非正或非法时返回 false。
         private static bool TryParsePositiveInt(string value, out int parsed)
         {
             if (int.TryParse(value, out parsed) && parsed > 0)
@@ -574,6 +588,7 @@ namespace TensorSharp.Server.Hosting
             return false;
         }
 
+        // 中文：将配置的模型路径解析为绝对路径，空值返回 null。
         private static string ResolveConfiguredModelPath(string configuredPath)
         {
             if (string.IsNullOrWhiteSpace(configuredPath))
@@ -582,6 +597,7 @@ namespace TensorSharp.Server.Hosting
             return Path.GetFullPath(configuredPath);
         }
 
+        // 中文：解析 mmproj 路径为绝对路径；"none" 视为无，裸文件名则相对模型所在目录解析。
         private static string ResolveConfiguredMmProjPath(string configuredPath, string modelPath)
         {
             if (string.IsNullOrWhiteSpace(configuredPath))

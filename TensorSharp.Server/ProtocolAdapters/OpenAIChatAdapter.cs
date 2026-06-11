@@ -44,6 +44,7 @@ namespace TensorSharp.Server.ProtocolAdapters
         private readonly ServerHostingOptions _options;
         private readonly ILoggerFactory _loggerFactory;
 
+        // 中文：构造函数，注入并校验模型服务、推理队列、托管配置与日志工厂等依赖。
         public OpenAIChatAdapter(
             ModelService svc,
             InferenceQueue queue,
@@ -56,6 +57,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
         }
 
+        // 中文：处理 GET /v1/models，以 OpenAI 列表格式返回托管模型的 id 及归属信息。
         public IResult ListModels()
         {
             var data = string.IsNullOrWhiteSpace(_options.StartupModelPath)
@@ -72,6 +74,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             return Results.Json(new { @object = "list", data });
         }
 
+        // 中文：处理 POST /v1/chat/completions，解析消息、工具、结构化输出格式，校验后按流式或非流式分发。
         public async Task ChatCompletionsAsync(HttpContext ctx)
         {
             var openaiLogger = _loggerFactory.CreateLogger("TensorSharp.Server.OpenAI.ChatCompletions");
@@ -141,6 +144,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Validation ------------------------------------------------------
 
+        // 中文：校验结构化输出与 think/tools 的互斥性并验证 schema，不合法时写入 400 错误并返回 false。
         private static async Task<bool> ValidateStructuredOutputCompatibilityAsync(
             HttpContext ctx,
             StructuredOutputFormat responseFormat,
@@ -182,6 +186,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Streaming -------------------------------------------------------
 
+        // 中文：以 SSE 流式输出补全，普通流逐块推送并发 [DONE]，结构化输出则缓冲后归一化再发送。
         private async Task StreamCompletionAsync(
             HttpContext ctx,
             string requestId,
@@ -315,6 +320,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             }
         }
 
+        // 中文：将缓冲的结构化输出按 schema 归一化校验，合法则以单个 SSE 块加 [DONE] 输出，否则返回 422。
         private async Task<bool> FlushStructuredCompletionAsync(
             HttpContext ctx,
             string requestId,
@@ -368,6 +374,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Non-streaming ---------------------------------------------------
 
+        // 中文：非流式补全，聚合全部输出后按结构化/解析器/纯文本三种路径生成 chat.completion 单次响应。
         private async Task CompleteSyncAsync(
             HttpContext ctx,
             string requestId,

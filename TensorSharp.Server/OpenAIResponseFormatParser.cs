@@ -15,6 +15,7 @@ namespace TensorSharp.Server
 {
     public static class OpenAIResponseFormatParser
     {
+        // 中文：解析请求体中的 response_format 字段，按 type（text/json_object/json_schema）产出结构化输出格式，缺省或出错时分别返回成功/失败。
         public static bool TryParse(JsonElement body, out StructuredOutputFormat format, out string error)
         {
             format = null;
@@ -58,6 +59,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：解析 json_schema 类型，校验并提取 name/schema/strict/description（兼容内嵌 json_schema 包装），构造 JsonSchema 输出格式。
         private static bool TryParseJsonSchema(JsonElement responseFormatEl, out StructuredOutputFormat format, out string error)
         {
             format = null;

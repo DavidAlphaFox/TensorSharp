@@ -33,11 +33,13 @@ namespace TensorSharp.Server
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
 
+        // 中文：构造函数——注入日志器（为空时退化为 NullLogger）。
         public InferenceTelemetry(ILogger logger)
         {
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
         }
 
+        // 中文：开启一个日志作用域，附带会话 id、模型名、后端与操作名等结构化字段。
         public IDisposable BeginInferenceScope(
             ChatSession session,
             string modelName,
@@ -53,6 +55,7 @@ namespace TensorSharp.Server
             });
         }
 
+        // 中文：记录聊天开始日志——统计各角色消息数与附件数，并输出采样参数、末条用户输入及完整输入。
         public void LogChatStarted(
             string arch,
             int maxTokens,
@@ -101,6 +104,7 @@ namespace TensorSharp.Server
                 lastUserContent, fullInput);
         }
 
+        // 中文：记录聊天结束日志——根据是否取消分别以警告/信息级别输出 token 数、KV 复用、首 token 时延与吞吐等指标。
         public void LogChatFinished(
             bool wasCancelled,
             int generatedTokenCount,
@@ -131,6 +135,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：记录单轮 generate 开始日志——输出架构、最大 token、图像附件数、上传清单与采样参数及提示词。
         public void LogGenerateStarted(
             string arch,
             int maxTokens,
@@ -148,6 +153,7 @@ namespace TensorSharp.Server
                 promptContent);
         }
 
+        // 中文：记录单轮 generate 结束日志——按是否取消分级输出 token、KV 复用、耗时与吞吐及补全文本。
         public void LogGenerateFinished(
             bool wasCancelled,
             int generatedTokenCount,
@@ -177,6 +183,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：将 Stopwatch 计时滴答数换算为纳秒。
         public static long ToNanos(long elapsedTicks)
             => elapsedTicks * (1_000_000_000L / Stopwatch.Frequency);
 
@@ -184,6 +191,7 @@ namespace TensorSharp.Server
         /// Serialize the entire conversation array submitted for this turn into a
         /// single-line JSON string for logging.
         /// </summary>
+        // 中文：将本轮整段对话序列化为单行 JSON 字符串用于日志记录。
         public static string SerializeMessagesForLog(List<ChatMessage> messages)
         {
             if (messages == null || messages.Count == 0)
@@ -212,6 +220,7 @@ namespace TensorSharp.Server
         /// <summary>
         /// Serialize the upload manifest for a single message as a single-line JSON array.
         /// </summary>
+        // 中文：将单条消息的上传清单（图像/视频帧、音频、文本）序列化为单行 JSON 数组。
         public static string SerializeUploadsForLog(ChatMessage message)
         {
             if (message == null)
@@ -229,6 +238,7 @@ namespace TensorSharp.Server
                 : JsonSerializer.Serialize(entries, FullInputJsonOptions);
         }
 
+        // 中文：将一组路径以指定媒体类型追加为上传日志条目（含路径与文件名）。
         private static void AppendUploadEntries(List<UploadLogEntry> sink, List<string> paths, string mediaType)
         {
             if (paths == null || paths.Count == 0)
@@ -247,6 +257,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：过滤掉空路径返回新列表，全空或为空时返回 null。
         private static List<string> ToPathList(List<string> source)
         {
             if (source == null || source.Count == 0)

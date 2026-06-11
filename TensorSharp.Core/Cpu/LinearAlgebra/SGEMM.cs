@@ -34,6 +34,7 @@ namespace TensorSharp.Cpu.LinearAlgebra
 
         #endregion
 
+        // 中文：注入式构造函数，使用外部提供的 LSAME 与 XERBLA 依赖。
         public SGEMM(LSAME lsame, XERBLA xerbla)
         {
 
@@ -46,6 +47,7 @@ namespace TensorSharp.Cpu.LinearAlgebra
 
         }
 
+        // 中文：默认构造函数，内部新建 LSAME 与 XERBLA 依赖实例。
         public SGEMM()
         {
 
@@ -181,6 +183,7 @@ namespace TensorSharp.Cpu.LinearAlgebra
         /// Unchanged on exit.
         /// 
         ///</param>
+        // 中文：单精度通用矩阵乘 C=alpha*op(A)*op(B)+beta*C 的参考实现（移植自 Fortran BLAS SGEMM），核心循环用 SIMD 向量化加速。
         unsafe public void Run(string TRANSA, string TRANSB, int M, int N, int K, float ALPHA
                          , float* A, int LDA, float* B, int LDB, float BETA, float* C, int LDC)
         {

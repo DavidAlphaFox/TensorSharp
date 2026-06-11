@@ -24,11 +24,13 @@ namespace TensorSharp
         private long index;
         unsafe public float* data;
 
+        // 中文：数组重载构造——转发到 ReadOnlyMemory 版构造函数。
         unsafe public TensorIterState(float* buffer, int dimCount, long[] sizes, long[] strides, int step = 1)
             : this(buffer, dimCount, (ReadOnlyMemory<long>)sizes, (ReadOnlyMemory<long>)strides, step)
         {
         }
 
+        // 中文：构造遍历迭代器状态，找出最大连续内存块并校验块大小可被 step 整除。
         unsafe public TensorIterState(float* buffer, int dimCount, ReadOnlyMemory<long> sizes, ReadOnlyMemory<long> strides, int step = 1)
         {
             if (sizes.Length < dimCount || strides.Length < dimCount)
@@ -85,11 +87,13 @@ namespace TensorSharp
             }
         }
 
+        // 中文：判断当前连续块是否已遍历到末尾。
         public bool ReachedBlockEnd()
         {
             return !(index < size);
         }
 
+        // 中文：在当前连续块内按 step 推进索引并移动数据指针。
         public void BlockStep()
         {
             unsafe
@@ -101,6 +105,7 @@ namespace TensorSharp
 
         // Returns true if there is another block to iterate over,
         // returns false if we are at end of iteration
+        // 中文：当前块结束后，更新外层维度计数与指针定位到下一个连续块；全部遍历完返回 false。
         public bool NextBlock()
         {
             unsafe

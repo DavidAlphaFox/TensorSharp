@@ -50,6 +50,7 @@ namespace TensorSharp.Cuda
         private const int DecodeAttentionPartitionThreshold = 2048;
         private const int DecodeAttentionSingleBlockMaxTokens = 8192;
 
+        // 中文：用标量值填充连续的 F32/F16 张量，调度到 CUDA Fill 内核。
         public static bool TryFill(Tensor result, float value)
         {
             if (!TryGetContiguous(result, out CudaStorage storage, out IntPtr ptr, out long longCount) ||
@@ -73,6 +74,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：在两个同形张量间做设备端拷贝，连续走整段拷贝，否则走分块跨步拷贝。
         public static bool TryCopy(Tensor result, Tensor src)
         {
             if (result == null || src == null ||
@@ -102,6 +104,7 @@ namespace TensorSharp.Cuda
             return TryCopyStridedBytes(result, src, resultStorage, srcStorage);
         }
 
+        // 中文：处理非连续张量的拷贝，折叠最内层连续维度后按外层维度逐块做设备端字节拷贝。
         private static bool TryCopyStridedBytes(Tensor result, Tensor src, CudaStorage resultStorage, CudaStorage srcStorage)
         {
             if (ReferenceEquals(resultStorage, srcStorage) && !SameStorageView(result, src))
@@ -171,6 +174,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：判断两个张量是否为完全相同的存储视图（偏移、维数、各维尺寸与步长全部一致）。
         private static bool SameStorageView(Tensor result, Tensor src)
         {
             if (result.StorageOffset != src.StorageOffset ||
@@ -188,6 +192,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：将元素偏移换算为字节偏移，对 Q8_0 量化类型按 32 元素块对齐并换算为块字节数。
         private static long ElementOffsetToBytes(long elementOffset, DType dtype)
         {
             if (dtype == DType.Q8_0)
@@ -201,6 +206,7 @@ namespace TensorSharp.Cuda
             return checked(elementOffset * dtype.Size());
         }
 
+        // 中文：对连续 F32 张量执行逐元素一元激活（Relu/Sigmoid/SiLU/GELU/Tanh）。
         public static bool TryUnary(Tensor result, Tensor src, CudaUnaryOp op)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -221,6 +227,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：执行带激活的逐元素二元运算（如 SiLUMul/GELUMul/SigmoidMul），把两输入按门控相乘。
         public static bool TryBinaryActivation(Tensor result, Tensor lhs, Tensor rhs, CudaBinaryActivationOp op)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -243,6 +250,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：将偏置向量按行广播加到二维张量的每一行上（原地修改）。
         public static bool TryAddBiasRows(Tensor tensor, Tensor bias)
         {
             if (!TryGetContiguousRows(tensor, out CudaStorage tensorStorage, out IntPtr tensorPtr, out int rows, out int cols) ||
@@ -265,6 +273,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对两个同形连续 F32 张量执行逐元素二元算术（Add/Sub/Mul/Div）。
         public static bool TryBinary(Tensor result, Tensor lhs, Tensor rhs, CudaBinaryOp op)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -290,6 +299,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对张量与标量执行逐元素运算（Add/Sub/Mul/Div 及反向 Sub/Div）。
         public static bool TryScalar(Tensor result, Tensor lhs, float rhs, CudaScalarOp op)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -311,6 +321,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对三个同形张量执行逐元素三元融合运算（AddMul/AddDiv）。
         public static bool TryTernary(Tensor result, Tensor x, Tensor y, Tensor z, CudaTernaryOp op)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -340,6 +351,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：执行融合运算 (x + y) * z，其中 z 为标量，作用于两个同形张量。
         public static bool TryAddMulScalar(Tensor result, Tensor x, Tensor y, float z)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -365,6 +377,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：执行四元融合逐元素运算 x*y + z*w，作用于四个同形张量。
         public static bool TryMulMulAdd(Tensor result, Tensor x, Tensor y, Tensor z, Tensor w)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -398,6 +411,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对融合的 gate/up 张量做 SiLU 门控并相乘，沿列拆分前后两半得到 SwiGLU 输出。
         public static bool TrySiLUMulSplit(Tensor result, Tensor gateUp, int halfDim)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -423,6 +437,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对融合的 gate/up 张量做 GELU 门控并相乘，沿列拆分前后两半得到 GeGLU 输出。
         public static bool TryGELUMulSplit(Tensor result, Tensor gateUp, int halfDim)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -448,6 +463,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对融合 gate/up 张量执行 OpenAI 风格 SwiGLU（带 alpha 缩放与 limit 裁剪）门控相乘并按列拆分。
         public static bool TrySwiGluOaiSplit(Tensor result, Tensor gateUp, int halfDim, float alpha, float limit)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int count) ||
@@ -481,6 +497,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：按行执行 RMSNorm 归一化，乘以 alpha 缩放并可选加 beta 偏置，eps 防止除零。
         public static bool TryRMSNorm(Tensor result, Tensor src, Tensor alpha, Tensor beta, float eps)
         {
             if (!TryGetContiguousRows(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int rows, out int cols) ||
@@ -514,6 +531,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：按行（最后一维）执行 Softmax 归一化。
         public static bool TrySoftmax(Tensor result, Tensor src)
         {
             if (!TryGetContiguousRows(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int rows, out int cols) ||
@@ -535,6 +553,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对注意力分数原地执行带缩放、因果/滑动窗口掩码及可选 attention sinks 的 Softmax。
         public static bool TryAttentionSoftmaxWithSinks(
             Tensor scores,
             Tensor sinks,
@@ -597,6 +616,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：执行缩放点积注意力（4 维 Q/K/V，可选掩码），融合 QK^T、Softmax 与 V 加权。
         public static bool TryScaledDotProductAttention(Tensor result, Tensor query, Tensor key, Tensor value, Tensor mask, float scale)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out _) ||
@@ -675,6 +695,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：单步解码的 GQA 注意力（带 sinks），从 KV 缓存读取，优先走分块路径，否则单块 F16/F32 内核。
         public static bool TryGqaDecodeAttentionWithSinks(
             Tensor result,
             Tensor query,
@@ -814,6 +835,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：预填充阶段的 GQA 注意力（带因果/滑动窗口掩码），支持 F16/F32 的 KV。
         public static bool TryGqaPrefillAttention(
             Tensor result,
             Tensor query,
@@ -907,6 +929,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：基于 KV 缓存的预填充 GQA 注意力（带 attention sinks 与掩码窗口），支持 F16/F32。
         public static bool TryGqaPrefillAttentionWithSinks(
             Tensor result,
             Tensor query,
@@ -1029,6 +1052,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：单步解码的 GQA 注意力（无 sinks），从 KV 缓存读取，优先走分块路径，否则单块 F16/F32 内核。
         public static bool TryGqaDecodeAttention(
             Tensor result,
             Tensor query,
@@ -1148,6 +1172,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：当注意长度超过阈值时，分块（partition）并行计算 GQA 解码注意力，再做归约合并；否则返回 false 退回单块路径。
         private static bool TryLaunchPartitionedGqaDecodeAttention(
             CudaKernels kernels,
             CudaAllocator allocator,
@@ -1228,6 +1253,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：从二维张量中按列偏移与宽度切出连续的列子块。
         public static bool TrySliceColumns(Tensor result, Tensor src, int colOffset, int width)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int resultCount) ||
@@ -1262,6 +1288,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：将 [seq, heads*headDim] 的扁平布局重排为 [heads, seq, headDim] 的头优先布局。
         public static bool TryFlatToHeadFirst(Tensor result, Tensor src, int numHeads, int seqLen, int headDim)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int resultCount) ||
@@ -1293,6 +1320,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：从融合 QKV 张量按列偏移取出某一段（Q/K/V 之一），重排为 [heads, seq, headDim] 头优先布局。
         public static bool TrySplitQkvToHeadFirst(Tensor result, Tensor qkv, int colOffset, int numHeads, int seqLen, int headDim)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int resultCount) ||
@@ -1332,6 +1360,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：将头优先布局的新 KV 写入起始位置开始的 KV 缓存，支持环形缓存与 F16/F32。
         public static bool TryCopyHeadFirstToCache(Tensor cache, Tensor src, int startPos, int seqLen, int cacheSize, bool circular)
         {
             if (!TryGetContiguousFloatOrHalf(cache, out CudaStorage cacheStorage, out IntPtr cachePtr, out _, out bool cacheIsHalf) ||
@@ -1387,6 +1416,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：从环形 KV 缓存按起始位置收集 seqLen 个时间步，输出连续的头优先布局张量，支持 F16/F32。
         public static bool TryGatherCircularHeadFirst(Tensor result, Tensor cache, int startPos, int seqLen, int cacheSize)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int resultCount) ||
@@ -1438,6 +1468,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：沿序列维（第 1 维）拼接两个头优先布局张量。
         public static bool TryConcatHeadFirst(Tensor result, Tensor a, Tensor b)
         {
             if (!TryGetContiguousFloat(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int resultCount) ||
@@ -1476,6 +1507,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对头优先布局张量原地应用 NeoX 风格旋转位置编码（RoPE），使用预算 cos/sin 表。
         public static bool TryNeoXRoPEHeadFirst(Tensor data, Tensor cosTable, Tensor sinTable, int numHeads, int seqLen, int headDim, int ropeHalf)
         {
             if (!TryGetContiguousFloat(data, out CudaStorage dataStorage, out IntPtr dataPtr, out int dataCount) ||
@@ -1520,6 +1552,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：按索引张量从源张量逐行收集（embedding 查表），isAdd 时把结果累加到目标而非覆盖。
         public static bool TryIndexSelect(Tensor result, Tensor src, Tensor indices, bool isAdd)
         {
             if (!TryGetContiguousRows(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int rows, out int cols) ||
@@ -1556,6 +1589,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：对注意力分数原地施加因果掩码，把未来位置置为 maskedValue。
         public static bool TryAddCausalMask(Tensor tensor, int seqLen, int startPos, float maskedValue)
         {
             if (!TryGetContiguousRows(tensor, out CudaStorage storage, out IntPtr ptr, out int rows, out int cols))
@@ -1572,6 +1606,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：按行对张量应用基础旋转位置编码（RoPE），rowOffset 指定起始位置。
         public static bool TryRoPE(Tensor result, Tensor src, int seqLen, int rowOffset)
         {
             if (!TryGetContiguousRows(result, out CudaStorage resultStorage, out IntPtr resultPtr, out int rows, out int cols) ||
@@ -1594,6 +1629,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：扩展版 RoPE，支持显式位置张量、多种模式与 YaRN 频率缩放/插值参数，可累加到结果。
         public static bool TryRoPEEx(
             Tensor result,
             Tensor src,
@@ -1655,6 +1691,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：执行 Qwen3.5 门控 DeltaNet（线性注意力/SSM）打包内核，融合因果卷积、状态更新与归一化，并更新 conv/ssm 状态。
         public static bool TryQwen35GatedDeltaNetPacked(
             Tensor result,
             Tensor packed,
@@ -1767,6 +1804,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：将 Qwen3.5 门控 DeltaNet 的 qkv、z、beta、alpha 各输入打包为单一 packed 张量，供后续融合内核使用。
         public static bool TryQwen35GatedDeltaNetPackInputs(
             Tensor packed,
             Tensor qkv,
@@ -1839,6 +1877,7 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：校验张量为连续的 F32 且元素数在 int 范围内，输出其 CUDA 存储、设备指针与元素数。
         internal static bool TryGetContiguousFloat(Tensor tensor, out CudaStorage storage, out IntPtr ptr, out int count)
         {
             if (TryGetContiguous(tensor, out storage, out ptr, out long longCount) &&
@@ -1855,6 +1894,7 @@ namespace TensorSharp.Cuda
             return false;
         }
 
+        // 中文：校验张量为连续的 F32 或 F16，输出存储、设备指针、元素数及是否为半精度标志。
         internal static bool TryGetContiguousFloatOrHalf(Tensor tensor, out CudaStorage storage, out IntPtr ptr, out int count, out bool isHalf)
         {
             if (TryGetContiguous(tensor, out storage, out ptr, out long longCount) &&
@@ -1873,6 +1913,7 @@ namespace TensorSharp.Cuda
             return false;
         }
 
+        // 中文：把连续 F32 张量视作行优先矩阵，以最后一维为列数推导行数，输出存储、指针、行列。
         internal static bool TryGetContiguousRows(Tensor tensor, out CudaStorage storage, out IntPtr ptr, out int rows, out int cols)
         {
             if (TryGetContiguousFloat(tensor, out storage, out ptr, out int count) &&
@@ -1894,6 +1935,7 @@ namespace TensorSharp.Cuda
             return false;
         }
 
+        // 中文：基础校验：张量须为 CUDA 存储且连续，输出其存储、按存储偏移定位的设备指针与元素总数。
         internal static bool TryGetContiguous(Tensor tensor, out CudaStorage storage, out IntPtr ptr, out long count)
         {
             storage = tensor?.Storage as CudaStorage;
@@ -1909,12 +1951,14 @@ namespace TensorSharp.Cuda
             return true;
         }
 
+        // 中文：从分配器获取已编译的 CUDA 内核集合，为空则返回 false。
         private static bool TryGetKernels(CudaAllocator allocator, out CudaKernels kernels)
         {
             kernels = allocator.Kernels;
             return kernels != null;
         }
 
+        // 中文：判断两个张量的维数与各维尺寸是否完全相同。
         private static bool SameShape(Tensor a, Tensor b)
         {
             if (a.DimensionCount != b.DimensionCount)

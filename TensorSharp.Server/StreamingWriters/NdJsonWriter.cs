@@ -21,6 +21,7 @@ namespace TensorSharp.Server.StreamingWriters
     /// </summary>
     internal static class NdJsonWriter
     {
+        // 中文：设置 NDJSON 流的响应头（Content-Type 为 application/x-ndjson 并禁用缓存）。
         public static void ApplyHeaders(HttpResponse response)
         {
             response.ContentType = "application/x-ndjson";
@@ -31,6 +32,7 @@ namespace TensorSharp.Server.StreamingWriters
         /// Serialise <paramref name="payload"/> followed by a newline and flush
         /// the response so the next chunk can immediately reach the client.
         /// </summary>
+        // 中文：将载荷序列化为 JSON 加换行写入响应并立即刷新，使下一块能即时到达客户端。
         public static async Task WriteLineAsync(
             HttpResponse response,
             object payload,

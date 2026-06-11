@@ -15,11 +15,13 @@ namespace TensorSharp.Expression
     {
         public bool IsValidLvalue { get; private set; }
 
+        // 中文：基类构造函数，标记该张量表达式是否可作为写入目标（左值）。
         public TExpression(bool isValidLvalue = false)
         {
             IsValidLvalue = isValidLvalue;
         }
 
+        // 中文：抽象求值方法，将表达式求值为张量，可选写入 writeTarget。
         public abstract Tensor Evaluate(Tensor writeTarget);
     }
 
@@ -28,6 +30,7 @@ namespace TensorSharp.Expression
         private readonly TExpression src;
         private readonly Func<Tensor, Tensor> evaluate;
 
+        // 中文：构造函数，保存源表达式与视图变换委托，并继承源的左值性。
         public ViewExpression(TExpression src, Func<Tensor, Tensor> evaluate)
             : base(src.IsValidLvalue)
         {
@@ -35,6 +38,7 @@ namespace TensorSharp.Expression
             this.evaluate = evaluate;
         }
 
+        // 中文：求值，求源张量后施加视图变换；视图操作不能直接写入其它张量。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             if (writeTarget != null)
@@ -54,6 +58,7 @@ namespace TensorSharp.Expression
         private readonly IAllocator allocator;
         private readonly Array array;
 
+        // 中文：构造函数，保存分配器与 .NET 数组源数据。
         public FromArrayExpression(IAllocator allocator, Array array)
             : base(false)
         {
@@ -61,6 +66,7 @@ namespace TensorSharp.Expression
             this.array = array;
         }
 
+        // 中文：求值，将数组数据拷贝到 writeTarget 或新建张量并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             if (writeTarget != null)
@@ -80,12 +86,14 @@ namespace TensorSharp.Expression
         private readonly TExpression src;
         private readonly DType type;
 
+        // 中文：构造函数，保存源表达式与目标元素数据类型。
         public AsTypeExpression(TExpression src, DType type)
         {
             this.src = src;
             this.type = type;
         }
 
+        // 中文：求值，将源张量按目标数据类型拷贝（类型转换）并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor srcVal = src.Evaluate(null))
@@ -106,12 +114,14 @@ namespace TensorSharp.Expression
         private readonly TExpression src;
         private readonly IAllocator allocator;
 
+        // 中文：构造函数，保存源表达式与目标设备的分配器。
         public ToDeviceExpression(TExpression src, IAllocator allocator)
         {
             this.src = src;
             this.allocator = allocator;
         }
 
+        // 中文：求值，将源张量拷贝到目标设备（分配器）对应的张量并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor srcVal = src.Evaluate(null))
@@ -135,6 +145,7 @@ namespace TensorSharp.Expression
         private readonly int dimension;
 
 
+        // 中文：构造函数，保存源张量、填充标量值、维度与索引表达式。
         public ScatterFillExpression(TExpression src, SVar value, int dimension, TExpression indices)
         {
             this.src = src;
@@ -143,6 +154,7 @@ namespace TensorSharp.Expression
             this.indices = indices;
         }
 
+        // 中文：求值，复制源张量后在指定维度按索引散布填充标量值并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor s = src.Evaluate(null))
@@ -167,6 +179,7 @@ namespace TensorSharp.Expression
         private readonly Action<Tensor> fillAction;
 
 
+        // 中文：构造函数，保存分配器、元素类型、尺寸与填充动作委托。
         public FillExpression(IAllocator allocator, DType elementType, long[] sizes, Action<Tensor> fillAction)
         {
             this.allocator = allocator;
@@ -175,6 +188,7 @@ namespace TensorSharp.Expression
             this.fillAction = fillAction;
         }
 
+        // 中文：求值，按给定尺寸创建张量（如需）并执行填充动作后返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             if (writeTarget == null)
@@ -193,6 +207,7 @@ namespace TensorSharp.Expression
         private readonly TExpression src, m1, m2;
         private readonly float alpha, beta;
 
+        // 中文：构造函数，保存 beta、源张量、alpha 及两个待相乘矩阵表达式。
         public AddmmExpression(float beta, TExpression src, float alpha, TExpression m1, TExpression m2)
         {
             this.beta = beta;
@@ -202,6 +217,7 @@ namespace TensorSharp.Expression
             this.m2 = m2;
         }
 
+        // 中文：求值，计算 beta*src + alpha*(m1*m2) 矩阵乘加并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor s = src.Evaluate(null))
@@ -218,12 +234,14 @@ namespace TensorSharp.Expression
     {
         private readonly Tensor value;
 
+        // 中文：构造函数，包装一个已有张量值，并标记为合法左值。
         public TensorValueExpression(Tensor value)
             : base(true)
         {
             this.value = value;
         }
 
+        // 中文：求值，无目标时返回张量引用副本，否则拷贝到 writeTarget 并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             if (writeTarget == null)
@@ -243,6 +261,7 @@ namespace TensorSharp.Expression
         private readonly TExpression left, right;
         private readonly Func<Tensor, Tensor, Tensor, Tensor> evaluate;
 
+        // 中文：构造函数，保存左右张量表达式与二元张量运算委托。
         public BinaryTensorTensorExpression(TExpression left, TExpression right, Func<Tensor, Tensor, Tensor, Tensor> evaluate)
         {
             this.left = left;
@@ -250,6 +269,7 @@ namespace TensorSharp.Expression
             this.evaluate = evaluate;
         }
 
+        // 中文：求值，分别求左右张量后对其施加二元张量运算并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor lhs = left.Evaluate(null))
@@ -265,12 +285,14 @@ namespace TensorSharp.Expression
         private readonly TExpression src;
         private readonly Func<Tensor, Tensor, Tensor> evaluate;
 
+        // 中文：构造函数，保存源张量表达式与一元张量运算委托。
         public UnaryTensorExpression(TExpression src, Func<Tensor, Tensor, Tensor> evaluate)
         {
             this.src = src;
             this.evaluate = evaluate;
         }
 
+        // 中文：求值，求源张量后对其施加一元张量运算并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor s = src.Evaluate(null))
@@ -286,6 +308,7 @@ namespace TensorSharp.Expression
         public readonly TExpression right;
         public readonly Func<Tensor, float, Tensor, Tensor> evaluate;
 
+        // 中文：构造函数，保存左侧标量表达式、右侧张量表达式与运算委托。
         public BinaryScalarTensorExpression(SExpression left, TExpression right, Func<Tensor, float, Tensor, Tensor> evaluate)
         {
             this.left = left;
@@ -293,6 +316,7 @@ namespace TensorSharp.Expression
             this.evaluate = evaluate;
         }
 
+        // 中文：求值，以左标量与右张量为操作数施加标量-张量运算并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor rhs = right.Evaluate(null))
@@ -308,6 +332,7 @@ namespace TensorSharp.Expression
         public readonly SExpression right;
         public readonly Func<Tensor, Tensor, float, Tensor> evaluate;
 
+        // 中文：构造函数，保存左侧张量表达式、右侧标量表达式与运算委托。
         public BinaryTensorScalarExpression(TExpression left, SExpression right, Func<Tensor, Tensor, float, Tensor> evaluate)
         {
             this.left = left;
@@ -315,6 +340,7 @@ namespace TensorSharp.Expression
             this.evaluate = evaluate;
         }
 
+        // 中文：求值，以左张量与右标量为操作数施加张量-标量运算并返回。
         public override Tensor Evaluate(Tensor writeTarget)
         {
             using (Tensor lhs = left.Evaluate(null))

@@ -33,12 +33,14 @@ namespace TensorSharp
         // Remember which assemblies have been registered to avoid accidental double-registering
         private static readonly HashSet<Assembly> registeredAssemblies = new HashSet<Assembly>();
 
+        // 中文：静态构造函数，初始化时自动注册本程序集中的 CPU 算子。
         static OpRegistry()
         {
             // Register CPU ops from this assembly
             RegisterAssembly(Assembly.GetExecutingAssembly());
         }
 
+        // 中文：将一个算子处理器及其约束按操作名登记到注册表中。
         public static void Register(string opName, OpHandler handler, IEnumerable<OpConstraint> constraints)
         {
             OpInstance newInstance = new OpInstance() { handler = handler, constraints = constraints };
@@ -57,6 +59,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：按操作名查找首个满足全部约束的处理器并调用，无匹配则抛异常。
         public static object Invoke(string opName, params object[] args)
         {
             if (opInstances.TryGetValue(opName, out List<OpInstance> instanceList))
@@ -77,6 +80,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：反射扫描程序集中带 OpsClass 特性的类型，注册其 RegisterOp 标注的算子方法（去重防止重复注册）。
         public static void RegisterAssembly(Assembly assembly)
         {
             if (!registeredAssemblies.Contains(assembly))
@@ -103,6 +107,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：收集方法各参数上 ArgConstraint 特性产生的约束并汇总返回。
         private static IEnumerable<OpConstraint> GetParameterConstraints(MethodInfo method, object instance)
         {
             IEnumerable<OpConstraint> result = Enumerable.Empty<OpConstraint>();

@@ -16,6 +16,7 @@ namespace TensorSharp
         private readonly ReadOnlySpan<long> sizes;
         private readonly ReadOnlySpan<long> strides;
 
+        // 中文：构造张量视图，校验尺寸与步幅长度一致并记录存储偏移。
         public TensorView(ReadOnlySpan<long> sizes, ReadOnlySpan<long> strides, long storageOffset)
         {
             if (sizes.Length != strides.Length)
@@ -34,16 +35,19 @@ namespace TensorSharp
         public ReadOnlySpan<long> Strides => strides;
         public long StorageOffset { get; }
 
+        // 中文：返回指定维度的尺寸。
         public long Size(int dimension)
         {
             return sizes[dimension];
         }
 
+        // 中文：返回指定维度的步幅。
         public long Stride(int dimension)
         {
             return strides[dimension];
         }
 
+        // 中文：根据尺寸与步幅计算所需的底层存储元素数。
         public long GetStorageSize()
         {
             return TensorDimensionHelpers.GetStorageSize(sizes, strides);

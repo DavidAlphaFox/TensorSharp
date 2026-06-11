@@ -12,6 +12,7 @@ namespace TensorSharp.Cuda.Interop
     {
         private static int registered;
 
+        // 中文：注册本程序集的原生库解析器（只执行一次），并在 Windows 上补充 CUDA 路径
         public static void Register()
         {
             if (Interlocked.Exchange(ref registered, 1) != 0)
@@ -21,6 +22,7 @@ namespace TensorSharp.Cuda.Interop
             EnsureWindowsCudaPath();
         }
 
+        // 中文：自定义 DllImport 解析逻辑，按平台尝试加载对应的 cuda 驱动与 cublas 库
         private static IntPtr Resolve(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
         {
             if (libraryName == "cuda")
@@ -42,6 +44,7 @@ namespace TensorSharp.Cuda.Interop
             return IntPtr.Zero;
         }
 
+        // 中文：按平台与优先级返回 cuBLAS 库文件的候选名称列表
         private static IEnumerable<string> GetCublasCandidates()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -60,6 +63,7 @@ namespace TensorSharp.Cuda.Interop
             yield return "libcublas.so";
         }
 
+        // 中文：在 Windows 上将 CUDA 的 bin 目录追加到 PATH 环境变量，便于加载原生库
         private static void EnsureWindowsCudaPath()
         {
             if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -81,6 +85,7 @@ namespace TensorSharp.Cuda.Interop
             Environment.SetEnvironmentVariable("PATH", string.Join(Path.PathSeparator, additions.Concat(new[] { currentPath })));
         }
 
+        // 中文：枚举可能的 CUDA bin 目录（来自环境变量及默认安装路径）
         private static IEnumerable<string> EnumerateCudaBinDirectories()
         {
             foreach (string variableName in new[] { "CUDA_PATH", "CUDA_HOME" })

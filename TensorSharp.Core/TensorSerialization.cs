@@ -15,6 +15,7 @@ namespace TensorSharp
 {
     public static class TensorSerialization
     {
+        // 中文：将张量（先转为连续内存）的维度、类型、尺寸与原始字节写入流。
         public static void Serialize(Tensor tensor, Stream stream)
         {
             using (Tensor src = Ops.AsContiguous(tensor))
@@ -38,6 +39,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：从流读取维度、类型、尺寸与字节数据，重建并返回张量。
         public static Tensor Deserialize(IAllocator allocator, Stream stream)
         {
             // Note: don't dispose reader - it does not own the stream's lifetime
@@ -59,6 +61,7 @@ namespace TensorSharp
             return result;
         }
 
+        // 中文：通过固定缓冲区分块从存储拷出字节并写入 writer。
         private static void WriteBytes(BinaryWriter writer, Storage storage, long startIndex, long byteCount)
         {
             byte[] buffer = new byte[4096];
@@ -81,6 +84,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：通过固定缓冲区分块从 reader 读字节并拷入存储。
         private static void ReadBytes(BinaryReader reader, Storage storage, long startIndex, long byteCount)
         {
             byte[] buffer = new byte[4096];

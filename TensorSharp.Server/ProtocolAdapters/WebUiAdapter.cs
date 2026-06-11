@@ -50,6 +50,7 @@ namespace TensorSharp.Server.ProtocolAdapters
         private readonly ServerHostingOptions _options;
         private readonly ILoggerFactory _loggerFactory;
 
+        // 中文：构造函数，注入并校验模型服务、队列、会话管理器、托管配置与日志工厂等无状态依赖。
         public WebUiAdapter(
             ModelService svc,
             InferenceQueue queue,
@@ -66,6 +67,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Queue ------------------------------------------------------------
 
+        // 中文：处理 GET /api/queue/status，返回队列是否繁忙、待处理数与累计已处理数。
         public IResult GetQueueStatus()
         {
             var status = _queue.GetStatus();
@@ -79,6 +81,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Sessions ---------------------------------------------------------
 
+        // 中文：处理 POST /api/sessions，创建新会话并返回其会话 ID 与创建时间。
         public IResult CreateSession()
         {
             var sessionsLogger = _loggerFactory.CreateLogger("TensorSharp.Server.Sessions");
@@ -92,6 +95,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             });
         }
 
+        // 中文：处理 DELETE /api/sessions/{id}，拒绝删除默认会话，移除并释放指定会话的聊天历史。
         public async Task<IResult> DisposeSessionAsync(string id, HttpContext ctx)
         {
             var sessionsLogger = _loggerFactory.CreateLogger("TensorSharp.Server.Sessions");
@@ -123,6 +127,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Models ----------------------------------------------------------
 
+        // 中文：处理 GET /api/models，返回可用模型、mmproj、已加载状态、后端列表与架构等模型状态信息。
         public IResult GetModels()
         {
             var files = string.IsNullOrWhiteSpace(_options.StartupModelPath)
@@ -147,6 +152,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             });
         }
 
+        // 中文：处理 POST /api/models/load，校验后端与托管模型/mmproj 请求，入队后加载模型并返回结果或错误。
         public async Task<IResult> LoadModelAsync(HttpContext ctx, HttpRequest req)
         {
             var modelLoadLogger = _loggerFactory.CreateLogger("TensorSharp.Server.WebUI.ModelLoad");
@@ -204,6 +210,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Upload ----------------------------------------------------------
 
+        // 中文：处理 POST /api/upload，保存上传文件并按媒体类型分类，视频抽帧、文本预处理后返回路径与元数据。
         public async Task<IResult> UploadAsync(HttpRequest req)
         {
             var uploadLogger = _loggerFactory.CreateLogger("TensorSharp.Server.Upload");
@@ -285,11 +292,13 @@ namespace TensorSharp.Server.ProtocolAdapters
             return Results.Json(new { ok = true, path = savePath, url = uploadUrl, mediaType, fileName = file.FileName });
         }
 
+        // 中文：根据文件名构造转义后的 /uploads/ 访问 URL。
         private static string BuildUploadUrl(string fileName)
         {
             return "/uploads/" + Uri.EscapeDataString(fileName);
         }
 
+        // 中文：根据文件扩展名将其分类为 image/video/audio/text 或 unknown。
         private static string ClassifyExtension(string ext) => ext switch
         {
             ".png" or ".jpg" or ".jpeg" or ".gif" or ".webp" or ".bmp"
@@ -306,6 +315,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Chat (SSE) -------------------------------------------------------
 
+        // 中文：处理 POST /api/chat 的 SSE 聊天流，解析会话/工具/思考，入队后逐 token 推送并发送统计与结束事件。
         public async Task ChatStreamAsync(HttpContext ctx)
         {
             var webUiLogger = _loggerFactory.CreateLogger("TensorSharp.Server.WebUI.Chat");

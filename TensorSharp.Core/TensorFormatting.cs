@@ -15,6 +15,7 @@ namespace TensorSharp
 {
     internal static class TensorFormatting
     {
+        // 中文：生成由 count 个字符 c 组成的字符串。
         private static string RepeatChar(char c, int count)
         {
             StringBuilder builder = new StringBuilder();
@@ -25,18 +26,21 @@ namespace TensorSharp
             return builder.ToString();
         }
 
+        // 中文：构造指定宽度的整数对齐格式串。
         private static string GetIntFormat(int length)
         {
             string padding = RepeatChar('#', length - 1);
             return string.Format(" {0}0;-{0}0", padding);
         }
 
+        // 中文：构造指定宽度、保留四位小数的浮点对齐格式串。
         private static string GetFloatFormat(int length)
         {
             string padding = RepeatChar('#', length - 1);
             return string.Format(" {0}0.0000;-{0}0.0000", padding);
         }
 
+        // 中文：构造指定宽度的科学计数法格式串。
         private static string GetScientificFormat(int length)
         {
             int padCount = length - 6;
@@ -47,6 +51,7 @@ namespace TensorSharp
 
 
 
+        // 中文：判断张量元素是否全为整数值（用于选择整数显示格式）。
         private static bool IsIntOnly(Storage storage, Tensor tensor)
         {
             // HACK this is a hacky way of iterating over the elements of the tensor.
@@ -66,6 +71,7 @@ namespace TensorSharp
             return true;
         }
 
+        // 中文：返回张量元素的最小值与最大值的绝对值，用于决定格式与缩放。
         private static Tuple<double, double> AbsMinMax(Storage storage, Tensor tensor)
         {
             if (storage.ElementCount == 0)
@@ -105,6 +111,7 @@ namespace TensorSharp
             Scientific,
             Float,
         }
+        // 中文：根据数值范围与整数模式，决定格式类型、缩放因子与字段宽度。
         private static Tuple<FormatType, double, int> GetFormatSize(Tuple<double, double> minMax, bool intMode)
         {
             int expMin = minMax.Item1 != 0 ?
@@ -149,6 +156,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：按格式类型与宽度构造对应的格式串。
         private static string BuildFormatString(FormatType type, int size)
         {
             switch (type)
@@ -160,6 +168,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：综合判断并返回打印格式串、缩放因子与字段宽度。
         private static Tuple<string, double, int> GetStorageFormat(Storage storage, Tensor tensor)
         {
             if (storage.ElementCount == 0)
@@ -176,6 +185,7 @@ namespace TensorSharp
             return Tuple.Create("{0:" + formatString + "}", formatSize.Item2, formatSize.Item3);
         }
 
+        // 中文：生成描述张量类型、各维尺寸与所在位置的摘要字符串。
         public static string FormatTensorTypeAndSize(Tensor tensor)
         {
             StringBuilder result = new StringBuilder();
@@ -205,6 +215,7 @@ namespace TensorSharp
             return result.ToString();
         }
 
+        // 中文：将一维张量逐元素格式化输出（必要时带缩放因子）。
         private static void FormatVector(StringBuilder builder, Tensor tensor)
         {
             Tuple<string, double, int> storageFormat = GetStorageFormat(tensor.Storage, tensor);
@@ -230,6 +241,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：将二维张量按列分块、对齐缩进地格式化为矩阵输出。
         private static void FormatMatrix(StringBuilder builder, Tensor tensor, string indent)
         {
             Tuple<string, double, int> storageFormat = GetStorageFormat(tensor.Storage, tensor);
@@ -294,6 +306,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：将三维及以上张量按高维索引遍历，逐个二维切片格式化输出。
         private static void FormatTensor(StringBuilder builder, Tensor tensor)
         {
             int startingLength = builder.Length;
@@ -347,6 +360,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：按维度数选择相应格式化方式，返回张量的完整文本表示。
         public static string Format(Tensor tensor)
         {
             StringBuilder result = new StringBuilder();

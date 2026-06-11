@@ -16,6 +16,7 @@ namespace TensorSharp
 {
     public static class AssemblyExtensions
     {
+        // 中文：扩展方法，枚举程序集中标注了特性 T 的所有类型及其特性实例。
         public static IEnumerable<Tuple<Type, IEnumerable<T>>> TypesWithAttribute<T>(this Assembly assembly, bool inherit)
         {
             foreach (Type type in assembly.GetTypes())
@@ -31,6 +32,7 @@ namespace TensorSharp
 
     public static class TypeExtensions
     {
+        // 中文：扩展方法，枚举类型中标注了特性 T 的所有方法及其特性实例。
         public static IEnumerable<Tuple<MethodInfo, IEnumerable<T>>> MethodsWithAttribute<T>(this Type type, bool inherit)
         {
             foreach (MethodInfo method in type.GetMethods())
@@ -46,6 +48,7 @@ namespace TensorSharp
 
     public static class MethodExtensions
     {
+        // 中文：扩展方法，枚举方法中标注了特性 T 的所有参数及其特性实例。
         public static IEnumerable<Tuple<ParameterInfo, IEnumerable<T>>> ParametersWithAttribute<T>(this MethodInfo method, bool inherit)
         {
             foreach (ParameterInfo paramter in method.GetParameters())

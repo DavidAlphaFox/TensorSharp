@@ -8,6 +8,7 @@ namespace TensorSharp.Cuda
     {
         private static readonly CpuAllocator CpuAllocator = new CpuAllocator(BlasEnum.DotNet);
 
+        // 中文：将算子回退到 CPU 执行并返回张量结果，再把结果拷回 CUDA 张量。
         public static Tensor InvokeTensor(string opName, Tensor resultTensor, params object[] args)
         {
             object returnValue = Invoke(opName, args, out Dictionary<Tensor, Tensor> mappedTensors);
@@ -36,6 +37,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：将无返回值算子回退到 CPU 执行，并把被修改张量的结果拷回 CUDA 张量。
         public static void InvokeVoid(string opName, Tensor modifiedTensor, params object[] args)
         {
             object returnValue = Invoke(opName, args, out Dictionary<Tensor, Tensor> mappedTensors);
@@ -50,6 +52,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：将参数中的 CUDA 张量映射为 CPU 张量后，通过 OpRegistry 在 CPU 上调用指定算子。
         private static object Invoke(string opName, object[] args, out Dictionary<Tensor, Tensor> mappedTensors)
         {
             mappedTensors = new Dictionary<Tensor, Tensor>(ReferenceEqualityComparer.Instance);
@@ -76,6 +79,7 @@ namespace TensorSharp.Cuda
             return OpRegistry.Invoke(opName, cpuArgs);
         }
 
+        // 中文：创建与源张量同形状的 CPU 张量并将数据逻辑拷贝过去。
         private static Tensor ToCpuTensor(Tensor source)
         {
             Tensor cpu = new Tensor(CpuAllocator, source.ElementType, source.Sizes);
@@ -83,6 +87,7 @@ namespace TensorSharp.Cuda
             return cpu;
         }
 
+        // 中文：依据原始参数中的 CUDA 分配器，创建与源张量同形状的 CUDA 张量。
         private static Tensor CreateCudaLike(Tensor source, object[] originalArgs)
         {
             IAllocator allocator = null;
@@ -99,6 +104,7 @@ namespace TensorSharp.Cuda
             return new Tensor(allocator, source.ElementType, source.Sizes);
         }
 
+        // 中文：在校验形状一致后，按逻辑索引将源张量元素逐一拷贝到目标张量。
         internal static void CopyLogical(Tensor destination, Tensor source)
         {
             if (destination.ElementCount() != source.ElementCount())
@@ -122,6 +128,7 @@ namespace TensorSharp.Cuda
             CopyRecursive(destination, source, 0, destination.StorageOffset, source.StorageOffset);
         }
 
+        // 中文：按步幅递归遍历各维度，逐元素完成逻辑拷贝。
         private static void CopyRecursive(Tensor destination, Tensor source, int dimension, long destinationOffset, long sourceOffset)
         {
             if (dimension == source.DimensionCount)
@@ -144,6 +151,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：将单个元素按 float 形式从源位置拷贝到目标位置，不支持的类型抛异常。
         private static void CopyElement(Tensor destination, long destinationOffset, Tensor source, long sourceOffset)
         {
             if (destination.ElementType != source.ElementType)
@@ -162,6 +170,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：释放回退过程中创建的所有临时 CPU 张量（含返回张量），并去重避免重复释放。
         private static void DisposeMapped(Dictionary<Tensor, Tensor> mappedTensors, Tensor returnedTensor)
         {
             var disposed = new HashSet<Tensor>(ReferenceEqualityComparer.Instance);

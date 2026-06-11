@@ -22,11 +22,13 @@ namespace TensorSharp
         public long stride, size;
         unsafe public float* data;
 
+        // 中文：数组重载构造——转发到 ReadOnlyMemory 版构造函数。
         unsafe public TensorDimIterState(float* buffer, int dimCount, long[] sizes, long[] strides, int iterationDim)
             : this(buffer, dimCount, (ReadOnlyMemory<long>)sizes, (ReadOnlyMemory<long>)strides, iterationDim)
         {
         }
 
+        // 中文：构造按指定迭代维分块遍历的迭代器状态，初始化数据指针、步幅、尺寸与计数器。
         unsafe public TensorDimIterState(float* buffer, int dimCount, ReadOnlyMemory<long> sizes, ReadOnlyMemory<long> strides, int iterationDim)
         {
             if (sizes.Length < dimCount || strides.Length < dimCount)
@@ -56,6 +58,7 @@ namespace TensorSharp
 
         // Returns true if there is another block to iterate over,
         // returns false if we are at end of iteration
+        // 中文：推进到下一个数据块并相应移动指针；遍历结束返回 false。
         unsafe public bool NextBlock()
         {
             if (dimensionCount == 1)

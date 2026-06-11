@@ -14,6 +14,7 @@ namespace TensorSharp.Cuda
         private bool hostDirty;
         private bool deviceDirty;
 
+        // 中文：构造函数，校验参数并通过分配器在 CUDA 设备上租用一块设备显存。
         public CudaStorage(CudaAllocator allocator, DType elementType, long elementCount)
             : base(allocator, elementType, elementCount)
         {
@@ -31,6 +32,7 @@ namespace TensorSharp.Cuda
 
         public int DeviceId => AllocatorImpl.DeviceId;
 
+        // 中文：销毁存储，线程安全地归还设备显存并释放主机镜像缓冲区。
         protected override void Destroy()
         {
             lock (sync)
@@ -51,11 +53,13 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：返回存储位置描述，格式为 "CUDA:设备号"。
         public override string LocationDescription()
         {
             return $"CUDA:{DeviceId}";
         }
 
+        // 中文：返回指定元素的主机指针，先从设备同步数据并标记主机已写脏，供原始指针读写。
         public override IntPtr PtrAtElement(long index)
         {
             ThrowIfDisposed();
@@ -69,6 +73,7 @@ namespace TensorSharp.Cuda
             return HostPtrAtElementUnchecked(index);
         }
 
+        // 中文：返回指定元素在设备显存中的指针（按字节偏移定位）。
         internal IntPtr DevicePtrAtElement(long index)
         {
             ThrowIfDisposed();
@@ -76,6 +81,7 @@ namespace TensorSharp.Cuda
             return AddBytes(deviceBuffer, checked(index * ElementType.Size()));
         }
 
+        // 中文：若主机数据为脏，则异步将主机缓冲区拷贝到设备，确保设备显存为最新。
         internal void EnsureDeviceCurrent()
         {
             ThrowIfDisposed();
@@ -98,6 +104,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：标记设备数据已被内核修改（设置 deviceDirty、清除 hostDirty）。
         internal void MarkDeviceModified()
         {
             ThrowIfDisposed();
@@ -105,6 +112,7 @@ namespace TensorSharp.Cuda
             hostDirty = false;
         }
 
+        // 中文：若设备数据为脏，则将设备显存拷回主机镜像并同步流，确保主机数据为最新。
         internal void SyncHostFromDevice()
         {
             ThrowIfDisposed();
@@ -129,6 +137,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：从源存储整体拷贝设备显存，要求两者字节长度相等。
         internal void CopyDeviceFrom(CudaStorage src)
         {
             if (src == null)
@@ -139,6 +148,7 @@ namespace TensorSharp.Cuda
             CopyDeviceFrom(src, 0, 0, ByteLength);
         }
 
+        // 中文：按字节偏移与长度做设备到设备拷贝，同分配器走异步流拷贝、跨分配器先同步再同步拷贝。
         internal void CopyDeviceFrom(CudaStorage src, long destinationByteOffset, long sourceByteOffset, long byteCount)
         {
             if (src == null)
@@ -174,6 +184,7 @@ namespace TensorSharp.Cuda
             MarkDeviceModified();
         }
 
+        // 中文：等待该存储所属 CUDA 流上的所有工作完成。
         internal void SynchronizeDeviceWork()
         {
             ThrowIfDisposed();
@@ -181,6 +192,7 @@ namespace TensorSharp.Cuda
             AllocatorImpl.Stream.Synchronize();
         }
 
+        // 中文：从设备同步后，将指定区间的 Int32 元素读取到托管 int 数组返回。
         public override int[] GetElementsAsInt(long index, int length)
         {
             SyncHostFromDevice();
@@ -196,6 +208,7 @@ namespace TensorSharp.Cuda
             return array;
         }
 
+        // 中文：将 int 数组写入指定区间的主机镜像，并标记主机已写脏。
         public override void SetElementsAsInt(long index, int[] value)
         {
             if (value == null)
@@ -213,6 +226,7 @@ namespace TensorSharp.Cuda
             deviceDirty = false;
         }
 
+        // 中文：从设备同步后，按元素类型读取单个元素并转换为 float 返回。
         public override float GetElementAsFloat(long index)
         {
             SyncHostFromDevice();
@@ -228,6 +242,7 @@ namespace TensorSharp.Cuda
             };
         }
 
+        // 中文：从设备同步后，将指定区间的 Float32 元素读取到托管 float 数组返回。
         public override float[] GetElementsAsFloat(long index, int length)
         {
             SyncHostFromDevice();
@@ -243,6 +258,7 @@ namespace TensorSharp.Cuda
             return array;
         }
 
+        // 中文：将单个 float 值按元素类型转换后写入主机镜像，并标记主机已写脏。
         public override void SetElementAsFloat(long index, float value)
         {
             ValidateElementRange(index, 1);
@@ -269,6 +285,7 @@ namespace TensorSharp.Cuda
             deviceDirty = false;
         }
 
+        // 中文：将 float 数组写入指定区间的主机镜像，并标记主机已写脏。
         public override void SetElementsAsFloat(long index, float[] value)
         {
             if (value == null)
@@ -286,11 +303,13 @@ namespace TensorSharp.Cuda
             deviceDirty = false;
         }
 
+        // 中文：CUDA 存储暂不支持 half 类型主机写入，直接抛出不支持异常。
         public override void SetElementsAsHalf(long index, half[] value)
         {
             throw new NotSupportedException("CUDA storage currently supports TensorSharp Float32/Float64/Int32/UInt8 host access.");
         }
 
+        // 中文：从外部指针按字节拷贝数据到本存储的主机镜像，并标记主机已写脏。
         public override void CopyToStorage(long storageIndex, IntPtr src, long byteCount)
         {
             if (src == IntPtr.Zero && byteCount > 0)
@@ -303,6 +322,7 @@ namespace TensorSharp.Cuda
             deviceDirty = false;
         }
 
+        // 中文：从设备同步后，将本存储主机镜像按字节拷贝到外部目标指针。
         public override void CopyFromStorage(IntPtr dst, long storageIndex, long byteCount)
         {
             if (dst == IntPtr.Zero && byteCount > 0)
@@ -313,12 +333,14 @@ namespace TensorSharp.Cuda
             Buffer.MemoryCopy(HostPtrAtElementUnchecked(storageIndex).ToPointer(), dst.ToPointer(), byteCount, byteCount);
         }
 
+        // 中文：确保主机缓冲区已分配后，返回指定元素的主机指针（不做范围校验）。
         private IntPtr HostPtrAtElementUnchecked(long index)
         {
             EnsureHostBuffer();
             return AddBytes(hostBuffer, checked(index * ElementType.Size()));
         }
 
+        // 中文：惰性分配 64 字节对齐的主机镜像缓冲区，分配失败则抛出内存不足异常。
         private void EnsureHostBuffer()
         {
             if (hostBuffer != IntPtr.Zero)
@@ -330,17 +352,20 @@ namespace TensorSharp.Cuda
                 throw new OutOfMemoryException($"Failed to allocate {allocationSize} bytes of CUDA host mirror memory.");
         }
 
+        // 中文：在指针基址上加上字节偏移量，返回新指针。
         private static IntPtr AddBytes(IntPtr pointer, long byteOffset)
         {
             return new IntPtr(pointer.ToInt64() + byteOffset);
         }
 
+        // 中文：校验元素索引与长度是否在合法范围内，越界则抛出异常。
         private void ValidateElementRange(long index, long length)
         {
             if (index < 0 || length < 0 || index + length > ElementCount)
                 throw new ArgumentOutOfRangeException(nameof(index));
         }
 
+        // 中文：校验按字节计的访问范围是否在合法区间内，越界则抛出异常。
         private void ValidateByteRange(long storageIndex, long byteCount)
         {
             long byteOffset = checked(storageIndex * ElementType.Size());
@@ -348,6 +373,7 @@ namespace TensorSharp.Cuda
                 throw new ArgumentOutOfRangeException(nameof(storageIndex));
         }
 
+        // 中文：若设备缓冲区已释放，则抛出对象已释放异常。
         private void ThrowIfDisposed()
         {
             if (deviceBuffer == IntPtr.Zero)

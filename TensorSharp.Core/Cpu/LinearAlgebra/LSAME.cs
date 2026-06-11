@@ -38,6 +38,7 @@ namespace TensorSharp.Cpu.LinearAlgebra
         /// (input) CHARACTER*1
         /// CA and CB specify the single characters to be compared.
         ///</param>
+        // 中文：不区分大小写比较两个单字符是否相同（移植自 LAPACK LSAME），兼容 ASCII/EBCDIC/Prime 编码。
         public bool Run(string CA, string CB)
         {
             bool lsame;

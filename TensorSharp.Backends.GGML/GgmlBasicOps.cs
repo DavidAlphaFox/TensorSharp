@@ -47,6 +47,7 @@ namespace TensorSharp.GGML
     [OpsClass]
     public class GgmlBasicOps
     {
+        // 中文：用标量值填充张量，针对 Float16/Q8_0 KV 缓存重置和 Float32 提供专门的快速路径。
         [RegisterOpStorageType("fill", typeof(GgmlStorage))]
         public static unsafe void Fill(Tensor result, float value)
         {
@@ -129,6 +130,7 @@ namespace TensorSharp.GGML
             } while (iter.NextBlock());
         }
 
+        // 中文：判断张量是否为零偏移、完全连续且未被切片收窄的内存布局。
         private static bool IsContiguousNonNarrowed(Tensor t)
         {
             if (t.StorageOffset != 0) return false;
@@ -141,6 +143,7 @@ namespace TensorSharp.GGML
             return expected == t.ElementCount();
         }
 
+        // 中文：构建下三角因果注意力掩码，列<=行处置 value、其余置 maskedValue。
         [RegisterOpStorageType("buildtrimask", typeof(GgmlStorage))]
         public static unsafe Tensor BuildTriMask(Tensor result, float value, float maskedValue)
         {
@@ -160,6 +163,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：按每个 batch 的原始序列长度构建自注意力 padding 掩码（屏蔽填充位置）。
         [RegisterOpStorageType("buildselfmask", typeof(GgmlStorage))]
         public static unsafe Tensor BuildSelfMask(Tensor result, Tensor originalLengths, int paddedSeqLen, float value, float maskedValue)
         {
@@ -196,6 +200,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：构建结合 padding 长度与下三角因果约束的自注意力掩码。
         [RegisterOpStorageType("buildselftrimask", typeof(GgmlStorage))]
         public static unsafe Tensor BuildSelfTriMask(Tensor result, Tensor originalLengths, int paddedSeqLen, float value, float maskedValue)
         {
@@ -232,6 +237,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：构建源-目标交叉注意力掩码，按源/目标各自原始长度屏蔽填充位置。
         [RegisterOpStorageType("buildsrctgtmask", typeof(GgmlStorage))]
         public static unsafe Tensor BuildSrcTgtMask(Tensor result, Tensor srcOriginalLengths, Tensor tgtOriginalLengths, int srcPaddedSeqLen, int tgtPaddedSeqLen, float value, float maskedValue)
         {
@@ -283,6 +289,7 @@ namespace TensorSharp.GGML
         // loop (cache-friendly writes) and, for dim==0, fall back to a
         // single row memcpy when all indices in a row are equal (the
         // embedding-lookup pattern).
+        // 中文：检测 2D 连续 float32 布局并准备 gather/scatter 快速路径所需的指针与维度参数。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe bool TryGather2DFastSetup(
             Tensor result, Tensor src, Tensor indices, int dim,
@@ -319,12 +326,14 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：按索引张量的元素类型（Int32 或 Float32）从原始缓冲读取一个索引值。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe long ReadIndex(byte* iPtr, bool isInt32, long off)
         {
             return isInt32 ? ((int*)iPtr)[off] : (long)((float*)iPtr)[off];
         }
 
+        // 中文：沿指定维度按索引张量从 src 收集元素（torch.gather），含 2D 快速路径与嵌入查表优化。
         [RegisterOpStorageType("gather", typeof(GgmlStorage))]
         public static unsafe Tensor Gather(Tensor result, Tensor src, int dim, Tensor indices)
         {
@@ -410,6 +419,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：沿指定维度按索引将 src 元素写入 result（torch.scatter），含 2D 连续快速路径。
         [RegisterOpStorageType("scatter", typeof(GgmlStorage))]
         public static unsafe Tensor Scatter(Tensor result, Tensor src, int dim, Tensor indices)
         {
@@ -493,6 +503,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：沿指定维度按索引将 src 元素累加到 result（scatter-add），含 SIMD 向量化快速路径。
         [RegisterOpStorageType("scatter_add", typeof(GgmlStorage))]
         public static unsafe Tensor ScatterAdd(Tensor result, Tensor src, int dim, Tensor indices)
         {
@@ -585,6 +596,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：沿指定维度按索引将 result 中的位置填充为标量值（scatter-fill）。
         [RegisterOpStorageType("scatter_fill", typeof(GgmlStorage))]
         public static unsafe Tensor ScatterFill(Tensor result, float value, int dim, Tensor indices)
         {
@@ -660,6 +672,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：矩阵乘加 result = beta*src + alpha*(m1 @ m2)，分发到 GGML 原生 Addmm。
         [RegisterOpStorageType("addmm", typeof(GgmlStorage))]
         public static Tensor Addmm(Tensor result, float beta, Tensor src, float alpha, Tensor m1, Tensor m2)
         {
@@ -698,6 +711,7 @@ namespace TensorSharp.GGML
         /// The quantized weight data is stored in native GGUF format with GGML type.
         /// ne0 = inDim (shared dimension), ne1 = outDim.
         /// </summary>
+        // 中文：量化线性前向 result = m1 @ quantizedWeight^T，权重为 GGUF 量化格式。
         public static void AddmmQuant(Tensor result, Tensor m1, IntPtr weightData, int ggmlType, long ne0, long ne1, long rawBytes)
         {
             if (result.DimensionCount != 2 || m1.DimensionCount != 2)
@@ -720,6 +734,7 @@ namespace TensorSharp.GGML
         /// Fused RMSNorm + quantized MatMul in a single GPU dispatch.
         /// result = matmul(rms_norm(input, normWeight, eps), quantWeight)
         /// </summary>
+        // 中文：单次分发的融合算子 result = matmul(rms_norm(input, normWeight, eps), 量化权重)。
         public static void FusedRmsNormMatMulQuant(Tensor result, Tensor input, Tensor normWeight, float eps,
             IntPtr weightData, int ggmlType, long ne0, long ne1, long rawBytes)
         {
@@ -745,6 +760,7 @@ namespace TensorSharp.GGML
         /// Fused quantized MatMul + Add in a single GPU dispatch.
         /// residual += matmul(input, quantWeight)
         /// </summary>
+        // 中文：单次分发的融合算子 residual += matmul(input, 量化权重)。
         public static void FusedMatMulQuantAdd(Tensor residual, Tensor input,
             IntPtr weightData, int ggmlType, long ne0, long ne1, long rawBytes)
         {
@@ -771,6 +787,7 @@ namespace TensorSharp.GGML
         /// FusedMatMulQuantAdd (3 dispatches) with one, removing the matching number of
         /// graph builds, allocations and synchronization round trips.
         /// </summary>
+        // 中文：单次分发的完整 SwiGLU 稠密 FFN：rms_norm + gate_up 投影 + SiLU 门控 + down 投影 + 残差相加。
         public static void FusedFFNSwiGLUQuant(Tensor residual, Tensor input,
             Tensor normWeight, float eps,
             IntPtr gateUpData, int gateUpGgmlType, long gateUpNe0, long gateUpNe1, long gateUpRawBytes,
@@ -801,6 +818,7 @@ namespace TensorSharp.GGML
         /// Fused output projection + residual + RMSNorm + router projection in one dispatch.
         /// For MoE decode: replaces TryLinearAddInto + RMSNorm + LinearForwardCached (3 ops -> 1).
         /// </summary>
+        // 中文：单次分发融合 MoE 解码前段：输出投影 + 残差 + RMSNorm + 路由器投影。
         public static void FusedOutProjNormRouter(
             Tensor residual, Tensor input,
             IntPtr outProjData, int outProjType, long outNe0, long outNe1, long outRawBytes,
@@ -834,6 +852,7 @@ namespace TensorSharp.GGML
         /// Fused output projection + residual + RMSNorm + FFN SwiGLU + residual in one dispatch.
         /// Replaces TryLinearAddInto + FusedFFNSwiGLUQuant (2 dispatches -> 1).
         /// </summary>
+        // 中文：单次分发融合：输出投影 + 残差 + RMSNorm + SwiGLU FFN + 残差。
         public static void FusedOutProjFFN(
             Tensor residual, Tensor input,
             IntPtr outProjData, int outProjType, long outNe0, long outNe1, long outRawBytes,
@@ -864,6 +883,7 @@ namespace TensorSharp.GGML
         /// Fused vision encoder MLP: LayerNorm + up + bias + GELU + down + bias + residual
         /// as a single GGML graph dispatch. Replaces 7 separate dispatches with 1.
         /// </summary>
+        // 中文：单次分发的视觉编码器 MLP：LayerNorm + up + bias + GELU + down + bias + 残差。
         public static unsafe void FusedVisionMLP(
             Tensor hidden, Tensor lnWeight, Tensor lnBias, float eps,
             Tensor upWeight, Tensor upBias,
@@ -903,6 +923,7 @@ namespace TensorSharp.GGML
         /// Fused vision attention: LN + QKV + bias + RoPE + SDPA + out + bias + residual
         /// as a single GGML graph dispatch. Replaces ~8 separate dispatches with 1.
         /// </summary>
+        // 中文：单次分发的视觉注意力：LN + QKV + bias + RoPE + SDPA + 输出投影 + bias + 残差。
         public static unsafe void FusedVisionAttention(
             Tensor hidden, Tensor lnWeight, Tensor lnBias, float eps,
             Tensor qkvWeight, Tensor qkvBias,
@@ -950,6 +971,7 @@ namespace TensorSharp.GGML
         /// Native row selection (embedding lookup) from a quantized tensor.
         /// Uses GGML's ggml_get_rows which dequantizes on-the-fly (GPU-accelerated on Metal).
         /// </summary>
+        // 中文：从量化张量按行索引选取（嵌入查表），底层用 ggml_get_rows 即时反量化。
         public static void GetRowsQuant(Tensor result, IntPtr weightData, int ggmlType, long ne0, long ne1, long rawBytes, Tensor indices)
         {
             if (result.DimensionCount != 2 || result.ElementType != DType.Float32)
@@ -971,6 +993,7 @@ namespace TensorSharp.GGML
         /// For each expert: up_proj -> relu_squared -> down_proj -> scale(route_weight) -> accumulate.
         /// Reduces N*2 GPU dispatches to 1 per MoE layer.
         /// </summary>
+        // 中文：批量 MoE 专家前向：每个专家 up_proj -> relu^2 -> down_proj -> 按路由权重缩放并累加，合并为单图。
         public static void MoEExpertsForward(Tensor result, Tensor input,
             int numExperts, IntPtr[] upDataPtrs, IntPtr[] downDataPtrs,
             int upGgmlType, long upNe0, long upNe1, long upRawBytesEach,
@@ -1000,6 +1023,7 @@ namespace TensorSharp.GGML
         /// For each expert: gate_proj -> silu(gate) * up_proj(input) -> down_proj -> scale(route_weight) -> accumulate.
         /// Reduces 4*N GPU dispatches to 1 per MoE layer.
         /// </summary>
+        // 中文：批量 MoE 专家前向（SwiGLU，Qwen3/Mixtral 风格）：silu(gate)*up -> down -> 按路由权重缩放累加，合并为单图。
         public static void MoEExpertsSwiGLUForward(Tensor result, Tensor input,
             int numExperts,
             IntPtr[] gateDataPtrs, IntPtr[] upDataPtrs, IntPtr[] downDataPtrs,
@@ -1032,6 +1056,7 @@ namespace TensorSharp.GGML
         /// shared expert computation, and (c) residual accumulation into one GGML graph dispatch.
         /// Saves up to 4*N + 4 + 1 dispatches per MoE layer (versus the per-expert path).
         /// </summary>
+        // 中文：扩展 SwiGLU MoE 前向：融合路由专家、可选共享专家与残差累加为单图分发。
         public static void MoEExpertsSwiGLUResidual(Tensor residual, Tensor input,
             int numExperts,
             IntPtr[] gateDataPtrs, IntPtr[] upDataPtrs, IntPtr[] downDataPtrs,
@@ -1074,6 +1099,7 @@ namespace TensorSharp.GGML
         /// <summary>
         /// Batched quantized matmul: processes multiple sub-weights at different offsets within a single quantized blob.
         /// </summary>
+        // 中文：批量量化矩阵乘，在同一量化数据块的不同偏移处处理多个子权重。
         public static void AddmmQuantBatch(Tensor result, Tensor m1, IntPtr weightData, int ggmlType, long ne0, long rawBytes,
             int batchCount, long[] weightOffsets, long[] weightNe1Arr)
         {
@@ -1091,27 +1117,43 @@ namespace TensorSharp.GGML
             GgmlNative.AddmmQuantBatch(resultView, m1View, weightData, ggmlType, ne0, rawBytes, batchCount, weightOffsets, weightNe1Arr);
         }
 
+        // 中文：将量化权重预加载到原生后端缓存（按 cacheKey 索引），供后续算子复用。
         public static void PreloadQuantizedWeight(IntPtr cacheKey, IntPtr hostData, int ggmlType, long ne0, long ne1, long rawBytes)
         {
             GgmlNative.PreloadQuantizedWeight(cacheKey, hostData, ggmlType, ne0, ne1, rawBytes);
         }
 
+        // 中文：将指定权重键注册为可卸载（offload）对象，供后端在显存紧张时换出。
         public static void RegisterOffloadable(IntPtr key) => GgmlNative.RegisterOffloadable(key);
+        // 中文：设置可卸载权重的总显存预算（字节）。
         public static void SetOffloadableBudget(long bytes) => GgmlNative.SetOffloadableBudget(bytes);
+        // 中文：清空所有可卸载状态记录。
         public static void ClearOffloadableState() => GgmlNative.ClearOffloadableState();
 
+        // 中文：从原生后端分配对齐内存。
         public static IntPtr AlignedAlloc(long size) => GgmlNative.AlignedAlloc(size);
+        // 中文：释放由 AlignedAlloc 分配的对齐内存。
         public static void AlignedFree(IntPtr ptr) => GgmlNative.AlignedFree(ptr);
+        // 中文：清空主机端缓冲缓存。
         public static void ClearHostBufferCache() => GgmlNative.ClearHostBufferCache();
+        // 中文：关闭并释放 GGML 后端资源。
         public static void Shutdown() => GgmlNative.Shutdown();
+        // 中文：使指定主机缓冲失效（标记需要重新同步）。
         public static void InvalidateHostBuffer(IntPtr ptr) => GgmlNative.InvalidateHostBuffer(ptr);
+        // 中文：将指定主机缓冲的内容同步到设备。
         public static void SyncHostBuffer(IntPtr ptr, long byteCount) => GgmlNative.SyncHostBuffer(ptr, byteCount);
+        // 中文：开启或关闭异步计算模式。
         public static void SetAsyncCompute(bool enabled) => GgmlNative.SetAsyncCompute(enabled);
+        // 中文：查询当前是否启用异步计算。
         public static bool GetAsyncCompute() => GgmlNative.GetAsyncCompute();
+        // 中文：插入主机读取屏障，确保设备计算结果对 CPU 可见。
         public static void HostReadBarrier() => GgmlNative.HostReadBarrier();
+        // 中文：检查指定后端类型是否可初始化（硬件/库是否可用）。
         public static bool CanInitializeBackend(GgmlBackendType backendType) => GgmlNative.CanInitialize(backendType);
+        // 中文：确保指定后端可用，不可用则抛出异常。
         public static void EnsureBackendAvailable(GgmlBackendType backendType) => GgmlNative.EnsureAvailable(backendType);
 
+        // 中文：单次分发整模型 Transformer 解码（seqLen=1），逐层完成注意力+FFN 并更新各层 KV 缓存。
         public static void TransformerModelDecode(
             IntPtr hiddenData, int hiddenSize, int numLayers,
             IntPtr[] attnNormArr, IntPtr[] qkvArr, IntPtr[] qNormArr, IntPtr[] kNormArr,
@@ -1146,6 +1188,7 @@ namespace TensorSharp.GGML
         /// Full transformer layer decode (seqLen=1) in a single GGML graph.
         /// Updates hidden state in-place and writes new K/V to the KV cache.
         /// </summary>
+        // 中文：单层 Transformer 解码（seqLen=1）合并为单图，原地更新隐藏状态并写入新 K/V 到缓存。
         public static void TransformerLayerDecode(
             IntPtr hiddenData, int hiddenSize,
             IntPtr attnNormData,
@@ -1187,6 +1230,7 @@ namespace TensorSharp.GGML
         /// as (heads, head_dim) in row-major order (i.e. head-contiguous). The KV caches use the
         /// usual layout (kv_heads, max_seq_len, head_dim).
         /// </summary>
+        // 中文：单 token Flash Attention 解码：把新 Q/K/V 追加到 KV 缓存并对已填充部分执行 flash_attn_ext。
         public static void FlashAttnDecode(Tensor q, Tensor k, Tensor v,
             Tensor kCache, Tensor vCache, Tensor output,
             int numHeads, int numKvHeads, int headDim,
@@ -1226,6 +1270,7 @@ namespace TensorSharp.GGML
         /// sequence block table (concatenated flat ints + per-seq offsets).
         /// One Metal/CUDA kernel per sequence per layer.
         /// </summary>
+        // 中文：批量分页注意力前向（PagedAttention），按 block table 寻址分页 K/V，每序列每层一个 GPU kernel。
         public static void PagedAttentionForward(
             float[] qData,
             float[] pagedKData,
@@ -1256,6 +1301,7 @@ namespace TensorSharp.GGML
         /// <summary>Native paged-attention forward with per-head attention
         /// sinks (gpt-oss style). Pass null for <paramref name="sinksData"/>
         /// to degenerate to the regular paged attention.</summary>
+        // 中文：带 per-head 注意力 sink 的分页注意力前向（gpt-oss 风格），sinksData 为 null 时退化为普通分页注意力。
         public static void PagedAttentionForwardWithSinks(
             float[] qData,
             float[] pagedKData,
@@ -1293,6 +1339,7 @@ namespace TensorSharp.GGML
         /// <c>q.GetElementsAsFloat()</c> would otherwise force on the
         /// Gemma 4 batched path. K/V paged buffers stay as host arrays.
         /// </summary>
+        // 中文：GPU 常驻分页注意力前向，Q/OUT 以设备指针零拷贝绑定后端缓冲，避免逐层主机同步。
         public static void PagedAttentionForwardDevice(
             IntPtr qData,
             float[] pagedKData,
@@ -1323,6 +1370,7 @@ namespace TensorSharp.GGML
         /// <summary>GPU-resident paged-attention forward with per-head
         /// attention sinks. Pass <c>null</c> for <paramref name="sinksData"/>
         /// to match <see cref="PagedAttentionForwardDevice"/>.</summary>
+        // 中文：GPU 常驻、带 per-head 注意力 sink 的分页注意力前向，sinksData 为 null 时同 PagedAttentionForwardDevice。
         public static void PagedAttentionForwardDeviceWithSinks(
             IntPtr qData,
             float[] pagedKData,
@@ -1359,6 +1407,7 @@ namespace TensorSharp.GGML
         /// otherwise allocate/free a Metal buffer and synchronise. Throws on
         /// failure (caller falls back to the per-op TransformerBlock path).
         /// </summary>
+        // 中文：单次分发整个 Gemma 4 MoE Transformer 块解码（注意力+共享FFN+图内路由专家+各归一化/残差），seqLen==1。
         public static void Gemma4MoELayerDecode(in Gemma4MoELayerDecodeArgs args)
         {
             GgmlNative.Gemma4MoELayerDecode(in args);
@@ -1371,11 +1420,13 @@ namespace TensorSharp.GGML
         /// build / Metal encode / sync so the GPU stays saturated. Throws on
         /// failure (caller falls back to the per-layer path).
         /// </summary>
+        // 中文：整模型 Gemma 4 MoE 解码，把所有层合并为单个 GGML 图，每 token 只分发/同步一次。
         public static void Gemma4MoEModelDecode(Gemma4MoELayerDecodeArgs[] layers, int numLayers, IntPtr hidden, int hiddenSize, int position)
         {
             GgmlNative.Gemma4MoEModelDecode(layers, numLayers, hidden, hiddenSize, position);
         }
 
+        // 中文：单次分发 Gemma 4 单层 Prefill（多 token）：注意力+FFN+各归一化+RoPE+可选 PLE 嵌入与滑动窗口，写入 KV 缓存。
         public static void Gemma4LayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
             IntPtr attnNormW,
@@ -1448,6 +1499,7 @@ namespace TensorSharp.GGML
         /// the non-fused path.
         /// </summary>
         /// <param name="inputFormat">0 = head-first [numHeads, seqLen, headDim], 1 = flat [seqLen, numHeads*headDim]</param>
+        // 中文：融合多 token Prefill 注意力，把 Q*K^T -> 因果掩码 -> softmax -> *V 合并为单图，支持 GQA 与滑动窗口。
         public static void FusedPrefillAttention(Tensor q, Tensor k, Tensor v, Tensor output,
             int numHeads, int numKvHeads, int headDim,
             int seqLen, int kvLen,
@@ -1495,6 +1547,7 @@ namespace TensorSharp.GGML
         /// Mirrors llama.cpp's src/models/qwen35moe.cpp build and the existing
         /// Qwen35AttentionLayerDecode kernel structure but for multi-row prefill.
         /// </summary>
+        // 中文：单次分发 Qwen3.5 注意力层 Prefill：RMSNorm+融合QKV(含门控)+逐头Q/K归一化+RoPE+KV追加+因果softmax+sigmoid门控混合+输出投影+残差。
         public static void Qwen35AttentionLayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
             IntPtr attnNormW,
@@ -1532,6 +1585,7 @@ namespace TensorSharp.GGML
         /// llama.cpp graph in src/models/openai-moe-iswa.cpp and the existing
         /// TSGgml_Gemma4LayerPrefill template.
         /// </summary>
+        // 中文：单次分发 GPT-OSS 注意力层 Prefill：RMSNorm+融合QKV(+bias)+RoPE+KV追加+因果/SWA掩码+带sink的softmax+注意力+输出投影(+bias)+残差。
         public static void GptOssAttentionLayerPrefill(
             IntPtr hiddenData, int hiddenSize, int seqLen,
             IntPtr attnNormW,
@@ -1570,6 +1624,7 @@ namespace TensorSharp.GGML
                 kvCacheType, eps);
         }
 
+        // 中文：单次分发 Qwen3.5 注意力层解码（seqLen=1），完成融合注意力块并写入 KV 缓存。
         public static void Qwen35AttentionLayerDecode(
             Tensor residual,
             Tensor attnNorm,
@@ -1633,6 +1688,7 @@ namespace TensorSharp.GGML
         /// <param name="ssmNormWData">Per-D RMSNorm weights [headDim].</param>
         /// <param name="chunkSize">Chunk size (must be a positive power of two).</param>
         /// <param name="eps">Epsilon used for L2Norm and RMSNorm.</param>
+        // 中文：Qwen3.5/Qwen3-Next 的融合分块 GatedDeltaNet Prefill，将循环递推核合并为单图分发并原地更新状态。
         public static void GatedDeltaNetChunked(
             Tensor q, Tensor k, Tensor v, Tensor z,
             Tensor alpha, Tensor beta,
@@ -1671,6 +1727,7 @@ namespace TensorSharp.GGML
         /// indexing each sequence's persistent conv FIFO + SSM state via the
         /// <see cref="NemoMamba2BatchedSeqDesc"/> entries.
         /// </summary>
+        // 中文：批量逐 token 的 Nemotron Mamba2 步进，一次原生调用处理所有(序列,token)对并按描述符索引各序列 conv FIFO 与 SSM 状态。
         public static void NemotronMamba2BatchedStep(
             NemoMamba2BatchedSeqDesc[] seqs,
             int numTokens,
@@ -1701,6 +1758,7 @@ namespace TensorSharp.GGML
         /// <see cref="GdnBatchedSeqDesc"/> entries. The descriptors' ConvWriteIdx
         /// field is updated in place; callers copy it back to per-slot bookkeeping.
         /// </summary>
+        // 中文：批量逐 token 的 Qwen3.5 GatedDeltaNet 步进，一次原生调用处理所有(序列,token)对并就地更新各序列 conv 环形缓冲与 SSM 状态。
         public static void GatedDeltaNetBatchedStep(
             GdnBatchedSeqDesc[] seqs,
             int numTokens,
@@ -1730,6 +1788,7 @@ namespace TensorSharp.GGML
         /// and optional group RMSNorm as one GGML graph, updating the recurrent states
         /// in place.
         /// </summary>
+        // 中文：Nemotron Mamba2 Prefill 核：因果卷积+SSM扫描+门控+可选分组 RMSNorm 合并为单图，并原地更新循环状态。
         public static unsafe void NemotronMamba2Prefill(
             Tensor projected,
             Tensor hiddenOut,
@@ -1794,6 +1853,7 @@ namespace TensorSharp.GGML
         /// pass <paramref name="initializeState"/> after reset/prefill to upload
         /// the managed state arrays once.
         /// </summary>
+        // 中文：Nemotron Mamba2 单 token 解码核，原生侧按 stateKey 维护持久循环状态缓存，可在重置/Prefill 后一次性上传托管状态。
         public static unsafe void NemotronMamba2Decode(
             ulong stateKey,
             Tensor projected,
@@ -1860,9 +1920,11 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：清除指定模型键对应的 Nemotron Mamba2 持久解码状态缓存。
         public static void NemotronMamba2DecodeClear(ulong modelKey) =>
             GgmlNative.NemotronMamba2DecodeClear(modelKey);
 
+        // 中文：整模型 Gemma 4 稠密解码（seqLen=1），把所有层注意力+FFN+各归一化+RoPE+可选 PLE 合并为单图，每 token 一次分发。
         public static void Gemma4ModelDecode(
             IntPtr hiddenData, int hiddenSize, int numLayers,
             IntPtr[] attnNormArr, IntPtr[] qkvArr, IntPtr[] qNormArr, IntPtr[] kNormArr,
@@ -1913,6 +1975,7 @@ namespace TensorSharp.GGML
                 vArr, vTypeArr, vNe0Arr, vNe1Arr, vBytesArr);
         }
 
+        // 中文：批量矩阵乘加 result = beta*src + alpha*(m1 @ m2)（3D 批量），分发到 GGML 原生 AddmmBatch。
         [RegisterOpStorageType("addmmbatch", typeof(GgmlStorage))]
         public static Tensor AddmmBatch(Tensor result, float beta, Tensor src, float alpha, Tensor m1, Tensor m2)
         {
@@ -1946,6 +2009,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：带专家 id 的批量矩阵乘（ggml_mul_mat_id），按 ids 选择 expertWeights 中的专家进行矩阵乘，用于 MoE。
         [RegisterOpStorageType("mulmatid", typeof(GgmlStorage))]
         public static Tensor MulmatID(Tensor result, Tensor expertWeights, Tensor input, Tensor ids)
         {
@@ -1965,6 +2029,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：带专家 id 的偏置加法（ggml_add_id），按 ids 为每个 token 选择对应专家的 bias 加到 src。
         [RegisterOpStorageType("addid", typeof(GgmlStorage))]
         public static Tensor AddID(Tensor result, Tensor src, Tensor bias, Tensor ids)
         {
@@ -1983,6 +2048,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：沿最后一维计算 Softmax，分发到 GGML 原生 Softmax。
         [RegisterOpStorageType("softmax", typeof(GgmlStorage))]
         public static Tensor Softmax(Tensor result, Tensor src)
         {
@@ -2012,6 +2078,7 @@ namespace TensorSharp.GGML
         /// (CPU walk) into a single Metal kernel. The CPU softmax-with-sinks loop
         /// was the single largest contributor to GptOss prefill time.
         /// </summary>
+        // 中文：原地融合 因果+SWA 掩码 + softmax + 可选注意力 sink（GptOss 风格），将三个算子合并为单个 kernel。
         public static unsafe void AttentionSoftmaxWithSinks(
             Tensor scores,
             float[] sinks,
@@ -2114,6 +2181,7 @@ namespace TensorSharp.GGML
         /// <c>ffn_down_exps.scale</c>) should be folded into
         /// <paramref name="routingWeights"/> by the caller before the call.
         /// </summary>
+        // 中文：融合 MoE FFN 前向：专家投影+激活(SwiGLU/SwiGLU-OAI/GeGLU/ReLU平方)+down投影+逐token专家加权+跨专家聚合，单图分发。
         public static unsafe void MoEFFNPrefill(
             Tensor hiddenIn,
             Tensor hiddenOut,
@@ -2241,6 +2309,7 @@ namespace TensorSharp.GGML
         /// scales (Gemma 4's <c>ffn_down_exps.scale</c>) must be folded into
         /// <paramref name="routingWeights"/> by the caller.
         /// </summary>
+        // 中文：Gemma 4 MoE 融合核：MoE GEGLU FFN + post_ffw_norm_2(RMSNorm) + 残差相加，原地写回单图分发。
         public static unsafe void MoEFFNGEGLUResidualGemma4(
             Tensor hiddenIn,
             Tensor residual,
@@ -2356,6 +2425,7 @@ namespace TensorSharp.GGML
         /// Qwen 3.5 / GPT-OSS call sites don't need to care about the broader
         /// activation enum.
         /// </summary>
+        // 中文：MoEFFNPrefill 的向后兼容包装，固定选用 SwiGLU（或 SwiGLU OAI）激活，供 Qwen3.5/GPT-OSS 调用。
         public static unsafe void MoEFFNPrefillSwiGLU(
             Tensor hiddenIn,
             Tensor hiddenOut,
@@ -2387,6 +2457,7 @@ namespace TensorSharp.GGML
                 oaiAlpha, oaiLimit);
         }
 
+        // 中文：缩放点积注意力 softmax(scale*Q*K^T + mask)*V，分发到 GGML 原生 SDPA。
         [RegisterOpStorageType("scaled_dot_product_attention", typeof(GgmlStorage))]
         public static Tensor ScaledDotProductAttention(Tensor result, Tensor query, Tensor key, Tensor value, Tensor mask, float scale)
         {
@@ -2408,6 +2479,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：Softmax 反向梯度，根据上游梯度 adj 与前向输出 val 计算输入梯度（可累加）。
         [RegisterOpStorageType("softmaxgrad", typeof(GgmlStorage))]
         public static Tensor SoftmaxGrad(Tensor grad, Tensor adj, Tensor val, bool addGrad = true)
         {
@@ -2425,6 +2497,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：Adam 优化器原地权重更新（含梯度裁剪与 L2 正则），更新一阶/二阶动量并写回权重。
         [RegisterOpStorageType("adam", typeof(GgmlStorage))]
         public static Tensor Adam(
             Tensor tw,
@@ -2454,6 +2527,7 @@ namespace TensorSharp.GGML
             return tw;
         }
 
+        // 中文：张量拷贝，连续时用 memcpy，Float32 走逐元素步进，Float16/Q8_0 步进则按内层连续块拷贝。
         [RegisterOpStorageType("copy", typeof(GgmlStorage))]
         public static unsafe void Copy(Tensor result, Tensor src)
         {
@@ -2505,6 +2579,7 @@ namespace TensorSharp.GGML
             CopyStridedBytes(result, src, resultBuffer, srcBuffer, dtype);
         }
 
+        // 中文：步进张量的按字节拷贝辅助，找出最大内层连续块并对每个外层索引整块 memcpy。
         private static unsafe void CopyStridedBytes(Tensor result, Tensor src, byte* resultBuffer, byte* srcBuffer, DType dtype)
         {
             int dimCount = result.DimensionCount;
@@ -2565,6 +2640,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：将元素偏移转换为字节偏移，Q8_0 按 32 元素/34 字节块换算并校验对齐。
         private static long ElementOffsetToBytes(long elementOffset, DType dtype)
         {
             if (dtype == DType.Q8_0)
@@ -2581,18 +2657,23 @@ namespace TensorSharp.GGML
             return elementOffset * dtype.Size();
         }
 
+        // 中文：沿指定维度求和归约。
         [RegisterOpStorageType("sum", typeof(GgmlStorage))]
         public static unsafe Tensor Sum(Tensor result, Tensor src, int dimension) => ExecuteReduction(result, src, dimension, false, "sum");
 
+        // 中文：沿指定维度求均值归约。
         [RegisterOpStorageType("mean", typeof(GgmlStorage))]
         public static unsafe Tensor Mean(Tensor result, Tensor src, int dimension) => ExecuteReduction(result, src, dimension, true, "mean");
 
+        // 中文：沿指定维度求最小值索引。
         [RegisterOpStorageType("argmin", typeof(GgmlStorage))]
         public static unsafe Tensor Argmin(Tensor result, Tensor src, int dimension) => ExecuteIndexReduction(result, src, dimension, true, "argmin");
 
+        // 中文：沿指定维度求最大值索引。
         [RegisterOpStorageType("argmax", typeof(GgmlStorage))]
         public static unsafe Tensor Argmax(Tensor result, Tensor src, int dimension) => ExecuteIndexReduction(result, src, dimension, false, "argmax");
 
+        // 中文：沿最后一维选取每行最大的 k 个值及其索引（Top-K），CPU 端插入排序实现。
         [RegisterOpStorageType("topK", typeof(GgmlStorage))]
         public static void TopK(Tensor outVal, Tensor outIdx, Tensor src, int k)
         {
@@ -2673,6 +2754,7 @@ namespace TensorSharp.GGML
             outIdx.CopyFrom(indices);
         }
 
+        // 中文：检测张量中是否存在非有限值（NaN/Inf），用于数值损坏校验。
         [RegisterOpStorageType("iscorrupted", typeof(GgmlStorage))]
         public static unsafe bool IsCorrupted(Tensor src)
         {
@@ -2694,36 +2776,47 @@ namespace TensorSharp.GGML
             return false;
         }
 
+        // 中文：逐元素绝对值。
         [RegisterOpStorageType("abs", typeof(GgmlStorage))]
         public static Tensor Abs(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Abs, "abs");
 
+        // 中文：逐元素取负。
         [RegisterOpStorageType("neg", typeof(GgmlStorage))]
         public static Tensor Neg(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Neg, "neg");
 
+        // 中文：逐元素平方根。
         [RegisterOpStorageType("sqrt", typeof(GgmlStorage))]
         public static Tensor Sqrt(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Sqrt, "sqrt");
 
+        // 中文：逐元素自然指数 exp。
         [RegisterOpStorageType("exp", typeof(GgmlStorage))]
         public static Tensor Exp(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Exp, "exp");
 
+        // 中文：逐元素自然对数 log。
         [RegisterOpStorageType("log", typeof(GgmlStorage))]
         public static Tensor Log(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Log, "log");
 
+        // 中文：逐元素 ReLU 激活。
         [RegisterOpStorageType("relu", typeof(GgmlStorage))]
         public static Tensor Relu(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Relu, "relu");
 
+        // 中文：逐元素 Sigmoid 激活。
         [RegisterOpStorageType("sigmoid", typeof(GgmlStorage))]
         public static Tensor Sigmoid(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Sigmoid, "sigmoid");
 
+        // 中文：逐元素 Tanh 激活。
         [RegisterOpStorageType("tanh", typeof(GgmlStorage))]
         public static Tensor Tanh(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.Tanh, "tanh");
 
+        // 中文：逐元素 SiLU（Swish）激活。
         [RegisterOpStorageType("SiLU", typeof(GgmlStorage))]
         public static Tensor SiLU(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.SiLU, "SiLU");
 
+        // 中文：逐元素 GELU 激活。
         [RegisterOpStorageType("GELU", typeof(GgmlStorage))]
         public static Tensor GELU(Tensor result, Tensor src) => ExecuteUnary(result, src, GgmlUnaryOp.GELU, "GELU");
 
+        // 中文：融合 SwiGLU 门控 silu(gate) * up。
         [RegisterOpStorageType("SiLUMul", typeof(GgmlStorage))]
         public static Tensor SiLUMul(Tensor result, Tensor gate, Tensor up) => ExecuteFusedActMul(result, gate, up, GgmlFusedActMulOp.SiLUMul, "SiLUMul");
 
@@ -2734,46 +2827,60 @@ namespace TensorSharp.GGML
         /// gateUp must be Float32 with shape [N, 2*halfDim] and a row-major layout (stride1 == 1).
         /// Result is allocated/written as [N, halfDim].
         /// </summary>
+        // 中文：融合 SwiGLU 门控（gate/up 为同一 [N,2H] 张量的两半），免去 split 的两次大拷贝。
         [RegisterOpStorageType("SiLUMulSplit", typeof(GgmlStorage))]
         public static Tensor SiLUMulSplit(Tensor result, Tensor gateUp, int halfDim)
             => ExecuteFusedActMulSplit(result, gateUp, halfDim, GgmlFusedActMulOp.SiLUMul, "SiLUMulSplit");
 
+        // 中文：融合 GeGLU 门控 gelu(gate) * up。
         [RegisterOpStorageType("GELUMul", typeof(GgmlStorage))]
         public static Tensor GELUMul(Tensor result, Tensor gate, Tensor up) => ExecuteFusedActMul(result, gate, up, GgmlFusedActMulOp.GELUMul, "GELUMul");
 
+        // 中文：融合 sigmoid 门控 x * sigmoid(gate)。
         [RegisterOpStorageType("SigmoidMul", typeof(GgmlStorage))]
         public static Tensor SigmoidMul(Tensor result, Tensor x, Tensor gate) => ExecuteFusedActMul(result, x, gate, GgmlFusedActMulOp.SigmoidMul, "SigmoidMul");
 
+        // 中文：逐元素张量加法 lhs + rhs。
         [RegisterOpStorageType("addt", typeof(GgmlStorage))]
         public static Tensor Add(Tensor result, Tensor lhs, Tensor rhs) => ExecuteBinaryTensor(result, lhs, rhs, GgmlBinaryTensorOp.Add, "addt");
 
+        // 中文：逐元素张量减法 lhs - rhs。
         [RegisterOpStorageType("subt", typeof(GgmlStorage))]
         public static Tensor Sub(Tensor result, Tensor lhs, Tensor rhs) => ExecuteBinaryTensor(result, lhs, rhs, GgmlBinaryTensorOp.Sub, "subt");
 
+        // 中文：逐元素张量乘法 lhs * rhs。
         [RegisterOpStorageType("mult", typeof(GgmlStorage))]
         public static Tensor Mul(Tensor result, Tensor lhs, Tensor rhs) => ExecuteBinaryTensor(result, lhs, rhs, GgmlBinaryTensorOp.Mul, "mult");
 
+        // 中文：逐元素张量除法 lhs / rhs。
         [RegisterOpStorageType("divt", typeof(GgmlStorage))]
         public static Tensor Div(Tensor result, Tensor lhs, Tensor rhs) => ExecuteBinaryTensor(result, lhs, rhs, GgmlBinaryTensorOp.Div, "divt");
 
+        // 中文：张量加标量 lhs + rhs。
         [RegisterOpStorageType("addv", typeof(GgmlStorage))]
         public static Tensor Add(Tensor result, Tensor lhs, float rhs) => ExecuteBinaryScalar(result, lhs, rhs, GgmlBinaryScalarOp.Add, "addv");
 
+        // 中文：张量减标量 lhs - rhs。
         [RegisterOpStorageType("subv", typeof(GgmlStorage))]
         public static Tensor Sub(Tensor result, Tensor lhs, float rhs) => ExecuteBinaryScalar(result, lhs, rhs, GgmlBinaryScalarOp.Sub, "subv");
 
+        // 中文：标量减张量 lhs - rhs（反向减）。
         [RegisterOpStorageType("rsubv", typeof(GgmlStorage))]
         public static Tensor Sub(Tensor result, float lhs, Tensor rhs) => ExecuteBinaryScalar(result, rhs, lhs, GgmlBinaryScalarOp.ReverseSub, "rsubv");
 
+        // 中文：张量乘标量 lhs * rhs。
         [RegisterOpStorageType("mulv", typeof(GgmlStorage))]
         public static Tensor Mul(Tensor result, Tensor lhs, float rhs) => ExecuteBinaryScalar(result, lhs, rhs, GgmlBinaryScalarOp.Mul, "mulv");
 
+        // 中文：张量除标量 lhs / rhs。
         [RegisterOpStorageType("divv", typeof(GgmlStorage))]
         public static Tensor Div(Tensor result, Tensor lhs, float rhs) => ExecuteBinaryScalar(result, lhs, rhs, GgmlBinaryScalarOp.Div, "divv");
 
+        // 中文：标量除张量 lhs / rhs（反向除）。
         [RegisterOpStorageType("rdivv", typeof(GgmlStorage))]
         public static Tensor Div(Tensor result, float lhs, Tensor rhs) => ExecuteBinaryScalar(result, rhs, lhs, GgmlBinaryScalarOp.ReverseDiv, "rdivv");
 
+        // 中文：逐元素融合乘加 result = x + y * z。
         [RegisterOpStorageType("addmul", typeof(GgmlStorage))]
         public static unsafe Tensor AddMul(Tensor result, Tensor x, Tensor y, Tensor z)
         {
@@ -2797,6 +2904,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：逐元素融合 result = x + y / z。
         [RegisterOpStorageType("adddiv", typeof(GgmlStorage))]
         public static unsafe Tensor AddDiv(Tensor result, Tensor x, Tensor y, Tensor z)
         {
@@ -2820,6 +2928,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：逐元素融合 result = x + y * z（z 为标量）。
         [RegisterOpStorageType("addmulv", typeof(GgmlStorage))]
         public static unsafe Tensor AddMulV(Tensor result, Tensor x, Tensor y, float z)
         {
@@ -2842,6 +2951,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：逐元素融合 result = x*y + z*w。
         [RegisterOpStorageType("mulmuladd", typeof(GgmlStorage))]
         public static unsafe Tensor MulMulAdd(Tensor result, Tensor x, Tensor y, Tensor z, Tensor w)
         {
@@ -2866,46 +2976,59 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：ReLU 反向梯度。
         [RegisterOpStorageType("relud", typeof(GgmlStorage))]
         public static Tensor ReluD(Tensor result, Tensor w, Tensor g) => ExecuteActivationGrad(result, null, w, g, GgmlActivationGradOp.Relu, "relud");
 
+        // 中文：ReLU 反向梯度并累加到 src。
         [RegisterOpStorageType("addrelud", typeof(GgmlStorage))]
         public static Tensor AddReluD(Tensor result, Tensor src, Tensor w, Tensor g) => ExecuteActivationGrad(result, src, w, g, GgmlActivationGradOp.Relu, "addrelud");
 
+        // 中文：Sigmoid 反向梯度。
         [RegisterOpStorageType("sigmoidD", typeof(GgmlStorage))]
         public static Tensor SigmoidD(Tensor result, Tensor resW, Tensor resG) => ExecuteActivationGrad(result, null, resW, resG, GgmlActivationGradOp.Sigmoid, "sigmoidD");
 
+        // 中文：Sigmoid 反向梯度并累加到 t。
         [RegisterOpStorageType("addsigmoidD", typeof(GgmlStorage))]
         public static Tensor AddSigmoidD(Tensor result, Tensor t, Tensor resW, Tensor resG) => ExecuteActivationGrad(result, t, resW, resG, GgmlActivationGradOp.Sigmoid, "addsigmoidD");
 
+        // 中文：Tanh 反向梯度。
         [RegisterOpStorageType("tanhD", typeof(GgmlStorage))]
         public static Tensor TanhD(Tensor result, Tensor resW, Tensor resG) => ExecuteActivationGrad(result, null, resW, resG, GgmlActivationGradOp.Tanh, "tanhD");
 
+        // 中文：Tanh 反向梯度并累加到 t。
         [RegisterOpStorageType("addtanhD", typeof(GgmlStorage))]
         public static Tensor AddTanhD(Tensor result, Tensor t, Tensor resW, Tensor resG) => ExecuteActivationGrad(result, t, resW, resG, GgmlActivationGradOp.Tanh, "addtanhD");
 
+        // 中文：SiLU 反向梯度。
         [RegisterOpStorageType("SiLUD", typeof(GgmlStorage))]
         public static Tensor SiLUD(Tensor result, Tensor srcW, Tensor resG) => ExecuteActivationGrad(result, null, srcW, resG, GgmlActivationGradOp.SiLU, "SiLUD");
 
+        // 中文：SiLU 反向梯度并累加到 srcG。
         [RegisterOpStorageType("AddSiLUD", typeof(GgmlStorage))]
         public static Tensor AddSiLUD(Tensor result, Tensor srcG, Tensor srcW, Tensor resG) => ExecuteActivationGrad(result, srcG, srcW, resG, GgmlActivationGradOp.SiLU, "AddSiLUD");
 
+        // 中文：LayerNorm 归一化（带 gamma/beta 仿射）。
         [RegisterOpStorageType("layernorm", typeof(GgmlStorage))]
         public static Tensor LayerNorm(Tensor result, Tensor src, Tensor gamma, Tensor beta, float eps)
             => ExecuteNorm(result, src, gamma, beta, eps, GgmlNormOp.LayerNorm, "layernorm");
 
+        // 中文：RMSNorm 归一化（带 gamma/beta 仿射）。
         [RegisterOpStorageType("rmsnorm", typeof(GgmlStorage))]
         public static Tensor RMSNorm(Tensor result, Tensor src, Tensor gamma, Tensor beta, float eps)
             => ExecuteNorm(result, src, gamma, beta, eps, GgmlNormOp.RmsNorm, "rmsnorm");
 
+        // 中文：LayerNorm 反向梯度（同时计算输入、gamma、beta 的梯度）。
         [RegisterOpStorageType("layernormgrad", typeof(GgmlStorage))]
         public static Tensor LayerNormGrad(Tensor result, Tensor gradGamma, Tensor gradBeta, Tensor adj, Tensor y, Tensor x, Tensor gamma, Tensor beta, float eps)
             => ExecuteNormGrad(result, gradGamma, gradBeta, adj, y, x, gamma, beta, eps, GgmlNormOp.LayerNorm, "layernormgrad");
 
+        // 中文：RMSNorm 反向梯度（同时计算输入、gamma、beta 的梯度）。
         [RegisterOpStorageType("rmsnormgrad", typeof(GgmlStorage))]
         public static Tensor RMSNormGrad(Tensor result, Tensor gradGamma, Tensor gradBeta, Tensor adj, Tensor y, Tensor x, Tensor gamma, Tensor beta, float eps)
             => ExecuteNormGrad(result, gradGamma, gradBeta, adj, y, x, gamma, beta, eps, GgmlNormOp.RmsNorm, "rmsnormgrad");
 
+        // 中文：按行索引选取（嵌入查表），isAdd 时将选取结果累加到 result。
         [RegisterOpStorageType("indexselect", typeof(GgmlStorage))]
         public static Tensor IndexSelect(Tensor result, Tensor src, Tensor indice, bool isAdd)
         {
@@ -2923,6 +3046,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：IndexSelect 的反向，把上游梯度 adj 按索引散加回 grad。
         [RegisterOpStorageType("indexselectgrad", typeof(GgmlStorage))]
         public static Tensor IndexSelectGrad(Tensor grad, Tensor adj, Tensor indice)
         {
@@ -2939,6 +3063,7 @@ namespace TensorSharp.GGML
             return grad;
         }
 
+        // 中文：沿指定维度逐元素重复 repeats 次（torch.repeat_interleave），按内层连续块 memcpy。
         [RegisterOpStorageType("repeat_interleave", typeof(GgmlStorage))]
         public static Tensor RepeatInterleave(Tensor result, Tensor src, int repeats, int dim)
         {
@@ -2989,6 +3114,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：原地为注意力分数加因果掩码，将每行未来位置（超过 startPos+t）加上 maskedValue。
         [RegisterOpStorageType("add_causal_mask", typeof(GgmlStorage))]
         public static void AddCausalMask(Tensor tensor, int seqLen, int startPos, float maskedValue)
         {
@@ -3017,6 +3143,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：旋转位置编码（RoPE）前向，分发到 GGML 原生 RoPE。
         [RegisterOpStorageType("rope", typeof(GgmlStorage))]
         public static Tensor RoPE(Tensor result, Tensor src, int seqLen, int rowOffset)
         {
@@ -3033,6 +3160,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：RoPE 反向梯度，对上游梯度施加逆旋转。
         [RegisterOpStorageType("ropegrad", typeof(GgmlStorage))]
         public static Tensor RoPEGrad(Tensor grad, Tensor adj, int seqLen, int rowOffset)
         {
@@ -3049,6 +3177,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：扩展 RoPE（rope_ex），按显式 positions 张量并支持 NTK/YaRN 频率缩放等参数。
         [RegisterOpStorageType("rope_ex", typeof(GgmlStorage))]
         public static Tensor RoPEEx(
             Tensor result,
@@ -3099,6 +3228,7 @@ namespace TensorSharp.GGML
         // per-dim freq_factors scaling (used by Gemma 4 global layers'
         // proportional RoPE). `freqFactors` must be a contiguous Float32
         // tensor of length ropeDim/2 (or null to skip scaling).
+        // 中文：扩展 RoPE 并额外应用逐维 freq_factors 频率缩放（Gemma 4 全局层的比例 RoPE）。
         public static Tensor RoPEExWithFreqFactors(
             Tensor result,
             Tensor src,
@@ -3168,6 +3298,7 @@ namespace TensorSharp.GGML
         // `sections` is the four mrope_section entries (Qwen3.5 ships
         // [11,11,10,0]). `mode` should include GGML_ROPE_TYPE_MROPE (8) for
         // blocked-section MRoPE or GGML_ROPE_TYPE_IMROPE (40) for interleaved.
+        // 中文：多轴 RoPE（ggml_rope_multi/MRoPE），对 T/H/W/第四轴分块或交错应用旋转编码（Qwen3.5 多模态）。
         public static Tensor RoPEMRoPE(
             Tensor result,
             Tensor src,
@@ -3231,18 +3362,21 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：Float32 转 Float16（GGML 后端暂不支持，直接抛异常）。
         [RegisterOpStorageType("float2half", typeof(GgmlStorage))]
         public Tensor Float2Half(Tensor result, Tensor src)
         {
             throw new NotSupportedException("GGML backends currently support Float32 tensors only. Disable AMP to use this backend.");
         }
 
+        // 中文：Float16 转 Float32（GGML 后端暂不支持，直接抛异常）。
         [RegisterOpStorageType("half2float", typeof(GgmlStorage))]
         public Tensor Half2Float(Tensor result, Tensor src)
         {
             throw new NotSupportedException("GGML backends currently support Float32 tensors only. Disable AMP to use this backend.");
         }
 
+        // 中文：一元算子分发的公共实现，建立标准视图后调用 GgmlNative.Unary。
         private static Tensor ExecuteUnary(Tensor result, Tensor src, GgmlUnaryOp op, string opName)
         {
             ValidateUnaryArguments(result, src, opName);
@@ -3258,6 +3392,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：融合激活-乘法（门控）算子分发的公共实现，调用 GgmlNative.FusedActMul。
         private static Tensor ExecuteFusedActMul(Tensor result, Tensor a, Tensor b, GgmlFusedActMulOp op, string opName)
         {
             ValidateBinaryTensorArguments(result, a, b, opName);
@@ -3274,6 +3409,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：split 版融合门控算子分发的公共实现，将 [N,2H] gate_up 切半并调用 GgmlNative.FusedActMulSplit。
         private static Tensor ExecuteFusedActMulSplit(Tensor result, Tensor gateUp, int halfDim, GgmlFusedActMulOp op, string opName)
         {
             if (gateUp == null)
@@ -3307,6 +3443,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：张量-张量二元算子分发的公共实现，支持广播视图、原子加捷径与主机端回退。
         private static Tensor ExecuteBinaryTensor(Tensor result, Tensor lhs, Tensor rhs, GgmlBinaryTensorOp op, string opName)
         {
             ValidateBinaryTensorArguments(result, lhs, rhs, opName);
@@ -3344,6 +3481,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：张量-标量二元算子分发的公共实现，调用 GgmlNative.BinaryScalar。
         private static Tensor ExecuteBinaryScalar(Tensor result, Tensor src, float scalar, GgmlBinaryScalarOp op, string opName)
         {
             ValidateBinaryScalarArguments(result, src, opName);
@@ -3359,6 +3497,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：张量二元算子的主机端逐元素回退实现（用于无法映射到标准视图的布局）。
         private static unsafe Tensor ExecuteBinaryTensorHost(Tensor result, Tensor lhs, Tensor rhs, GgmlBinaryTensorOp op, string opName)
         {
             TensorIterState resultIter = new TensorIterState((float*)GetBufferStart(result), result.DimensionCount, result.SizesMemory, result.StridesMemory);
@@ -3379,6 +3518,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：原地原子加 result += rhs。
         [RegisterOpStorageType("atomicadd", typeof(GgmlStorage))]
         public static Tensor AtomicAdd(Tensor result, Tensor rhs)
         {
@@ -3386,6 +3526,7 @@ namespace TensorSharp.GGML
             return ExecuteAtomicAddHost(result, rhs);
         }
 
+        // 中文：原地加法的主机端逐元素实现 result += rhs。
         private static unsafe Tensor ExecuteAtomicAddHost(Tensor result, Tensor rhs)
         {
             TensorIterState resultIter = new TensorIterState((float*)GetBufferStart(result), result.DimensionCount, result.SizesMemory, result.StridesMemory);
@@ -3402,6 +3543,7 @@ namespace TensorSharp.GGML
             return result;
         }
 
+        // 中文：在主机端对单对标量应用加/减/乘/除二元运算。
         private static float ApplyBinaryTensorOp(float lhsValue, float rhsValue, GgmlBinaryTensorOp op, string opName)
         {
             return op switch
@@ -3414,6 +3556,7 @@ namespace TensorSharp.GGML
             };
         }
 
+        // 中文：激活函数反向梯度算子分发的公共实现（可选累加），调用 GgmlNative.ActivationGrad。
         private static Tensor ExecuteActivationGrad(Tensor result, Tensor accumulation, Tensor src, Tensor grad, GgmlActivationGradOp op, string opName)
         {
             ValidateActivationGradArguments(result, accumulation, src, grad, opName);
@@ -3432,6 +3575,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：归一化（LayerNorm/RMSNorm）算子分发的公共实现，调用 GgmlNative.Norm。
         private static Tensor ExecuteNorm(Tensor result, Tensor src, Tensor gamma, Tensor beta, float eps, GgmlNormOp op, string opName)
         {
             ValidateNormArguments(result, src, gamma, beta, opName);
@@ -3450,6 +3594,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：归一化反向梯度算子分发的公共实现，调用 GgmlNative 计算输入及 gamma/beta 梯度。
         private static Tensor ExecuteNormGrad(Tensor result, Tensor gradGamma, Tensor gradBeta, Tensor adj, Tensor y, Tensor x, Tensor gamma, Tensor beta, float eps, GgmlNormOp op, string opName)
         {
             ValidateNormGradArguments(result, gradGamma, gradBeta, adj, y, x, gamma, beta, opName);
@@ -3470,6 +3615,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：尝试为 2D 张量构建标准 GGML 视图（要求可映射为标准布局）。
         private static bool TryCreateStandardView(Tensor tensor, out GgmlTensorView2D view)
         {
             if (!CanMapTensorToStandardGgmlView(tensor) || !TryCreateRawView(tensor, out GgmlTensorView2D rawView))
@@ -3482,6 +3628,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：尝试为 2D 张量构建标准视图，失败时退化为压缩广播张量后再建视图。
         private static bool TryCreateStandardOrBroadcastView(Tensor tensor, out GgmlTensorView2D view, out Tensor compactTensor)
         {
             if (TryCreateStandardView(tensor, out view))
@@ -3501,6 +3648,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：尝试为 3D 张量构建标准 GGML 视图。
         private static bool TryCreateStandardView(Tensor tensor, out GgmlTensorView3D view)
         {
             if (!CanMapTensorToStandardGgmlView(tensor) || !TryCreateRawView(tensor, out GgmlTensorView3D rawView))
@@ -3513,6 +3661,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：尝试为 3D 张量构建标准视图，失败时退化为压缩广播张量后再建视图。
         private static bool TryCreateStandardOrBroadcastView(Tensor tensor, out GgmlTensorView3D view, out Tensor compactTensor)
         {
             if (TryCreateStandardView(tensor, out view))
@@ -3532,6 +3681,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：尝试为 1~4D 张量构建标准 4D GGML 视图（补齐到 4 维并换算字节步幅）。
         private static bool TryCreateStandardView(Tensor tensor, out GgmlTensorView4D view)
         {
             if (!CanMapTensorToStandardGgmlView(tensor)
@@ -3588,6 +3738,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：尝试为 4D 张量构建标准视图，失败时退化为压缩广播张量后再建视图。
         private static bool TryCreateStandardOrBroadcastView(Tensor tensor, out GgmlTensorView4D view, out Tensor compactTensor)
         {
             if (TryCreateStandardView(tensor, out view))
@@ -3607,6 +3758,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：尝试将连续张量包装为 GgmlContiguousTensor（可限定允许的元素类型）。
         private static bool TryCreateContiguousTensor(Tensor tensor, out GgmlContiguousTensor contiguousTensor, params DType[] allowedTypes)
         {
             if (!HasNativeBufferStorage(tensor) || !tensor.IsContiguous())
@@ -3625,6 +3777,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：为 2D Float32 张量直接构建原始视图（不要求标准布局，沿用原始步幅）。
         private static bool TryCreateRawView(Tensor tensor, out GgmlTensorView2D view)
         {
             if (tensor.DimensionCount != 2
@@ -3644,6 +3797,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：为 3D Float32 张量直接构建原始视图（沿用原始步幅）。
         private static bool TryCreateRawView(Tensor tensor, out GgmlTensorView3D view)
         {
             if (tensor.DimensionCount != 3
@@ -3665,6 +3819,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：判断张量能否映射为标准 GGML 视图（Float32、1~4 维、末维连续、步幅单调）。
         private static bool CanMapTensorToStandardGgmlView(Tensor tensor)
         {
             if (tensor.ElementType != DType.Float32
@@ -3708,6 +3863,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：将带广播（stride==0）维度压缩为大小 1 的等价张量，使其可映射为标准视图。
         private static bool TryCreateCompactedBroadcastTensor(Tensor tensor, out Tensor compactTensor)
         {
             compactTensor = null;
@@ -3755,6 +3911,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：校验掩码构建算子的结果张量（GGML 张量、至少一维、连续）。
         private static void ValidateMaskResultTensor(Tensor result, string opName)
         {
             ValidateGgmlTensor(result, nameof(result), opName);
@@ -3770,6 +3927,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验掩码长度张量（GGML 张量且连续）。
         private static void ValidateMaskLengthsTensor(Tensor tensor, string argumentName, string opName)
         {
             ValidateGgmlTensor(tensor, argumentName, opName);
@@ -3780,6 +3938,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 gather 参数（张量类型、维度、索引形状与 src/result 形状一致性）。
         private static void ValidateGatherArguments(Tensor result, Tensor src, int dim, Tensor indices)
         {
             ValidateGgmlTensor(src, nameof(src), "gather");
@@ -3815,6 +3974,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 scatter/scatter_add 参数（类型、维度、src 与 indices 同形、result 除 dim 外与 src 一致）。
         private static void ValidateScatterArguments(Tensor result, Tensor src, int dim, Tensor indices, string opName)
         {
             ValidateGgmlTensor(result, nameof(result), opName);
@@ -3842,6 +4002,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 scatter_fill 参数（类型、维度、result 与 indices 除 dim 外形状一致）。
         private static void ValidateScatterFillArguments(Tensor result, int dim, Tensor indices)
         {
             ValidateGgmlTensor(result, nameof(result), "scatter_fill");
@@ -3863,6 +4024,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验逐元素算子参数（所有输入及 result 形状一致且为 GGML 张量）。
         private static void ValidateElementwiseArguments(Tensor result, string opName, params Tensor[] tensors)
         {
             if (tensors == null || tensors.Length == 0)
@@ -3892,6 +4054,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：将张量按最后一维拉平为行/列二维形状（用于掩码构建）。
         private static void GetFlatRowsCols(Tensor tensor, string opName, out int rows, out int cols)
         {
             long colsLong = tensor.Sizes[tensor.DimensionCount - 1];
@@ -3908,6 +4071,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：根据各维大小与步幅计算张量占用的最大字节跨度（含溢出保护）。
         private static bool TryGetRawSpanBytes(Tensor tensor, out long rawBytes)
         {
             try
@@ -3935,6 +4099,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：判断张量是否可用主机端逐元素写入（无大小>1 的广播零步幅维度）。
         private static bool CanUseHostElementwiseWrite(Tensor tensor)
         {
             for (int dimension = 0; dimension < tensor.DimensionCount; ++dimension)
@@ -3948,6 +4113,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：将 long 安全转换为 int（溢出时返回 false）。
         private static bool TryGetInt32(long value, out int intValue)
         {
             try
@@ -3962,9 +4128,11 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：判断张量是否由原生 CPU 可访问缓冲（GgmlStorage 或 CpuStorage）支撑。
         private static bool HasNativeBufferStorage(Tensor tensor) =>
             tensor != null && (tensor.Storage is GgmlStorage || tensor.Storage is CpuStorage);
 
+        // 中文：取张量在其存储偏移处的原生缓冲起始指针。
         private static IntPtr GetBufferStart(Tensor tensor)
         {
             return tensor.Storage switch
@@ -3975,6 +4143,7 @@ namespace TensorSharp.GGML
             };
         }
 
+        // 中文：校验 addmm 参数（同元素类型、均为 2D GGML 张量、矩阵乘维度匹配）。
         private static void ValidateAddmmArguments(Tensor result, Tensor src, Tensor m1, Tensor m2)
         {
             if (src.ElementType != m1.ElementType || src.ElementType != m2.ElementType || (result != null && result.ElementType != src.ElementType))
@@ -4008,6 +4177,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 addmmbatch 参数（同元素类型、均为 3D GGML 张量、批量矩阵乘维度匹配）。
         private static void ValidateAddmmBatchArguments(Tensor result, Tensor src, Tensor m1, Tensor m2)
         {
             if (src.ElementType != m1.ElementType || src.ElementType != m2.ElementType || (result != null && result.ElementType != src.ElementType))
@@ -4041,6 +4211,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 softmax 参数（Float32 GGML 张量）。
         private static void ValidateSoftmaxArguments(Tensor result, Tensor src)
         {
             if (src.ElementType != DType.Float32 || (result != null && result.ElementType != src.ElementType))
@@ -4059,6 +4230,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 softmaxgrad 参数（Float32 GGML 张量、adj 与 val 同形）。
         private static void ValidateSoftmaxGradArguments(Tensor grad, Tensor adj, Tensor val)
         {
             if (adj.ElementType != DType.Float32 || val.ElementType != DType.Float32 || (grad != null && grad.ElementType != DType.Float32))
@@ -4097,6 +4269,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 Adam 参数（权重/梯度/一阶二阶动量均为同形 Float32 GGML 张量）。
         private static void ValidateAdamArguments(Tensor tw, Tensor tg, Tensor tv, Tensor tm)
         {
             if (tw.ElementType != DType.Float32 || tg.ElementType != DType.Float32 || tv.ElementType != DType.Float32 || tm.ElementType != DType.Float32)
@@ -4132,6 +4305,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 copy 参数（GGML 张量、同元素类型、Float32/Float16/Q8_0、元素数相同）。
         private static void ValidateCopyArguments(Tensor result, Tensor src)
         {
             if (result == null)
@@ -4174,6 +4348,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：求和/均值归约的公共实现，优先走原生末维归约，否则主机端按维度迭代累加。
         private static unsafe Tensor ExecuteReduction(Tensor result, Tensor src, int dimension, bool divideByCount, string opName)
         {
             ValidateReductionArguments(result, src, dimension, opName);
@@ -4204,6 +4379,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：argmin/argmax 索引归约的公共实现，优先走原生末维归约，否则主机端逐维寻找极值索引。
         private static unsafe Tensor ExecuteIndexReduction(Tensor result, Tensor src, int dimension, bool selectMinimum, string opName)
         {
             ValidateReductionArguments(result, src, dimension, opName);
@@ -4240,6 +4416,7 @@ namespace TensorSharp.GGML
             return writeTarget;
         }
 
+        // 中文：尝试用 GGML 原生末维归约（仅当归约维为最后一维且可建标准视图）。
         private static bool TryExecuteNativeReduction(Tensor result, Tensor src, int dimension, GgmlReductionOp op)
         {
             if (dimension != src.DimensionCount - 1)
@@ -4257,6 +4434,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：尝试用 GGML 原生末维索引归约（argmin/argmax，仅末维且可建标准视图）。
         private static bool TryExecuteNativeIndexReduction(Tensor result, Tensor src, int dimension, GgmlIndexReductionOp op)
         {
             if (dimension != src.DimensionCount - 1)
@@ -4274,6 +4452,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：校验归约参数（维度合法、非空归约维、result 除归约维外与 src 同形）。
         private static void ValidateReductionArguments(Tensor result, Tensor src, int dimension, string opName)
         {
             ValidateGgmlTensor(src, nameof(src), opName);
@@ -4308,6 +4487,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验一元算子参数（GGML 张量、result 与 src 同形）。
         private static void ValidateUnaryArguments(Tensor result, Tensor src, string opName)
         {
             ValidateGgmlTensor(src, nameof(src), opName);
@@ -4322,6 +4502,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验张量-张量二元算子参数（GGML 张量、result 与 lhs 同形）。
         private static void ValidateBinaryTensorArguments(Tensor result, Tensor lhs, Tensor rhs, string opName)
         {
             ValidateGgmlTensor(lhs, nameof(lhs), opName);
@@ -4337,6 +4518,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验张量-标量二元算子参数（GGML 张量、result 与 src 同形）。
         private static void ValidateBinaryScalarArguments(Tensor result, Tensor src, string opName)
         {
             ValidateGgmlTensor(src, nameof(src), opName);
@@ -4351,6 +4533,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验激活反向梯度参数（src/grad/result/accumulation 均为同形 GGML 张量）。
         private static void ValidateActivationGradArguments(Tensor result, Tensor accumulation, Tensor src, Tensor grad, string opName)
         {
             ValidateGgmlTensor(src, nameof(src), opName);
@@ -4380,6 +4563,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验归一化参数（2~4D src、gamma/beta 元素数等于末维、result 与 src 同形）。
         private static void ValidateNormArguments(Tensor result, Tensor src, Tensor gamma, Tensor beta, string opName)
         {
             ValidateGgmlTensor(src, nameof(src), opName);
@@ -4414,6 +4598,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验归一化反向梯度参数（adj/y/x/gamma/gradGamma 等张量的类型与形状一致性）。
         private static void ValidateNormGradArguments(Tensor result, Tensor gradGamma, Tensor gradBeta, Tensor adj, Tensor y, Tensor x, Tensor gamma, Tensor beta, string opName)
         {
             ValidateGgmlTensor(adj, nameof(adj), opName);
@@ -4476,6 +4661,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 indexselect 参数（2D src、连续 1D/Nx1 索引、result 形状 [indices, src_cols]）。
         private static void ValidateIndexSelectArguments(Tensor result, Tensor src, Tensor indice, bool isAdd)
         {
             ValidateGgmlTensor(src, nameof(src), "indexselect");
@@ -4511,6 +4697,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 mulmatid 参数（3D expertWeights/input、2D 连续 ids、内层维与形状对齐）。
         private static void ValidateMulMatIdArguments(Tensor result, Tensor expertWeights, Tensor input, Tensor ids)
         {
             ValidateGgmlTensor(expertWeights, nameof(expertWeights), "mulmatid");
@@ -4553,6 +4740,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 SDPA 参数（query/key/value 均 4D 且 batch/head/深度匹配、可选 4D 掩码形状匹配）。
         private static void ValidateScaledDotProductAttentionArguments(Tensor result, Tensor query, Tensor key, Tensor value, Tensor mask)
         {
             ValidateGgmlTensor(query, nameof(query), "scaled_dot_product_attention");
@@ -4604,6 +4792,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 addid 参数（3D src、2D bias/ids、连续 ids，形状对齐 [tokens, expert_used, rows]）。
         private static void ValidateAddIdArguments(Tensor result, Tensor src, Tensor bias, Tensor ids)
         {
             ValidateGgmlTensor(src, nameof(src), "addid");
@@ -4640,6 +4829,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 indexselectgrad 参数（2D grad/adj、连续 1D/Nx1 索引、形状对齐 [indices, grad_cols]）。
         private static void ValidateIndexSelectGradArguments(Tensor grad, Tensor adj, Tensor indice)
         {
             ValidateGgmlTensor(grad, nameof(grad), "indexselectgrad");
@@ -4667,6 +4857,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 RoPE 参数（seqLen>0、2~4D src、末维为偶数、result 与 src 同形）。
         private static void ValidateRoPEArguments(Tensor result, Tensor src, int seqLen, string opName)
         {
             ValidateGgmlTensor(src, nameof(src), opName);
@@ -4696,6 +4887,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验 rope_ex 参数（2~4D src、偶数 ropeDim、positions 每逻辑行一个值、result 同形）。
         private static void ValidateRoPEExArguments(Tensor result, Tensor src, Tensor positions, int ropeDim, string opName)
         {
             ValidateGgmlTensor(src, nameof(src), opName);
@@ -4727,6 +4919,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验张量为非空、Float32 且由 GgmlStorage 支撑。
         private static void ValidateGgmlTensor(Tensor tensor, string argumentName, string opName)
         {
             if (tensor == null)
@@ -4745,6 +4938,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：校验索引张量为非空、Float32 或 Int32 且由 GgmlStorage 支撑。
         private static void ValidateGgmlIndexTensor(Tensor tensor, string argumentName, string opName)
         {
             if (tensor == null)
@@ -4763,6 +4957,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：从维度迭代器按元素类型（Int32/Float32）读取一个逻辑索引值。
         private static unsafe long ReadIndexValue(TensorDimIterState iter, DType elementType, int logicalIndex)
         {
             return elementType switch
@@ -4772,6 +4967,7 @@ namespace TensorSharp.GGML
             };
         }
 
+        // 中文：判断两个张量是否维度数与各维大小完全相同。
         private static bool HasSameShape(Tensor lhs, Tensor rhs)
         {
             if (lhs.DimensionCount != rhs.DimensionCount)
@@ -4790,6 +4986,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：判断两个张量是否为等价视图（同存储、同偏移、同大小、同步幅）。
         private static bool AreEquivalentViews(Tensor lhs, Tensor rhs)
         {
             if (!ReferenceEquals(lhs.Storage, rhs.Storage) || lhs.StorageOffset != rhs.StorageOffset)
@@ -4813,6 +5010,7 @@ namespace TensorSharp.GGML
             return true;
         }
 
+        // 中文：判断张量是否含广播扩展维度（大小>1 且步幅为 0）。
         private static bool HasExpandedWriteDimension(Tensor tensor)
         {
             for (int i = 0; i < tensor.DimensionCount; ++i)
@@ -4826,6 +5024,7 @@ namespace TensorSharp.GGML
             return false;
         }
 
+        // 中文：判断索引张量是否为受支持的形状（1D 或 Nx1）。
         private static bool IsSupportedIndexTensor(Tensor indice)
         {
             if (indice.DimensionCount == 1)

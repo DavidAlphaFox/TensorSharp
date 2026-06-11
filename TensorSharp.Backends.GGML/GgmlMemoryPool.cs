@@ -48,6 +48,7 @@ namespace TensorSharp.GGML
         private readonly int _maxPooledBlocks;
         private readonly nuint _maxRetainedBlockSize;
 
+        // 中文：构造函数，根据后端类型与平台确定对齐页大小、初始块数及池保留上限。
         public GgmlMemoryPool(GgmlBackendType backendType)
         {
             int systemPageSize = Environment.SystemPageSize;
@@ -72,6 +73,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：分配内存，先按最佳匹配从空闲池复用块，否则新分配对齐内存。
         public IntPtr Allocate(long byteLength)
         {
             nuint size = (nuint)byteLength;
@@ -108,6 +110,7 @@ namespace TensorSharp.GGML
             return AllocateNew(alignedSize);
         }
 
+        // 中文：释放内存，在容量与块大小上限内回收入池复用，超限则归还系统。
         public void Free(IntPtr ptr, long byteLength)
         {
             if (ptr == IntPtr.Zero) return;
@@ -133,12 +136,14 @@ namespace TensorSharp.GGML
             FreeToSystem(ptr, alignedSize);
         }
 
+        // 中文：将请求字节数向上对齐到页大小的整数倍。
         private nuint AlignSize(nuint size)
         {
             if (size == 0) return (nuint)_pageSize;
             return ((size + (nuint)(_pageSize - 1)) / (nuint)_pageSize) * (nuint)_pageSize;
         }
 
+        // 中文：实际新分配对齐内存，优先用虚拟内存分配，失败回退到 AllocHGlobal。
         private IntPtr AllocateNew(nuint alignedSize)
         {
             if (_useVirtualAlloc)
@@ -151,6 +156,7 @@ namespace TensorSharp.GGML
             return Marshal.AllocHGlobal((nint)alignedSize);
         }
 
+        // 中文：将内存真正归还系统，优先用虚拟内存释放，失败回退到 FreeHGlobal。
         private void FreeToSystem(IntPtr ptr, nuint size)
         {
             if (_useVirtualAlloc && FreeVirtual(ptr, size))
@@ -161,6 +167,7 @@ namespace TensorSharp.GGML
             Marshal.FreeHGlobal(ptr);
         }
 
+        // 中文：预分配初始块直至空闲池达到配置的初始块数，预热内存池。
         internal void EnsureInitialBlocks()
         {
             lock (_lock)
@@ -178,6 +185,7 @@ namespace TensorSharp.GGML
             public readonly IntPtr Ptr;
             public readonly nuint Size;
 
+            // 中文：构造池块，记录其指针与对齐后的字节大小。
             public PoolBlock(IntPtr ptr, nuint size)
             {
                 Ptr = ptr;
@@ -185,6 +193,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：跨平台虚拟内存分配，Windows 用 VirtualAlloc，Linux/macOS 用 mmap。
         private static IntPtr AllocateVirtual(nuint alignedSize)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -200,6 +209,7 @@ namespace TensorSharp.GGML
             return IntPtr.Zero;
         }
 
+        // 中文：跨平台虚拟内存释放，Windows 用 VirtualFree，Linux/macOS 用 munmap。
         private static bool FreeVirtual(IntPtr ptr, nuint size)
         {
             if (ptr == IntPtr.Zero)
@@ -226,16 +236,20 @@ namespace TensorSharp.GGML
         private const uint WindowsMemRelease = 0x8000;
         private const uint WindowsPageReadWrite = 0x04;
 
+        // 中文：Windows VirtualAlloc 的 P/Invoke 绑定，用于预留并提交虚拟内存页。
         [DllImport("kernel32.dll", EntryPoint = "VirtualAlloc", ExactSpelling = true, SetLastError = true)]
         private static extern IntPtr WindowsVirtualAlloc(IntPtr lpAddress, nuint dwSize, uint flAllocationType, uint flProtect);
 
+        // 中文：Windows VirtualFree 的 P/Invoke 绑定，用于释放虚拟内存页。
         [DllImport("kernel32.dll", EntryPoint = "VirtualFree", ExactSpelling = true, SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         private static extern bool WindowsVirtualFree(IntPtr lpAddress, UIntPtr dwSize, uint dwFreeType);
 
+        // 中文：Unix mmap 的 P/Invoke 绑定，用于映射匿名虚拟内存。
         [DllImport("libc", EntryPoint = "mmap", SetLastError = true)]
         private static extern IntPtr UnixMmap(IntPtr addr, nuint length, int prot, int flags, int fd, IntPtr offset);
 
+        // 中文：Unix munmap 的 P/Invoke 绑定，用于解除内存映射。
         [DllImport("libc", EntryPoint = "munmap", SetLastError = true)]
         private static extern int UnixMunmap(IntPtr addr, nuint length);
     }

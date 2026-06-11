@@ -8,6 +8,7 @@ namespace TensorSharp.MLX
     {
         private static int registered;
 
+        // 中文：将所有回退算子规格一次性注册到 OpRegistry（带 MLX 张量参与约束），通过原子标志保证只注册一次。
         public static void Register()
         {
             if (Interlocked.Exchange(ref registered, 1) != 0)
@@ -26,12 +27,15 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：构造返回张量的算子规格，未指定被修改张量索引时默认第 0 个参数被写入。
         private static OpSpec Tensor(string name, int argCount, params int[] modified) =>
             new(name, argCount, MlxFallbackReturnKind.Tensor, modified.Length == 0 ? new[] { 0 } : modified);
 
+        // 中文：构造无返回值（原地写入）的算子规格，未指定被修改张量索引时默认第 0 个参数被写入。
         private static OpSpec Void(string name, int argCount, params int[] modified) =>
             new(name, argCount, MlxFallbackReturnKind.Void, modified.Length == 0 ? new[] { 0 } : modified);
 
+        // 中文：构造返回原始（非张量）结果的算子规格，不声明任何被修改的张量。
         private static OpSpec Raw(string name, int argCount) =>
             new(name, argCount, MlxFallbackReturnKind.Raw, Array.Empty<int>());
 
@@ -181,6 +185,7 @@ namespace TensorSharp.MLX
 
         private sealed class MlxTensorParticipationConstraint : OpConstraint
         {
+            // 中文：当参数中至少有一个张量的存储是 MlxStorage 时满足约束，确保该回退算子只对涉及 MLX 张量的调用生效。
             public override bool SatisfiedFor(object[] args)
             {
                 bool hasMlxTensor = false;

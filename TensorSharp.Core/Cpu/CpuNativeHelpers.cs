@@ -13,12 +13,14 @@ namespace TensorSharp.Cpu
 {
     public static class CpuNativeHelpers
     {
+        // 中文：计算张量数据在 CPU 缓冲区中考虑存储偏移后的起始指针。
         public static IntPtr GetBufferStart(Tensor tensor)
         {
             IntPtr buffer = ((CpuStorage)tensor.Storage).buffer;
             return PtrAdd(buffer, tensor.StorageOffset * tensor.ElementType.Size());
         }
 
+        // 中文：将指针按字节偏移量进行偏移并返回新指针。
         private static IntPtr PtrAdd(IntPtr ptr, long offset)
         {
             return new IntPtr(ptr.ToInt64() + offset);

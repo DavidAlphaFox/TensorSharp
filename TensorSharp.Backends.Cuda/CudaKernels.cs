@@ -60,6 +60,7 @@ namespace TensorSharp.Cuda
         private readonly IntPtr quantMatmulQ80F32;
         private readonly IntPtr quantGetRowsF32;
 
+        // 中文：私有构造函数，保存已加载的 CUDA 模块并按名称解析并缓存所有内核函数句柄。
         private CudaKernels(CudaModule module)
         {
             this.module = module;
@@ -115,6 +116,7 @@ namespace TensorSharp.Cuda
             quantGetRowsF32 = module.GetFunction("ts_quant_get_rows_f32");
         }
 
+        // 中文：定位 PTX 文件并尝试加载模块创建实例，失败时返回 null（不抛异常）。
         public static CudaKernels TryCreate()
         {
             string path = LocatePtxPath();
@@ -131,6 +133,7 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：启动 F32 填充内核，将 output 的前 count 个元素填充为指定值。
         public void LaunchFillF32(IntPtr output, int count, float value, IntPtr stream)
         {
             IntPtr outArg = output;
@@ -140,6 +143,7 @@ namespace TensorSharp.Cuda
             Launch(fillF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 F16 填充内核，将 output 的前 count 个 half 元素填充为指定值。
         public void LaunchFillF16(IntPtr output, int count, float value, IntPtr stream)
         {
             IntPtr outArg = output;
@@ -149,6 +153,7 @@ namespace TensorSharp.Cuda
             Launch(fillF16, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 F32 一元运算内核，按 op 对 input 逐元素运算写入 output。
         public void LaunchUnaryF32(IntPtr input, IntPtr output, int count, int op, IntPtr stream)
         {
             IntPtr inputArg = input;
@@ -159,6 +164,7 @@ namespace TensorSharp.Cuda
             Launch(unaryF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 F32 二元运算内核，按 op 对 lhs 与 rhs 逐元素运算写入 output。
         public void LaunchBinaryF32(IntPtr lhs, IntPtr rhs, IntPtr output, int count, int op, IntPtr stream)
         {
             IntPtr lhsArg = lhs;
@@ -170,6 +176,7 @@ namespace TensorSharp.Cuda
             Launch(binaryF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 F32 标量运算内核，按 op 对 input 与标量 value 逐元素运算写入 output。
         public void LaunchScalarF32(IntPtr input, IntPtr output, int count, float value, int op, IntPtr stream)
         {
             IntPtr inputArg = input;
@@ -181,6 +188,7 @@ namespace TensorSharp.Cuda
             Launch(scalarF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 F32 三元运算内核，按 op 对 x、y、z 逐元素运算写入 output。
         public void LaunchTernaryF32(IntPtr x, IntPtr y, IntPtr z, IntPtr output, int count, int op, IntPtr stream)
         {
             IntPtr xArg = x;
@@ -193,6 +201,7 @@ namespace TensorSharp.Cuda
             Launch(ternaryF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动融合内核，逐元素计算 (x + y) * value 写入 output。
         public void LaunchAddMulScalarF32(IntPtr x, IntPtr y, IntPtr output, int count, float value, IntPtr stream)
         {
             IntPtr xArg = x;
@@ -204,6 +213,7 @@ namespace TensorSharp.Cuda
             Launch(addMulScalarF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动融合内核，逐元素计算 x*y + z*w 写入 output。
         public void LaunchMulMulAddF32(IntPtr x, IntPtr y, IntPtr z, IntPtr w, IntPtr output, int count, IntPtr stream)
         {
             IntPtr xArg = x;
@@ -216,6 +226,7 @@ namespace TensorSharp.Cuda
             Launch(mulMulAddF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 F32 二元加激活内核，按 op 对 a、b 运算并应用激活后写入 output。
         public void LaunchBinaryActivationF32(IntPtr a, IntPtr b, IntPtr output, int count, int op, IntPtr stream)
         {
             IntPtr aArg = a;
@@ -227,6 +238,7 @@ namespace TensorSharp.Cuda
             Launch(binaryActivationF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核为按行矩阵逐行加上偏置向量（支持偏置广播）。
         public void LaunchAddBiasRowsF32(IntPtr tensor, IntPtr bias, int rows, int cols, int biasCols, IntPtr stream)
         {
             IntPtr tensorArg = tensor;
@@ -239,6 +251,7 @@ namespace TensorSharp.Cuda
             Launch(addBiasRowsF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 SiLU 门控内核，将拼接的 gate/up 拆分并计算 silu(gate)*up 写入 output。
         public void LaunchSiLUMulSplitF32(IntPtr gateUp, IntPtr output, int rows, int halfDim, IntPtr stream)
         {
             IntPtr gateUpArg = gateUp;
@@ -250,6 +263,7 @@ namespace TensorSharp.Cuda
             Launch(siluMulSplitF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 GELU 门控内核，将拼接的 gate/up 拆分并计算 gelu(gate)*up 写入 output。
         public void LaunchGELUMulSplitF32(IntPtr gateUp, IntPtr output, int rows, int halfDim, IntPtr stream)
         {
             IntPtr gateUpArg = gateUp;
@@ -261,6 +275,7 @@ namespace TensorSharp.Cuda
             Launch(geluMulSplitF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 OpenAI 风格 SwiGLU 门控内核，按 alpha/limit 参数拆分计算门控并写入 output。
         public void LaunchSwiGluOaiSplitF32(IntPtr gateUp, IntPtr output, int rows, int halfDim, float alpha, float limit, IntPtr stream)
         {
             IntPtr gateUpArg = gateUp;
@@ -274,6 +289,7 @@ namespace TensorSharp.Cuda
             Launch(swigluOaiSplitF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 Qwen3.5 门控 DeltaNet 打包内核，执行卷积/SSM 状态更新并随后更新卷积状态尾部。
         public void LaunchQwen35GatedDeltaNetPackedF32(
             IntPtr packed,
             IntPtr convState,
@@ -342,6 +358,7 @@ namespace TensorSharp.Cuda
             Launch(qwen35GdnUpdateConvStateF32, Grid(updateCount), 1, 1, BlockSize, 1, 1, 0, stream, updateArgs);
         }
 
+        // 中文：启动内核将 qkv、z、beta、alpha 等输入打包成 DeltaNet 内核所需的紧凑布局。
         public void LaunchQwen35GatedDeltaNetPackInputsF32(
             IntPtr qkv,
             IntPtr z,
@@ -374,6 +391,7 @@ namespace TensorSharp.Cuda
             Launch(qwen35GdnPackInputsF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 RMSNorm 内核，按行对 input 做均方根归一化并应用 alpha/beta 缩放偏移。
         public void LaunchRMSNormF32(IntPtr input, IntPtr alpha, IntPtr beta, IntPtr output, int rows, int cols, float eps, IntPtr stream)
         {
             IntPtr inputArg = input;
@@ -387,6 +405,7 @@ namespace TensorSharp.Cuda
             Launch(rmsNormF32, (uint)rows, 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 Softmax 内核，按行对 input 计算 softmax 写入 output。
         public void LaunchSoftmaxF32(IntPtr input, IntPtr output, int rows, int cols, IntPtr stream)
         {
             IntPtr inputArg = input;
@@ -397,6 +416,7 @@ namespace TensorSharp.Cuda
             Launch(softmaxF32, (uint)rows, 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动带注意力 sink、滑动窗口与缩放的注意力分数 softmax 内核。
         public void LaunchAttentionSoftmaxSinksF32(
             IntPtr scores,
             IntPtr sinks,
@@ -426,6 +446,7 @@ namespace TensorSharp.Cuda
             Launch(attentionSoftmaxSinksF32, (uint)(numHeads * seqLen), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动缩放点积注意力内核，按 batch×head 计算 Q/K/V 注意力（可选掩码）写入 output。
         public void LaunchScaledDotProductAttentionF32(
             IntPtr query,
             IntPtr key,
@@ -463,6 +484,7 @@ namespace TensorSharp.Cuda
             Launch(scaledDotProductAttentionF32, (uint)(batch * heads), (uint)seqQ, 1, BlockSize, 1, 1, (uint)(seqK * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F32 GQA 预填充注意力内核，处理分组查询注意力的整段序列。
         public void LaunchGqaPrefillAttentionF32(
             IntPtr query,
             IntPtr key,
@@ -498,6 +520,7 @@ namespace TensorSharp.Cuda
             Launch(gqaPrefillAttentionF32, (uint)numQHeads, (uint)seqLen, 1, BlockSize, 1, 1, (uint)(kvLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F16（KV 半精度）GQA 预填充注意力内核，处理整段序列。
         public void LaunchGqaPrefillAttentionF16(
             IntPtr query,
             IntPtr key,
@@ -533,6 +556,7 @@ namespace TensorSharp.Cuda
             Launch(gqaPrefillAttentionF16, (uint)numQHeads, (uint)seqLen, 1, BlockSize, 1, 1, (uint)(kvLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F32 带 sink 的 GQA 预填充注意力内核，基于 KV 缓存并支持注意力 sink。
         public void LaunchGqaPrefillAttentionSinksF32(
             IntPtr query,
             IntPtr keyCache,
@@ -575,6 +599,7 @@ namespace TensorSharp.Cuda
             Launch(gqaPrefillAttentionSinksF32, (uint)numQHeads, (uint)seqLen, 1, BlockSize, 1, 1, (uint)(kvLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F16 带 sink 的 GQA 预填充注意力内核，基于半精度 KV 缓存并支持注意力 sink。
         public void LaunchGqaPrefillAttentionSinksF16(
             IntPtr query,
             IntPtr keyCache,
@@ -617,6 +642,7 @@ namespace TensorSharp.Cuda
             Launch(gqaPrefillAttentionSinksF16, (uint)numQHeads, (uint)seqLen, 1, BlockSize, 1, 1, (uint)(kvLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F32 GQA 解码注意力内核，对单步查询基于 KV 缓存（可循环）计算注意力。
         public void LaunchGqaDecodeAttentionF32(
             IntPtr query,
             IntPtr keyCache,
@@ -652,6 +678,7 @@ namespace TensorSharp.Cuda
             Launch(gqaDecodeAttentionF32, (uint)numQHeads, 1, 1, BlockSize, 1, 1, (uint)(attendLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F16 GQA 解码注意力内核，对单步查询基于半精度 KV 缓存（可循环）计算注意力。
         public void LaunchGqaDecodeAttentionF16(
             IntPtr query,
             IntPtr keyCache,
@@ -687,6 +714,7 @@ namespace TensorSharp.Cuda
             Launch(gqaDecodeAttentionF16, (uint)numQHeads, 1, 1, BlockSize, 1, 1, (uint)(attendLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F32 带 sink 的 GQA 解码注意力内核，单步解码并支持注意力 sink。
         public void LaunchGqaDecodeAttentionSinksF32(
             IntPtr query,
             IntPtr keyCache,
@@ -727,6 +755,7 @@ namespace TensorSharp.Cuda
             Launch(gqaDecodeAttentionSinksF32, (uint)numQHeads, 1, 1, BlockSize, 1, 1, (uint)(attendLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F16 带 sink 的 GQA 解码注意力内核，单步解码并支持注意力 sink。
         public void LaunchGqaDecodeAttentionSinksF16(
             IntPtr query,
             IntPtr keyCache,
@@ -767,6 +796,7 @@ namespace TensorSharp.Cuda
             Launch(gqaDecodeAttentionSinksF16, (uint)numQHeads, 1, 1, BlockSize, 1, 1, (uint)(attendLen * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F32 GQA 解码注意力的分块（partition）阶段内核，各分区并行计算部分结果到 partial。
         public void LaunchGqaDecodeAttentionPartitionF32(
             IntPtr query,
             IntPtr keyCache,
@@ -812,6 +842,7 @@ namespace TensorSharp.Cuda
             Launch(gqaDecodeAttentionPartitionF32, (uint)numQHeads, (uint)numPartitions, 1, BlockSize, 1, 1, (uint)(partitionSize * sizeof(float)), stream, args);
         }
 
+        // 中文：启动 F16 GQA 解码注意力的分块（partition）阶段内核，各分区并行计算部分结果到 partial。
         public void LaunchGqaDecodeAttentionPartitionF16(
             IntPtr query,
             IntPtr keyCache,
@@ -857,6 +888,7 @@ namespace TensorSharp.Cuda
             Launch(gqaDecodeAttentionPartitionF16, (uint)numQHeads, (uint)numPartitions, 1, BlockSize, 1, 1, (uint)(partitionSize * sizeof(float)), stream, args);
         }
 
+        // 中文：启动分块注意力的归约阶段内核，将各分区的 partial 结果合并为最终 output。
         public void LaunchGqaDecodeAttentionPartitionReduceF32(
             IntPtr partial,
             IntPtr output,
@@ -874,6 +906,7 @@ namespace TensorSharp.Cuda
             Launch(gqaDecodeAttentionPartitionReduceF32, (uint)numQHeads, 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核按列偏移与宽度从源矩阵切取列区间写入 output。
         public void LaunchSliceColumnsF32(
             IntPtr source,
             IntPtr output,
@@ -894,6 +927,7 @@ namespace TensorSharp.Cuda
             Launch(sliceColumnsF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核将扁平 [seq, heads*headDim] 布局重排为 head-first [heads, seq, headDim] 布局。
         public void LaunchFlatToHeadFirstF32(
             IntPtr source,
             IntPtr output,
@@ -912,6 +946,7 @@ namespace TensorSharp.Cuda
             Launch(flatToHeadFirstF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核从打包的 QKV 源中按列偏移切出某一部分并重排为 head-first 布局。
         public void LaunchSplitQkvHeadFirstF32(
             IntPtr source,
             IntPtr output,
@@ -937,6 +972,7 @@ namespace TensorSharp.Cuda
             Launch(splitQkvHeadFirstF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核将 head-first 数据从 startPos 起写入 F32 KV 缓存（支持循环缓存）。
         public void LaunchCopyHeadFirstToCacheF32(
             IntPtr source,
             IntPtr cache,
@@ -964,6 +1000,7 @@ namespace TensorSharp.Cuda
             Launch(copyHeadFirstToCacheF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核将 head-first 数据从 startPos 起写入 F16 KV 缓存（支持循环缓存）。
         public void LaunchCopyHeadFirstToCacheF16(
             IntPtr source,
             IntPtr cache,
@@ -991,6 +1028,7 @@ namespace TensorSharp.Cuda
             Launch(copyHeadFirstToCacheF16, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核从 F32 循环 KV 缓存中按起始位置收集 head-first 数据到连续 output。
         public void LaunchGatherCircularHeadFirstF32(
             IntPtr cache,
             IntPtr output,
@@ -1016,6 +1054,7 @@ namespace TensorSharp.Cuda
             Launch(gatherCircularHeadFirstF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核从 F16 循环 KV 缓存中按起始位置收集 head-first 数据到连续 output。
         public void LaunchGatherCircularHeadFirstF16(
             IntPtr cache,
             IntPtr output,
@@ -1041,6 +1080,7 @@ namespace TensorSharp.Cuda
             Launch(gatherCircularHeadFirstF16, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核沿序列维拼接两段 head-first 张量 a、b 写入 output。
         public void LaunchConcatHeadFirstF32(
             IntPtr a,
             IntPtr b,
@@ -1063,6 +1103,7 @@ namespace TensorSharp.Cuda
             Launch(concatHeadFirstF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 NeoX 风格 RoPE 内核，使用 cos/sin 表对 head-first 数据原地旋转位置编码。
         public void LaunchNeoXRoPEHeadFirstF32(
             IntPtr data,
             IntPtr cosTable,
@@ -1088,6 +1129,7 @@ namespace TensorSharp.Cuda
             Launch(neoxRopeHeadFirstF32, Grid(count), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动按索引选取行的内核，按 indices 从 source 取行写入或累加到 output。
         public void LaunchIndexSelectF32(IntPtr source, IntPtr indices, IntPtr output, int rows, int cols, int sourceRows, int indicesAreInt32, int isAdd, IntPtr stream)
         {
             IntPtr sourceArg = source;
@@ -1102,6 +1144,7 @@ namespace TensorSharp.Cuda
             Launch(indexSelectF32, (uint)rows, 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核为注意力分数张量原地添加因果掩码，将被遮挡位置设为 maskedValue。
         public void LaunchAddCausalMaskF32(IntPtr tensor, int totalRows, int cols, int seqLen, int startPos, float maskedValue, IntPtr stream)
         {
             IntPtr tensorArg = tensor;
@@ -1114,6 +1157,7 @@ namespace TensorSharp.Cuda
             Launch(addCausalMaskF32, (uint)totalRows, 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动基础 RoPE 内核，按维度对成对元素施加旋转位置编码写入 output。
         public void LaunchRoPEF32(IntPtr input, IntPtr output, int rows, int cols, int seqLen, int rowOffset, IntPtr stream)
         {
             IntPtr inputArg = input;
@@ -1127,6 +1171,7 @@ namespace TensorSharp.Cuda
             Launch(ropeF32, Grid(rows * pairCount), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动扩展 RoPE 内核，支持自定义位置、模式、YaRN 频率缩放等参数，可选累加到结果。
         public void LaunchRoPEExF32(
             IntPtr input,
             IntPtr positions,
@@ -1173,6 +1218,7 @@ namespace TensorSharp.Cuda
             Launch(ropeExF32, Grid(Math.Max(rows * pairCount, copyWork)), 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动通用量化矩阵乘内核，按量化类型 type 将量化权重与 F32 输入相乘写入 output。
         public void LaunchQuantMatmulF32(IntPtr weights, IntPtr input, IntPtr output, int type, int inDim, int outDim, int rows, IntPtr stream)
         {
             IntPtr weightsArg = weights;
@@ -1187,6 +1233,7 @@ namespace TensorSharp.Cuda
             Launch(quantMatmulF32, gridX, (uint)rows, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 IQ2_XXS 权重与 Q8_1 输入的专用量化矩阵乘内核（使用共享内存）。
         public void LaunchQuantMatmulIq2XxsQ81F32(IntPtr weights, IntPtr input, IntPtr output, int inDim, int outDim, int rows, IntPtr stream)
         {
             IntPtr weightsArg = weights;
@@ -1201,6 +1248,7 @@ namespace TensorSharp.Cuda
             Launch(quantMatmulIq2XxsQ81F32, gridX, (uint)rows, 1, BlockSize, 1, 1, sharedBytes, stream, args);
         }
 
+        // 中文：启动 Q4_0 量化权重专用矩阵乘内核，与 F32 输入相乘写入 output。
         public void LaunchQuantMatmulQ40F32(IntPtr weights, IntPtr input, IntPtr output, int inDim, int outDim, int rows, IntPtr stream)
         {
             IntPtr weightsArg = weights;
@@ -1214,6 +1262,7 @@ namespace TensorSharp.Cuda
             Launch(quantMatmulQ40F32, gridX, (uint)rows, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动 Q8_0 量化权重矩阵乘内核，按行数小于 4 选择单行版本、否则选择批量版本。
         public void LaunchQuantMatmulQ80F32(IntPtr weights, IntPtr input, IntPtr output, int inDim, int outDim, int rows, IntPtr stream)
         {
             IntPtr weightsArg = weights;
@@ -1230,6 +1279,7 @@ namespace TensorSharp.Cuda
                 Launch(quantMatmulQ80F32, gridX, (uint)((rows + 3) / 4), 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：启动内核按 indices 从量化权重表中取行并反量化为 F32 写入 output。
         public void LaunchQuantGetRowsF32(IntPtr weights, IntPtr indices, IntPtr output, int type, int cols, int rows, int indicesAreInt32, IntPtr stream)
         {
             IntPtr weightsArg = weights;
@@ -1243,11 +1293,13 @@ namespace TensorSharp.Cuda
             Launch(quantGetRowsF32, (uint)rows, 1, 1, BlockSize, 1, 1, 0, stream, args);
         }
 
+        // 中文：释放底层 CUDA 模块，卸载已加载的内核。
         public void Dispose()
         {
             module.Dispose();
         }
 
+        // 中文：通用内核启动辅助方法，封装 cuLaunchKernel 调用并检查错误。
         private static void Launch(IntPtr function, uint gx, uint gy, uint gz, int bx, int by, int bz, uint sharedBytes, IntPtr stream, void** args)
         {
             CudaDriverApi.cuLaunchKernel(
@@ -1264,11 +1316,13 @@ namespace TensorSharp.Cuda
                 IntPtr.Zero).ThrowOnError();
         }
 
+        // 中文：根据元素总数和块大小计算所需的一维网格块数（至少为 1）。
         private static uint Grid(int count)
         {
             return (uint)Math.Max(1, (count + BlockSize - 1) / BlockSize);
         }
 
+        // 中文：在多个候选路径及逐级父目录中查找 PTX 内核文件，返回首个存在的完整路径，未找到返回 null。
         private static string LocatePtxPath()
         {
             string baseDirectory = AppContext.BaseDirectory;

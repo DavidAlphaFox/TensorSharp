@@ -6,6 +6,7 @@ namespace TensorSharp.MLX
     [OpsClass]
     public sealed class MlxBasicOps
     {
+        // 中文：用常量标量值填充整个结果张量（MLX Full）。
         [RegisterOpStorageType("fill", typeof(MlxStorage))]
         public static void Fill(Tensor result, float value)
         {
@@ -31,6 +32,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：将源张量复制到结果张量，必要时做类型转换并保证内存连续。
         [RegisterOpStorageType("copy", typeof(MlxStorage))]
         public static void Copy(Tensor result, Tensor src)
         {
@@ -68,6 +70,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：矩阵乘加运算 beta*src + alpha*(m1·m2)（MLX Addmm）。
         [RegisterOpStorageType("addmm", typeof(MlxStorage))]
         public static Tensor Addmm(Tensor result, float beta, Tensor src, float alpha, Tensor m1, Tensor m2)
         {
@@ -101,6 +104,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：批量矩阵乘加运算 beta*src + alpha*(m1·m2)（按批次广播）。
         [RegisterOpStorageType("addmmbatch", typeof(MlxStorage))]
         public static Tensor AddmmBatch(Tensor result, float beta, Tensor src, float alpha, Tensor m1, Tensor m2)
         {
@@ -134,45 +138,59 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：逐元素绝对值运算（MLX Abs）。
         [RegisterOpStorageType("abs", typeof(MlxStorage))]
         public static Tensor Abs(Tensor result, Tensor src) => Unary("abs", result, src, MlxNative.MlxUnaryOp.Abs);
 
+        // 中文：逐元素取负运算（MLX Neg）。
         [RegisterOpStorageType("neg", typeof(MlxStorage))]
         public static Tensor Neg(Tensor result, Tensor src) => Unary("neg", result, src, MlxNative.MlxUnaryOp.Neg);
 
+        // 中文：逐元素平方根运算（MLX Sqrt）。
         [RegisterOpStorageType("sqrt", typeof(MlxStorage))]
         public static Tensor Sqrt(Tensor result, Tensor src) => Unary("sqrt", result, src, MlxNative.MlxUnaryOp.Sqrt);
 
+        // 中文：逐元素平方根倒数运算（MLX Rsqrt）。
         [RegisterOpStorageType("rsqrt", typeof(MlxStorage))]
         public static Tensor Rsqrt(Tensor result, Tensor src) => Unary("rsqrt", result, src, MlxNative.MlxUnaryOp.Rsqrt);
 
+        // 中文：逐元素自然指数运算（MLX Exp）。
         [RegisterOpStorageType("exp", typeof(MlxStorage))]
         public static Tensor Exp(Tensor result, Tensor src) => Unary("exp", result, src, MlxNative.MlxUnaryOp.Exp);
 
+        // 中文：逐元素自然对数运算（MLX Log）。
         [RegisterOpStorageType("log", typeof(MlxStorage))]
         public static Tensor Log(Tensor result, Tensor src) => Unary("log", result, src, MlxNative.MlxUnaryOp.Log);
 
+        // 中文：逐元素 log(1+x) 运算（MLX Log1p）。
         [RegisterOpStorageType("log1p", typeof(MlxStorage))]
         public static Tensor Log1p(Tensor result, Tensor src) => Unary("log1p", result, src, MlxNative.MlxUnaryOp.Log1p);
 
+        // 中文：逐元素向下取整运算（MLX Floor）。
         [RegisterOpStorageType("floor", typeof(MlxStorage))]
         public static Tensor Floor(Tensor result, Tensor src) => Unary("floor", result, src, MlxNative.MlxUnaryOp.Floor);
 
+        // 中文：逐元素向上取整运算（MLX Ceil）。
         [RegisterOpStorageType("ceil", typeof(MlxStorage))]
         public static Tensor Ceil(Tensor result, Tensor src) => Unary("ceil", result, src, MlxNative.MlxUnaryOp.Ceil);
 
+        // 中文：逐元素正弦运算（MLX Sin）。
         [RegisterOpStorageType("sin", typeof(MlxStorage))]
         public static Tensor Sin(Tensor result, Tensor src) => Unary("sin", result, src, MlxNative.MlxUnaryOp.Sin);
 
+        // 中文：逐元素余弦运算（MLX Cos）。
         [RegisterOpStorageType("cos", typeof(MlxStorage))]
         public static Tensor Cos(Tensor result, Tensor src) => Unary("cos", result, src, MlxNative.MlxUnaryOp.Cos);
 
+        // 中文：逐元素双曲正切运算（MLX Tanh）。
         [RegisterOpStorageType("tanh", typeof(MlxStorage))]
         public static Tensor Tanh(Tensor result, Tensor src) => Unary("tanh", result, src, MlxNative.MlxUnaryOp.Tanh);
 
+        // 中文：逐元素 Sigmoid 激活运算（MLX Sigmoid）。
         [RegisterOpStorageType("sigmoid", typeof(MlxStorage))]
         public static Tensor Sigmoid(Tensor result, Tensor src) => Unary("sigmoid", result, src, MlxNative.MlxUnaryOp.Sigmoid);
 
+        // 中文：ReLU 激活，逐元素取 max(src, 0)（MLX Maximum）。
         [RegisterOpStorageType("relu", typeof(MlxStorage))]
         public static Tensor Relu(Tensor result, Tensor src)
         {
@@ -200,6 +218,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：SiLU/Swish 激活，计算 src*sigmoid(src)（优先用编译融合核）。
         [RegisterOpStorageType("SiLU", typeof(MlxStorage))]
         public static Tensor SiLU(Tensor result, Tensor src)
         {
@@ -234,6 +253,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：GELU 激活（tanh 近似），优先用编译融合核，否则走 Gelu 子图。
         [RegisterOpStorageType("GELU", typeof(MlxStorage))]
         public static Tensor GELU(Tensor result, Tensor src)
         {
@@ -261,36 +281,47 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：逐元素张量加法 lhs+rhs（MLX Add）。
         [RegisterOpStorageType("addt", typeof(MlxStorage))]
         public static Tensor AddTensor(Tensor result, Tensor lhs, Tensor rhs) => Binary("addt", result, lhs, rhs, MlxNative.MlxBinaryOp.Add);
 
+        // 中文：逐元素张量减法 lhs-rhs（MLX Sub）。
         [RegisterOpStorageType("subt", typeof(MlxStorage))]
         public static Tensor SubTensor(Tensor result, Tensor lhs, Tensor rhs) => Binary("subt", result, lhs, rhs, MlxNative.MlxBinaryOp.Sub);
 
+        // 中文：逐元素张量乘法 lhs*rhs（MLX Mul）。
         [RegisterOpStorageType("mult", typeof(MlxStorage))]
         public static Tensor MulTensor(Tensor result, Tensor lhs, Tensor rhs) => Binary("mult", result, lhs, rhs, MlxNative.MlxBinaryOp.Mul);
 
+        // 中文：逐元素张量除法 lhs/rhs（MLX Div）。
         [RegisterOpStorageType("divt", typeof(MlxStorage))]
         public static Tensor DivTensor(Tensor result, Tensor lhs, Tensor rhs) => Binary("divt", result, lhs, rhs, MlxNative.MlxBinaryOp.Div);
 
+        // 中文：张量加标量 lhs+rhs（标量在右）。
         [RegisterOpStorageType("addv", typeof(MlxStorage))]
         public static Tensor AddValue(Tensor result, Tensor lhs, float rhs) => Scalar("addv", result, lhs, rhs, MlxNative.MlxBinaryOp.Add, false);
 
+        // 中文：张量减标量 lhs-rhs（标量在右）。
         [RegisterOpStorageType("subv", typeof(MlxStorage))]
         public static Tensor SubValue(Tensor result, Tensor lhs, float rhs) => Scalar("subv", result, lhs, rhs, MlxNative.MlxBinaryOp.Sub, false);
 
+        // 中文：标量减张量 lhs-rhs（标量在左的反向减法）。
         [RegisterOpStorageType("rsubv", typeof(MlxStorage))]
         public static Tensor RSubValue(Tensor result, float lhs, Tensor rhs) => Scalar("rsubv", result, rhs, lhs, MlxNative.MlxBinaryOp.Sub, true);
 
+        // 中文：张量乘标量 lhs*rhs（标量在右）。
         [RegisterOpStorageType("mulv", typeof(MlxStorage))]
         public static Tensor MulValue(Tensor result, Tensor lhs, float rhs) => Scalar("mulv", result, lhs, rhs, MlxNative.MlxBinaryOp.Mul, false);
 
+        // 中文：张量除标量 lhs/rhs（标量在右）。
         [RegisterOpStorageType("divv", typeof(MlxStorage))]
         public static Tensor DivValue(Tensor result, Tensor lhs, float rhs) => Scalar("divv", result, lhs, rhs, MlxNative.MlxBinaryOp.Div, false);
 
+        // 中文：标量除张量 lhs/rhs（标量在左的反向除法）。
         [RegisterOpStorageType("rdivv", typeof(MlxStorage))]
         public static Tensor RDivValue(Tensor result, float lhs, Tensor rhs) => Scalar("rdivv", result, rhs, lhs, MlxNative.MlxBinaryOp.Div, true);
 
+        // 中文：SwiGLU 门控，计算 silu(gate)*up（优先用编译融合核）。
         [RegisterOpStorageType("SiLUMul", typeof(MlxStorage))]
         public static Tensor SiLUMul(Tensor result, Tensor gate, Tensor up)
         {
@@ -335,6 +366,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：将拼接的 gateUp 沿末维切成两半，计算 SwiGLU 即 silu(gate)*up。
         [RegisterOpStorageType("SiLUMulSplit", typeof(MlxStorage))]
         public static Tensor SiLUMulSplit(Tensor result, Tensor gateUp, int halfDim)
         {
@@ -389,6 +421,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：GeGLU 门控，计算 gelu(gate)*up（优先用编译融合核）。
         [RegisterOpStorageType("GELUMul", typeof(MlxStorage))]
         public static Tensor GELUMul(Tensor result, Tensor gate, Tensor up)
         {
@@ -426,6 +459,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：Sigmoid 门控，计算 x*sigmoid(gate)（优先用编译融合核）。
         [RegisterOpStorageType("SigmoidMul", typeof(MlxStorage))]
         public static Tensor SigmoidMul(Tensor result, Tensor x, Tensor gate)
         {
@@ -466,6 +500,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：沿最后一个轴做 Softmax 归一化（MLX SoftmaxLastAxis）。
         [RegisterOpStorageType("softmax", typeof(MlxStorage))]
         public static Tensor Softmax(Tensor result, Tensor src)
         {
@@ -493,6 +528,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：旋转位置编码（RoPE），按序列长度生成位置后委托 RoPEEx 实现。
         [RegisterOpStorageType("rope", typeof(MlxStorage))]
         public static Tensor RoPE(Tensor result, Tensor src, int seqLen, int rowOffset)
         {
@@ -514,6 +550,7 @@ namespace TensorSharp.MLX
             return RoPEEx(result, src, positionTensor, (int)cols, 0, 0, 500000.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, false, false);
         }
 
+        // 中文：扩展版旋转位置编码（RoPE），支持自定义位置、频率参数与可选累加到结果。
         [RegisterOpStorageType("rope_ex", typeof(MlxStorage))]
         public static Tensor RoPEEx(
             Tensor result,
@@ -642,6 +679,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：缩放点积注意力（SDPA），含转置为头主序、调用 MLX 快速注意力核及可选掩码。
         [RegisterOpStorageType("scaled_dot_product_attention", typeof(MlxStorage))]
         public static Tensor ScaledDotProductAttention(Tensor result, Tensor query, Tensor key, Tensor value, Tensor mask, float scale)
         {
@@ -707,6 +745,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：按索引沿第 0 轴选取行（嵌入查表，MLX TakeAxis）。
         [RegisterOpStorageType("indexselect", typeof(MlxStorage))]
         public static Tensor IndexSelect(Tensor result, Tensor src, Tensor indices, bool isAdd)
         {
@@ -747,6 +786,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：沿指定维按元素交错重复张量 repeats 次（MLX RepeatAxis）。
         [RegisterOpStorageType("repeat_interleave", typeof(MlxStorage))]
         public static Tensor RepeatInterleave(Tensor result, Tensor src, int repeats, int dim)
         {
@@ -786,6 +826,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：层归一化（LayerNorm），含可选缩放 alpha 与偏置 beta（MLX FastLayerNorm）。
         [RegisterOpStorageType("layernorm", typeof(MlxStorage))]
         public static Tensor LayerNorm(Tensor result, Tensor src, Tensor alpha, Tensor beta, float eps)
         {
@@ -819,6 +860,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：RMS 归一化（RMSNorm），含可选缩放 alpha（MLX FastRmsNorm，beta 须为空）。
         [RegisterOpStorageType("rmsnorm", typeof(MlxStorage))]
         public static Tensor RmsNorm(Tensor result, Tensor src, Tensor alpha, Tensor beta, float eps)
         {
@@ -849,6 +891,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：为注意力分数加因果掩码，把未来位置置为屏蔽值（构造 where 掩码）。
         [RegisterOpStorageType("add_causal_mask", typeof(MlxStorage))]
         public static void AddCausalMask(Tensor tensor, int seqLen, int startPos, float maskedValue)
         {
@@ -936,6 +979,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：通用逐元素一元算子调度，准备写目标后调用 MLX Unary，否则走回退路径。
         private static Tensor Unary(string opName, Tensor result, Tensor src, MlxNative.MlxUnaryOp op)
         {
             Tensor writeTarget = TensorResultBuilder.GetWriteTarget(result, src, false, src.Sizes);
@@ -967,6 +1011,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：通用逐元素二元算子调度，准备写目标后调用 MLX Binary，否则走回退路径。
         private static Tensor Binary(string opName, Tensor result, Tensor lhs, Tensor rhs, MlxNative.MlxBinaryOp op)
         {
             Tensor writeTarget = TensorResultBuilder.GetWriteTarget(result, lhs, false, lhs.Sizes);
@@ -996,6 +1041,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：通用张量与标量的二元算子调度，按 scalarIsLhs 决定操作数顺序后调用 MLX Binary。
         private static Tensor Scalar(string opName, Tensor result, Tensor tensor, float scalar, MlxNative.MlxBinaryOp op, bool scalarIsLhs)
         {
             Tensor writeTarget = TensorResultBuilder.GetWriteTarget(result, tensor, false, tensor.Sizes);
@@ -1029,6 +1075,7 @@ namespace TensorSharp.MLX
             return writeTarget;
         }
 
+        // 中文：用基础算子手工组合 GELU 的 tanh 近似公式，返回结果 MLX 数组。
         private static MlxNative.MlxArray Gelu(MlxNative.MlxArray input)
         {
             MlxNative.MlxArray coeffCubic = default;
@@ -1082,6 +1129,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：判断复制操作能否走 MLX 原生路径（双方均为 MLX 存储且结果连续）。
         private static bool CanUseNativeCopy(Tensor result, Tensor src)
         {
             return result != null &&
@@ -1091,6 +1139,7 @@ namespace TensorSharp.MLX
                 result.IsContiguous();
         }
 
+        // 中文：判断写目标张量是否满足 MLX 原生条件（MLX 存储、Float32 且连续）。
         private static bool CanUseNativeWriteTarget(Tensor tensor)
         {
             return tensor != null &&
@@ -1099,6 +1148,7 @@ namespace TensorSharp.MLX
                 tensor.IsContiguous();
         }
 
+        // 中文：校验所有给定张量均为 MLX 存储的 Float32 类型。
         private static bool AreFloat32(params Tensor[] tensors)
         {
             foreach (Tensor tensor in tensors)
@@ -1110,6 +1160,7 @@ namespace TensorSharp.MLX
             return true;
         }
 
+        // 中文：校验可空张量参数，若非空则必须为 MLX 存储的 Float32 类型。
         private static bool AreOptionalFloat32(params Tensor[] tensors)
         {
             foreach (Tensor tensor in tensors)
@@ -1121,21 +1172,25 @@ namespace TensorSharp.MLX
             return true;
         }
 
+        // 中文：判断张量是否为 MLX 存储的 Int32 类型（用于索引/位置张量校验）。
         private static bool IsMlxInt32(Tensor tensor)
         {
             return tensor != null && tensor.Storage is MlxStorage && tensor.ElementType == DType.Int32;
         }
 
+        // 中文：从张量的 MLX 存储创建对应的 MLX 数组视图。
         private static MlxNative.MlxArray GetView(Tensor tensor)
         {
             return ((MlxStorage)tensor.Storage).CreateArrayView(tensor);
         }
 
+        // 中文：为可空张量创建 MLX 数组视图，张量为空时返回 default。
         private static MlxNative.MlxArray GetOptionalView(Tensor tensor)
         {
             return tensor == null ? default : GetView(tensor);
         }
 
+        // 中文：将 long 维度数组转换为 int 数组，超过 Int32 上限则抛出异常。
         private static int[] ToIntArray(ReadOnlySpan<long> values)
         {
             int[] result = new int[values.Length];
@@ -1149,11 +1204,13 @@ namespace TensorSharp.MLX
             return result;
         }
 
+        // 中文：返回张量最后一维的大小，标量（0 维）按 1 处理。
         private static long LastDimension(Tensor tensor)
         {
             return tensor.DimensionCount == 0 ? 1 : tensor.Sizes[tensor.DimensionCount - 1];
         }
 
+        // 中文：将计算得到的 MLX 数组写回张量存储，整存则替换、切片则更新对应区域。
         private static void SetDeviceResult(Tensor tensor, MlxNative.MlxArray output)
         {
             MlxStorage storage = (MlxStorage)tensor.Storage;
@@ -1168,11 +1225,13 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：当无法用 MLX 原生执行时，回退到 CPU 实现并返回结果张量。
         private static Tensor FallbackTensor(string opName, params object[] args)
         {
             return (Tensor)MlxCpuFallback.Invoke(opName, MlxFallbackReturnKind.Tensor, new[] { 0 }, args);
         }
 
+        // 中文：当无法用 MLX 原生执行时，回退到 CPU 实现（无返回值的原地算子）。
         private static void FallbackVoid(string opName, params object[] args)
         {
             MlxCpuFallback.Invoke(opName, MlxFallbackReturnKind.Void, new[] { 0 }, args);

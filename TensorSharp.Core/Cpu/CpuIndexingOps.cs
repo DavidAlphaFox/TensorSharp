@@ -25,11 +25,13 @@ namespace TensorSharp.Cpu
     [OpsClass]
     public class CpuIndexingOps
     {
+        // 中文：默认构造函数，无额外初始化。
         public CpuIndexingOps()
         {
         }
 
         [RegisterOpStorageType("gather", typeof(CpuStorage))]
+        // 中文：沿指定维度按 indices 从 src 收集元素（gather），校验后写入结果张量。
         public Tensor Gather(Tensor result, Tensor src, int dim, Tensor indices)
         {
             if (result != null && result.DimensionCount != src.DimensionCount)
@@ -65,6 +67,7 @@ namespace TensorSharp.Cpu
         }
 
         [RegisterOpStorageType("scatter", typeof(CpuStorage))]
+        // 中文：沿指定维度按 indices 将 src 元素散布写入结果张量（scatter）。
         public Tensor Scatter(Tensor result, Tensor src, int dim, Tensor indices)
         {
             if (result == null)
@@ -107,6 +110,7 @@ namespace TensorSharp.Cpu
 
 
         [RegisterOpStorageType("scatter_add", typeof(CpuStorage))]
+        // 中文：沿指定维度按 indices 将 src 元素累加到结果张量对应位置（scatter add）。
         public Tensor ScatterAdd(Tensor result, Tensor src, int dim, Tensor indices)
         {
             if (result == null)
@@ -148,6 +152,7 @@ namespace TensorSharp.Cpu
         }
 
         [RegisterOpStorageType("scatter_fill", typeof(CpuStorage))]
+        // 中文：沿指定维度按 indices 将结果张量对应位置填充为标量 value（scatter fill）。
         public Tensor ScatterFill(Tensor result, float value, int dim, Tensor indices)
         {
             if (result == null)

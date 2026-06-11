@@ -14,21 +14,25 @@ namespace TensorSharp.Core
     public static class TensorResultBuilder
     {
         // If a maybeResult is null, a new tensor will be constructed using the device id and element type of newTemplate
+        // 中文：以模板张量的分配器与元素类型为依据，获取写入目标（long[] 尺寸重载）。
         public static Tensor GetWriteTarget(Tensor maybeResult, Tensor newTemplate, bool requireContiguous, params long[] requiredSizes)
         {
             return GetWriteTarget(maybeResult, newTemplate.Allocator, newTemplate.ElementType, requireContiguous, (ReadOnlySpan<long>)requiredSizes);
         }
 
+        // 中文：以模板张量的分配器与元素类型为依据，获取写入目标（ReadOnlySpan 尺寸重载）。
         public static Tensor GetWriteTarget(Tensor maybeResult, Tensor newTemplate, bool requireContiguous, ReadOnlySpan<long> requiredSizes)
         {
             return GetWriteTarget(maybeResult, newTemplate.Allocator, newTemplate.ElementType, requireContiguous, requiredSizes);
         }
 
+        // 中文：指定分配器与元素类型获取写入目标（long[] 尺寸重载，转发到 Span 版本）。
         public static Tensor GetWriteTarget(Tensor maybeResult, IAllocator allocatorForNew, DType elementTypeForNew, bool requireContiguous, params long[] requiredSizes)
         {
             return GetWriteTarget(maybeResult, allocatorForNew, elementTypeForNew, requireContiguous, (ReadOnlySpan<long>)requiredSizes);
         }
 
+        // 中文：核心实现——已有结果张量则校验尺寸/连续性后复用，否则按要求新建张量。
         public static Tensor GetWriteTarget(Tensor maybeResult, IAllocator allocatorForNew, DType elementTypeForNew, bool requireContiguous, ReadOnlySpan<long> requiredSizes)
         {
             if (maybeResult != null)
@@ -51,6 +55,7 @@ namespace TensorSharp.Core
             }
         }
 
+        // 中文：判断张量是否满足连续性要求且尺寸与期望一致。
         private static bool MatchesRequirements(Tensor tensor, bool requireContiguous, ReadOnlySpan<long> requiredSizes)
         {
             if (requireContiguous && !tensor.IsContiguous())
@@ -61,6 +66,7 @@ namespace TensorSharp.Core
             return ArrayEqual(tensor.Sizes, requiredSizes);
         }
 
+        // 中文：逐元素比较两个跨度是否长度相同且完全相等。
         public static bool ArrayEqual<T>(ReadOnlySpan<T> a, ReadOnlySpan<T> b)
             where T : IEquatable<T>
         {
@@ -80,6 +86,7 @@ namespace TensorSharp.Core
             return true;
         }
 
+        // 中文：逐元素比较两个跨度是否相等，但忽略指定下标处的差异。
         public static bool ArrayEqualExcept<T>(ReadOnlySpan<T> a, ReadOnlySpan<T> b, int ignoreIndex)
             where T : IEquatable<T>
         {

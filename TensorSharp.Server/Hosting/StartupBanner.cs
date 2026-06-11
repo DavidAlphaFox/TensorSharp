@@ -37,6 +37,7 @@ namespace TensorSharp.Server.Hosting
             "GET  /api/models                - Show hosted model state (Web UI)",
         };
 
+        // 中文：向日志输出启动横幅，汇总支持的后端、托管配置、默认采样参数与各端点信息。
         public static void Emit(ILogger logger, ServerHostingOptions options, string listenAddress)
         {
             if (logger == null) throw new ArgumentNullException(nameof(logger));
@@ -89,6 +90,7 @@ namespace TensorSharp.Server.Hosting
                 logger.LogInformation(LogEventIds.HostConfiguration, "Endpoint: {Endpoint}", ep);
         }
 
+        // 中文：当请求的默认后端不可用而发生回退时，输出一条警告日志说明实际所用后端。
         public static void EmitBackendFallback(ILogger logger, ServerHostingOptions options, string requestedBackendInput)
         {
             if (logger == null) throw new ArgumentNullException(nameof(logger));

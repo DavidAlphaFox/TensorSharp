@@ -26,11 +26,13 @@ namespace TensorSharp.Cpu
     [OpsClass]
     public class CpuFillCopyOps
     {
+        // 中文：默认构造函数，无额外初始化。
         public CpuFillCopyOps()
         {
         }
 
         [RegisterOpStorageType("fill", typeof(CpuStorage))]
+        // 中文：用标量 value 填充整个结果张量。
         public void Fill(Tensor result, float value)
         {
             TensorApplyCPU.Fill(result, value);
@@ -38,6 +40,7 @@ namespace TensorSharp.Cpu
 
 
         [RegisterOpStorageType("copy", typeof(CpuStorage))]
+        // 中文：将 src 张量逐元素拷贝到结果张量，校验元素数量一致并记录异常日志。
         public void Copy(Tensor result, Tensor src)
         {
             try

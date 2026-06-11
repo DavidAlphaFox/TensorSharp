@@ -16,6 +16,7 @@ namespace TensorSharp.GGML
     {
         internal GgmlMemoryPool MemoryPool { get; }
 
+        // 中文：构造上下文，校验单设备、初始化内存池与原生库、注册算子并按需启用 Metal 异步计算。
         public GgmlContext(int[] deviceIds, GgmlBackendType backendType)
         {
             if (deviceIds == null || deviceIds.Length == 0)

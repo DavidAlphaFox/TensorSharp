@@ -26,6 +26,7 @@ namespace TensorSharp.Server.Hosting
         /// Validate that <paramref name="requestedModel"/> refers to the model
         /// this server was launched with and return its absolute path.
         /// </summary>
+        // 中文：校验请求的模型是否为本服务器托管的模型，成功则输出其绝对路径，否则给出错误信息。
         public static bool TryResolveHostedModelRequest(
             string requestedModel,
             string hostedModelPath,
@@ -62,6 +63,7 @@ namespace TensorSharp.Server.Hosting
         /// one (if any) the server was launched with. <c>null</c> means "the
         /// request did not mention a projector" and is always accepted.
         /// </summary>
+        // 中文：校验请求中可选的投影器是否与服务器托管的一致；null 表示未指定，始终通过。
         public static bool TryValidateHostedMmProjRequest(
             string requestedMmProj,
             string hostedMmProjPath,
@@ -109,6 +111,7 @@ namespace TensorSharp.Server.Hosting
         /// the correct model + projector + backend loaded. A no-op when the
         /// service already reflects the desired state, otherwise loads it.
         /// </summary>
+        // 中文：解析请求后确保 ModelService 已按所需模型+投影器+后端加载，已就绪则空操作，否则触发加载。
         public static bool TryEnsureHostedModelLoaded(
             ModelService svc,
             string requestedModel,
@@ -144,6 +147,7 @@ namespace TensorSharp.Server.Hosting
         /// Matches happen on file name (always), bare id without extension
         /// (only for the model itself), and full absolute path.
         /// </summary>
+        // 中文：将客户端标识符与托管文件路径比对，支持按文件名、裸 id（仅模型）或绝对路径匹配。
         public static bool MatchesHostedFileRequest(string requestedValue, string hostedPath, bool allowBareModelId)
         {
             if (string.IsNullOrWhiteSpace(requestedValue) || string.IsNullOrWhiteSpace(hostedPath))

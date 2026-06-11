@@ -56,6 +56,7 @@ namespace TensorSharp.MLX
         /// and the stacked <c>blk.0.ffn_gate_exps.weight</c>). Non-expert
         /// weights never carry that infix.
         /// </summary>
+        // 中文：依据 GGUF 命名约定，判断权重名是否含 "_exps." 中缀，即是否为 MoE 专家权重。
         public static bool IsExpertWeightName(string name)
             => !string.IsNullOrEmpty(name) && name.IndexOf("_exps.", StringComparison.Ordinal) >= 0;
 
@@ -66,6 +67,7 @@ namespace TensorSharp.MLX
         /// keyed by this pointer participate in the LRU and may be evicted; all
         /// other entries are pinned in the cache forever.
         /// </summary>
+        // 中文：将缓存键登记为可卸载目标，使其参与 LRU 并可被淘汰（线程安全）。
         public static void RegisterOffloadable(IntPtr cacheKey)
         {
             if (cacheKey == IntPtr.Zero)
@@ -76,6 +78,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：判断给定缓存键是否已登记为可卸载（线程安全）。
         public static bool IsOffloadable(IntPtr cacheKey)
         {
             if (cacheKey == IntPtr.Zero)
@@ -86,6 +89,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：清空所有已登记的可卸载缓存键（线程安全）。
         public static void Clear()
         {
             lock (_sync)
@@ -109,6 +113,7 @@ namespace TensorSharp.MLX
         /// fine — they're also file-backed and will page back in on next
         /// touch.
         /// </summary>
+        // 中文：将文件映射区域按页边界对齐后 madvise(DONTNEED)，提示操作系统释放专家权重页（Windows 上为空操作）。
         public static unsafe void AdvisePagesNotNeeded(IntPtr data, long byteCount)
         {
             if (data == IntPtr.Zero || byteCount <= 0)
@@ -138,9 +143,11 @@ namespace TensorSharp.MLX
 
         private const int MadvDontNeed = 4;
 
+        // 中文：P/Invoke 绑定到 libc 的 madvise，用于向内核传递内存使用建议。
         [DllImport("libc", SetLastError = true, EntryPoint = "madvise")]
         private static extern unsafe int madvise(void* addr, nuint len, int advice);
 
+        // 中文：解析环境变量 TS_MLX_EXPERT_OFFLOAD_MB，将正整数 MB 值换算为字节上限，非法或非正值返回 0（禁用）。
         private static long ParseLimit()
         {
             string value = Environment.GetEnvironmentVariable(EnvVarMb);

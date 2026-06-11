@@ -44,6 +44,7 @@ namespace TensorSharp.Cpu.LinearAlgebra
         /// The position of the invalid parameter in the parameter list
         /// of the calling routine.
         ///</param>
+        // 中文：BLAS/LAPACK 错误处理例程（移植自 XERBLA），此处为占位实现，原打印并停止的逻辑已被注释而直接返回。
         public void Run(string SRNAME, int INFO)
         {
             #region Prolog

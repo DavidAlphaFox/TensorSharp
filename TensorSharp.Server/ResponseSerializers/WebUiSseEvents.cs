@@ -21,16 +21,20 @@ namespace TensorSharp.Server.ResponseSerializers
     /// </summary>
     internal static class WebUiSseEvents
     {
+        // 中文：构建排队进度事件，携带当前排队位置与待处理数量。
         public static object QueueProgress(int position, int pending) => new
         {
             queue_position = position,
             queue_pending = pending,
         };
 
+        // 中文：构建单个 token 文本事件。
         public static object Token(string token) => new { token };
 
+        // 中文：构建思考内容事件。
         public static object Thinking(string thinking) => new { thinking };
 
+        // 中文：构建工具调用事件，将工具名与参数映射为列表。
         public static object ToolCalls(IReadOnlyList<ToolCall> toolCalls) => new
         {
             tool_calls = toolCalls.Select(tc => (object)new
@@ -40,6 +44,7 @@ namespace TensorSharp.Server.ResponseSerializers
             }).ToList(),
         };
 
+        // 中文：构建完成事件，汇总 token 数、耗时、速率、中止/错误状态、会话 ID 及 KV 缓存复用统计。
         public static object Done(
             int tokenCount,
             double elapsedSeconds,

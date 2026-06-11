@@ -2956,11 +2956,13 @@ if (kind == 0) {
 }
 ";
 
+        // 中文：静态构造函数，安装库解析器等初始化
         static MlxNative()
         {
             InstallResolver();
         }
 
+        // 中文：检查当前平台是否可用 MLX（Metal GPU）
         public static bool IsAvailable()
         {
             if (!OperatingSystem.IsMacOS())
@@ -3000,6 +3002,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：确保指定 GPU 设备已初始化并设为默认设备
         public static void EnsureGpuDevice(int deviceId)
         {
             if (deviceId < 0)
@@ -3047,6 +3050,7 @@ if (kind == 0) {
         /// Idempotent and thread-safe — repeated calls from the same thread
         /// are no-ops. Returns true if the calling thread is now registered.
         /// </summary>
+        // 中文：为当前线程注册 MLX 默认 GPU 设备与默认流
         public static bool TryRegisterCurrentThread()
         {
             if (initializedDevice < 0)
@@ -3083,6 +3087,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：获取 MLX 显存快照（活跃/缓存/峰值）
         public static MlxMemorySnapshot GetMemorySnapshot()
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3094,6 +3099,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：清空 MLX 显存缓存
         public static void ClearCache()
         {
             try
@@ -3108,16 +3114,19 @@ if (kind == 0) {
             }
         }
 
+        // 中文：从主机缓冲区按 DType 创建 MLX 数组（拷贝）
         internal static MlxArray NewArrayFromHost(IntPtr data, int[] shape, DType dtype)
         {
             return NewArrayFromHost(data, shape, ToMlxDtype(dtype));
         }
 
+        // 中文：从主机缓冲区创建 UInt32 类型的 MLX 数组
         internal static MlxArray NewArrayFromHostUInt32(IntPtr data, int[] shape)
         {
             return NewArrayFromHost(data, shape, 3);
         }
 
+        // 中文：从主机缓冲区按 MLX dtype 编号创建 MLX 数组
         private static MlxArray NewArrayFromHost(IntPtr data, int[] shape, int mlxDtype)
         {
             if (data == IntPtr.Zero)
@@ -3151,6 +3160,7 @@ if (kind == 0) {
         /// (and unmodified) for as long as any MLX array derived from it is
         /// alive. Callers typically pin the GGUF mmap until model shutdown.
         /// </summary>
+        // 中文：零拷贝地将主机缓冲区包装为 MLX 数组
         internal static MlxArray NewArrayFromHostNoCopy(IntPtr data, int[] shape, DType dtype)
         {
             if (data == IntPtr.Zero)
@@ -3164,16 +3174,19 @@ if (kind == 0) {
                 mlx_array_new_data_managed(data, shape, shape.Length, mlxDtype, dtorPtr));
         }
 
+        // 中文：创建 float32 标量 MLX 数组
         internal static MlxArray NewScalar(float value)
         {
             return MlxWorker.Shared.Invoke(() => mlx_array_new_float32(value));
         }
 
+        // 中文：创建 int 标量 MLX 数组
         internal static MlxArray NewScalar(int value)
         {
             return MlxWorker.Shared.Invoke(() => mlx_array_new_int(value));
         }
 
+        // 中文：创建等差序列（arange）MLX 数组
         internal static MlxArray Arange(double start, double stop, double step, DType dtype)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3184,6 +3197,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：创建指定形状并以给定值填充的 MLX 数组
         internal static MlxArray Full(int[] shape, float value, DType dtype)
         {
             if (shape == null || shape.Length == 0)
@@ -3205,6 +3219,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：释放 MLX 数组
         internal static void FreeArray(MlxArray array)
         {
             if (!array.IsValid)
@@ -3233,6 +3248,7 @@ if (kind == 0) {
                 MlxWorker.Shared.Dispatch(() => _ = mlx_array_free(array));
         }
 
+        // 中文：将 MLX 数组转换为指定 DType
         internal static MlxArray Astype(MlxArray array, DType dtype)
         {
             if (!array.IsValid)
@@ -3291,6 +3307,7 @@ if (kind == 0) {
         // intermediate arrays should be freed via FreeArray as normal.
         internal delegate MlxArray[] TraceFunc(MlxArray[] inputs);
 
+        // 中文：编译跟踪函数为可复用的已编译闭包
         internal static CompiledClosure NewClosure(TraceFunc trace, bool shapeless)
         {
             if (trace == null) throw new ArgumentNullException(nameof(trace));
@@ -3329,6 +3346,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：对单输入应用已编译闭包并返回首个输出
         internal static MlxArray ApplyClosure1(CompiledClosure holder, MlxArray input)
         {
             MlxArray[] outputs = ApplyClosure(holder, new[] { input });
@@ -3339,6 +3357,7 @@ if (kind == 0) {
             return outputs[0];
         }
 
+        // 中文：对两个输入应用已编译闭包并返回首个输出
         internal static MlxArray ApplyClosure2(CompiledClosure holder, MlxArray a, MlxArray b)
         {
             MlxArray[] outputs = ApplyClosure(holder, new[] { a, b });
@@ -3348,6 +3367,7 @@ if (kind == 0) {
             return outputs[0];
         }
 
+        // 中文：对多个输入应用已编译闭包并返回所有输出
         internal static MlxArray[] ApplyClosure(CompiledClosure holder, MlxArray[] inputs)
         {
             if (holder == null) throw new ArgumentNullException(nameof(holder));
@@ -3381,6 +3401,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：释放已编译闭包及其 GC 句柄
         internal static void FreeCompiledClosure(CompiledClosure holder)
         {
             if (holder == null || holder.Disposed) return;
@@ -3413,6 +3434,7 @@ if (kind == 0) {
         //   stores them in `result`; we then release our reference so that
         //   when `result` is later freed (by the apply caller) the final
         //   ref drops as expected.
+        // 中文：MLX 编译/应用回调：调用 C# 跟踪函数并回填输出
         private static int ClosureCallback(ref MlxVectorArray result, MlxVectorArray input, IntPtr payload)
         {
             MlxArray[] inputs = null;
@@ -3482,6 +3504,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：闭包析构回调：释放载荷 GC 句柄
         private static void ClosureDestructor(IntPtr payload)
         {
             // MLX guarantees the destructor runs exactly once when the
@@ -3502,6 +3525,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：对单个数组求值（触发计算）
         internal static void Eval(MlxArray array)
         {
             if (!array.IsValid)
@@ -3510,6 +3534,7 @@ if (kind == 0) {
             Eval(new[] { array });
         }
 
+        // 中文：对多个数组求值（触发计算）
         internal static void Eval(params MlxArray[] arrays)
         {
             if (arrays == null || arrays.Length == 0)
@@ -3543,6 +3568,7 @@ if (kind == 0) {
         // completion. The next host read (CopyArrayToHost) calls mlx_eval which
         // drains the queue. Use this at layer boundaries during prefill/decode
         // so command-buffer issue overlaps with completion of earlier layers.
+        // 中文：异步调度单个数组求值（不等待完成）
         internal static void AsyncEval(MlxArray array)
         {
             if (!array.IsValid)
@@ -3551,6 +3577,7 @@ if (kind == 0) {
             AsyncEval(new[] { array });
         }
 
+        // 中文：异步调度多个数组求值（不等待完成）
         internal static void AsyncEval(params MlxArray[] arrays)
         {
             if (arrays == null || arrays.Length == 0)
@@ -3586,6 +3613,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：求值后将 MLX 数组数据拷贝回主机缓冲区
         internal static void CopyArrayToHost(MlxArray array, DType dtype, IntPtr destination, long byteCount)
         {
             if (!array.IsValid)
@@ -3628,6 +3656,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：按给定形状/步长/偏移创建 MLX 跨步视图
         internal static MlxArray AsStrided(MlxArray array, int[] shape, long[] strides, long offset)
         {
             if (!array.IsValid)
@@ -3645,6 +3674,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：重塑 MLX 数组形状
         internal static MlxArray Reshape(MlxArray array, int[] shape)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3658,6 +3688,7 @@ if (kind == 0) {
         /// <summary>
         /// Element count of an MLX array (cheap getter, no graph build).
         /// </summary>
+        // 中文：获取 MLX 数组的元素个数
         internal static long ArraySize(MlxArray array)
         {
             if (!array.IsValid) return 0;
@@ -3672,6 +3703,7 @@ if (kind == 0) {
         /// <c>_mlx_array_is_row_contiguous</c> entry point; if the C call
         /// fails we conservatively return false so the caller reshapes.
         /// </summary>
+        // 中文：判断 MLX 数组数据是否为行连续布局
         internal static bool ArrayIsContiguous(MlxArray array)
         {
             if (!array.IsValid) return false;
@@ -3680,6 +3712,7 @@ if (kind == 0) {
             return result;
         }
 
+        // 中文：返回行连续布局的 MLX 数组
         internal static MlxArray Contiguous(MlxArray array)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3690,6 +3723,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：按给定轴顺序转置 MLX 数组
         internal static MlxArray Transpose(MlxArray array, int[] axes)
         {
             if (!array.IsValid)
@@ -3705,6 +3739,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：执行一元逐元素运算（abs/exp/sqrt 等）
         internal static MlxArray Unary(MlxUnaryOp op, MlxArray input)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3732,6 +3767,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：执行二元逐元素运算（加减乘除/最大值）
         internal static MlxArray Binary(MlxBinaryOp op, MlxArray lhs, MlxArray rhs)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3751,6 +3787,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：计算两数组逐元素求余
         internal static MlxArray Remainder(MlxArray lhs, MlxArray rhs)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3761,6 +3798,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：计算逐元素大于比较
         internal static MlxArray Greater(MlxArray lhs, MlxArray rhs)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3771,6 +3809,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：按条件逐元素选择（where）
         internal static MlxArray Where(MlxArray condition, MlxArray whenTrue, MlxArray whenFalse)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3785,6 +3824,7 @@ if (kind == 0) {
         // `lhsIndices` and the (head, expert, ...) rows of `b` are gathered by
         // `rhsIndices` before the matmul. Either indices array may be null.
         // Used for MoE routing / speculative decoding.
+        // 中文：执行按索引收集后的批量矩阵乘 gather_mm
         internal static MlxArray GatherMM(MlxArray a, MlxArray b, MlxArray lhsIndices, MlxArray rhsIndices, bool sortedIndices)
         {
             if (!a.IsValid || !b.IsValid)
@@ -3803,6 +3843,7 @@ if (kind == 0) {
         // each expert separately or gathering input rows then quantized-
         // matmul, MLX dispatches a single kernel that accesses only the
         // selected expert blocks.
+        // 中文：执行融合收集与量化矩阵乘 gather_qmm
         internal static MlxArray GatherQMM(MlxArray x, MlxArray w, MlxArray scales, MlxArray biases, MlxArray lhsIndices, MlxArray rhsIndices, bool transpose, int groupSize, int bits, string mode, bool sortedIndices)
         {
             if (!x.IsValid || !w.IsValid || !scales.IsValid)
@@ -3824,6 +3865,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：矩阵乘累加 beta*src + alpha*(m1@m2)
         internal static MlxArray Addmm(MlxArray src, MlxArray m1, MlxArray m2, float alpha, float beta)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3834,6 +3876,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：在最后一维做 Softmax
         internal static MlxArray SoftmaxLastAxis(MlxArray input)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3844,6 +3887,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：沿指定轴重复元素
         internal static MlxArray RepeatAxis(MlxArray input, int repeats, int axis)
         {
             if (!input.IsValid)
@@ -3859,6 +3903,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：执行快速 LayerNorm 归一化
         internal static MlxArray FastLayerNorm(MlxArray input, MlxArray weight, MlxArray bias, float eps)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3869,6 +3914,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：执行快速 RMSNorm 归一化
         internal static MlxArray FastRmsNorm(MlxArray input, MlxArray weight, float eps)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -3879,6 +3925,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：执行缩放点积注意力
         internal static MlxArray FastScaledDotProductAttention(MlxArray query, MlxArray key, MlxArray value, float scale, string maskMode, MlxArray mask)
         {
             if (!query.IsValid || !key.IsValid || !value.IsValid)
@@ -3893,6 +3940,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：沿指定轴拼接两个 MLX 数组
         internal static MlxArray ConcatenateAxis(MlxArray first, MlxArray second, int axis)
         {
             if (!first.IsValid || !second.IsValid)
@@ -3915,6 +3963,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：HeadDim=256 的自定义 Metal 注意力核
         internal static MlxArray HeadDim256Attention(
             MlxArray qHeads,
             MlxArray kHeads,
@@ -3984,6 +4033,7 @@ if (kind == 0) {
         // attendStart: first cache position to attend to (max(0, kvLen -
         //              slidingWindow) for SWA layers, else 0).
         // attendEnd:   one past last cache position to attend to (=kvLen).
+        // 中文：带注意力 sink（及滑窗掩码）的解码注意力核
         internal static MlxArray DecodeAttentionWithSinks(
             MlxArray qFlat,
             MlxArray kCache,
@@ -4056,6 +4106,7 @@ if (kind == 0) {
         /// semantics. Replaces ~5 separate MLX dispatches per attention
         /// layer (Q-norm, K-norm, V-norm, Q-RoPE, K-RoPE) with one.
         /// </summary>
+        // 中文：Gemma4 解码步 QKV 预处理融合核（归一化+RoPE）
         internal static void Gemma4QkvPreprocessDecode(
             MlxArray qkv,
             MlxArray qNormW,
@@ -4143,6 +4194,7 @@ if (kind == 0) {
             vOut = vResult;
         }
 
+        // 中文：环形 KV 缓存的解码注意力核
         internal static MlxArray CircularDecodeAttention(
             MlxArray qFlat,
             MlxArray kCache,
@@ -4212,6 +4264,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：动态 RoPE 旋转位置编码
         internal static MlxArray FastRopeDynamic(MlxArray input, int dims, bool traditional, float baseValue, float scale, MlxArray offsets)
         {
             if (!input.IsValid || !offsets.IsValid)
@@ -4236,6 +4289,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：沿指定轴按索引取值 take_axis
         internal static MlxArray TakeAxis(MlxArray input, MlxArray indices, int axis)
         {
             if (!input.IsValid || !indices.IsValid)
@@ -4253,6 +4307,7 @@ if (kind == 0) {
         // is dropped; on a [1, V] logits tensor with axis=-1 the result is
         // [1] uint32 — the predicted next token for greedy decoding.
         // Caller is expected to cast/reinterpret as needed.
+        // 中文：沿指定轴求 argmax 索引
         internal static MlxArray ArgMaxAxis(MlxArray input, int axis, bool keepDims)
         {
             if (!input.IsValid)
@@ -4272,6 +4327,7 @@ if (kind == 0) {
         // No ordering within either partition is guaranteed.
         // To get the top-K largest along an axis, negate the input first and
         // take the first K elements of the argpartition with kth=K-1.
+        // 中文：沿指定轴做 argpartition 部分排序索引
         internal static MlxArray ArgPartitionAxis(MlxArray input, int kth, int axis)
         {
             if (!input.IsValid)
@@ -4285,6 +4341,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：按索引加权 scatter-add 行的自定义核
         internal static MlxArray ScatterAddWeightedRows(
             MlxArray output,
             MlxArray rows,
@@ -4337,6 +4394,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：融合残差相加与 RMSNorm 的自定义核
         internal static MlxArray RmsNormAdd(
             MlxArray residual,
             MlxArray input,
@@ -4393,6 +4451,7 @@ if (kind == 0) {
         // Fused (residual += input; normed = RmsNorm(residual, norm_weight)).
         // Returns (updatedResidual, normedOut) - both new MlxArrays. Caller is
         // responsible for replacing residual's storage and consuming normed.
+        // 中文：融合残差相加与 RMSNorm，返回更新残差与归一化结果
         internal static (MlxArray updatedResidual, MlxArray normed) AddRmsNorm(
             MlxArray residual,
             MlxArray input,
@@ -4448,6 +4507,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：将 gate_up 切半并做 GELU 门控相乘
         internal static MlxArray GeluMulSplit(MlxArray gateUp, int rows, int halfDim)
         {
             if (!gateUp.IsValid)
@@ -4492,6 +4552,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：将扁平张量重排为按头优先布局的自定义核
         internal static MlxArray FlatToHeadFirst(
             MlxArray input,
             int seqLen,
@@ -4547,6 +4608,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：执行 NeoX 风格 RoPE 旋转位置编码的自定义核
         internal static MlxArray NeoXRoPE(
             MlxArray input,
             MlxArray cosTable,
@@ -4611,6 +4673,7 @@ if (kind == 0) {
         // The native callee only reads the bytes, never frees them, so a
         // process-lifetime pin is safe.
         private static readonly Dictionary<string, IntPtr> s_ModePtrCache = new(StringComparer.Ordinal);
+        // 中文：获取并缓存量化模式字符串的非托管指针
         private static IntPtr GetModePtr(string mode)
         {
             string key = mode ?? "affine";
@@ -4653,6 +4716,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：将量化权重反量化为指定 DType 的浮点张量。
         internal static MlxArray Dequantize(MlxArray weight, MlxArray scales, MlxArray biases, int groupSize, int bits, string mode, DType dtype)
         {
             if (!weight.IsValid || !scales.IsValid)
@@ -4681,6 +4745,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：IQ4_XS 量化权重矩阵乘（按 rows 自动选择 decode/批量/simdgroup 的自定义 Metal 内核）。
         internal static MlxArray Iq4XsMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -4816,6 +4881,7 @@ if (kind == 0) {
         // measurably hurt it on some runs — so the dispatch deliberately
         // stays on the basic kernel. The Rows kernel definition is kept in
         // the source for future use.
+        // 中文：IQ4_NL 量化权重矩阵乘（每 (row,out_col) 一个 simdgroup 沿 InDim 归约的自定义 Metal 内核）。
         internal static MlxArray Iq4NlMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -4864,6 +4930,7 @@ if (kind == 0) {
         // Multi-row IQ4_NL matmul. One threadgroup per `out_col` handles all
         // `rows` rows, reusing the dequantised weight across rows. Caller
         // must already have validated that 2 <= rows <= Iq4NlBatchedRowsMax.
+        // 中文：多行批量 IQ4_NL 量化矩阵乘（一个 threadgroup 处理一列全部 rows 并复用反量化权重）。
         private static MlxArray Iq4NlMatmulRows(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -4911,6 +4978,7 @@ if (kind == 0) {
         // threads (= 4 simdgroups) since each simdgroup now owns one
         // output column and reduces via simd_sum instead of cooperating
         // with the rest of the threadgroup through shared memory.
+        // 中文：IQ4_XS 解码期单行 4 列矩阵乘（每 simdgroup 负责一列、用 simd_sum 归约的自定义 Metal 内核）。
         private static MlxArray Iq4XsMatmul4ColsSimd(MlxArray input, MlxArray rawWeight, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -4959,6 +5027,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：IQ4_XS 解码期单行 4 列矩阵乘（threadgroup 共享内存归约的旧版自定义 Metal 内核）。
         private static MlxArray Iq4XsMatmul4Cols(MlxArray input, MlxArray rawWeight, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -5003,6 +5072,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：IQ4_XS 多行批量矩阵乘（每 out_col 一个 threadgroup 处理全部 rows 的自定义 Metal 内核）。
         private static MlxArray Iq4XsMatmulRows(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -5043,6 +5113,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：IQ4_XS 多行且每 threadgroup 2 列的批量矩阵乘自定义 Metal 内核。
         private static MlxArray Iq4XsMatmulRows2Cols(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return MlxWorker.Shared.Invoke(() =>
@@ -5083,6 +5154,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：返回 IQ4_XS 批量行内核所允许的最大行数（可经环境变量覆盖）。
         private static int Iq4XsBatchedRowsMax()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_IQ4XS_BATCHED_ROWS_MAX");
@@ -5095,6 +5167,7 @@ if (kind == 0) {
             return 24;
         }
 
+        // 中文：返回 IQ4_XS 双列批量行内核所允许的最大行数（默认关闭，需环境变量开启）。
         private static int Iq4XsBatchedRows2Max()
         {
             if (!string.Equals(Environment.GetEnvironmentVariable("TS_MLX_IQ4XS_BATCHED_COLS"), "1", StringComparison.Ordinal))
@@ -5103,6 +5176,7 @@ if (kind == 0) {
             return Math.Min(Iq4XsBatchedRowsMax(), 16);
         }
 
+        // 中文：从 IQ4_XS 量化权重中按索引取行（embedding 查表，自定义 Metal 内核）。
         internal static MlxArray Iq4XsGetRows(MlxArray rawWeight, MlxArray indices, int rows, int inDim)
         {
             if (!rawWeight.IsValid || !indices.IsValid)
@@ -5156,6 +5230,7 @@ if (kind == 0) {
         private static readonly bool Iq2XxsMatmulSimdgroupDisabled =
             string.Equals(Environment.GetEnvironmentVariable("TS_MLX_IQ2XXS_DISABLE_SG"), "1", StringComparison.Ordinal);
 
+        // 中文：IQ2_XXS 量化权重矩阵乘（按 rows 选择 simdgroup 或基础自定义 Metal 内核）。
         internal static MlxArray Iq2XxsMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -5222,6 +5297,7 @@ if (kind == 0) {
         // simdgroup_matrix-accelerated IQ2_XXS matmul. Grid is sized in
         // 8-element tiles; the kernel handles non-multiple-of-8 row /
         // column counts via bounds checks at load/store.
+        // 中文：IQ2_XXS 大批量 prefill 矩阵乘（基于 simdgroup_matrix tile 的自定义 Metal 内核）。
         internal static MlxArray Iq2XxsMatmulSimdgroup(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -5281,6 +5357,7 @@ if (kind == 0) {
         // the up-projection of the MoE FFN block. Caller invariants match
         // the IQ2_XXS variant: shared single-row input, [K, outDim] output,
         // expert indices on device.
+        // 中文：MoE 多专家按批的 IQ4_NL 量化矩阵乘（一次内核处理多个专家分块）。
         internal static MlxArray Iq4NlMoeMatmulBatched(
             MlxArray input,
             MlxArray stackedWeight,
@@ -5338,6 +5415,7 @@ if (kind == 0) {
         // down-projection. Input is [K, inDim] where row k holds expert
         // `expert_indices[k]`'s post-activation output. The expert weight
         // is looked up per row via the same indices tensor.
+        // 中文：MoE 多专家按批且多行的 IQ4_NL 量化矩阵乘（按 row 复用权重的自定义 Metal 内核）。
         internal static MlxArray Iq4NlMoeMatmulBatchedRowed(
             MlxArray input,
             MlxArray stackedWeight,
@@ -5391,6 +5469,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：MoE 多专家按批的 IQ2_XXS 量化矩阵乘（一次内核处理多个专家分块）。
         internal static MlxArray Iq2XxsMoeMatmulBatched(
             MlxArray input,
             MlxArray stackedWeight,
@@ -5457,6 +5536,7 @@ if (kind == 0) {
         // both. The per-(k, out_col) thread group reduces partial sums
         // for both gate and up in parallel, then a single thread writes
         // silu(gate) * up to the output.
+        // 中文：MoE 按批的 IQ2_XXS 矩阵乘并融合 gate/up 投影与 SiLU 激活的自定义 Metal 内核。
         internal static MlxArray Iq2XxsMoeMatmulBatchedFusedGateUpSilu(
             MlxArray input,
             MlxArray stackedGate,
@@ -5516,6 +5596,7 @@ if (kind == 0) {
         // stackedWeight: stacked uint8 IQ2_XXS bytes for all experts
         // expertIndices: [K] int32 - row k uses expert expertIndices[k]'s weights
         // Output: [K, outDim]
+        // 中文：MoE 多专家按批且多行的 IQ2_XXS 量化矩阵乘（按 row 复用权重的自定义 Metal 内核）。
         internal static MlxArray Iq2XxsMoeMatmulBatchedRowed(
             MlxArray input,
             MlxArray stackedWeight,
@@ -5569,6 +5650,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：从 IQ2_XXS 量化权重中按索引取行（embedding 查表，自定义 Metal 内核）。
         internal static MlxArray Iq2XxsGetRows(MlxArray rawWeight, MlxArray indices, int rows, int inDim)
         {
             if (!rawWeight.IsValid || !indices.IsValid)
@@ -5612,6 +5694,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：IQ2_S 量化权重矩阵乘（大批量走 simdgroup，否则走通用 IQuant 内核）。
         internal static MlxArray Iq2SMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (rows >= Iq2XxsMatmulSimdgroupMinRows && !Iq2XxsMatmulSimdgroupDisabled)
@@ -5622,16 +5705,19 @@ if (kind == 0) {
             return IQuantMatmul(input, rawWeight, rows, inDim, outDim, EnsureIq2SMatmulKernel, "IQ2_S");
         }
 
+        // 中文：IQ2_S 大批量矩阵乘的 simdgroup tile 内核封装。
         internal static MlxArray Iq2SMatmulSimdgroup(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return IQuantMatmulSimdgroup(input, rawWeight, rows, inDim, outDim, EnsureIq2SMatmulSimdgroupKernel, "IQ2_S");
         }
 
+        // 中文：从 IQ2_S 量化权重中按索引取行（embedding 查表）。
         internal static MlxArray Iq2SGetRows(MlxArray rawWeight, MlxArray indices, int rows, int inDim)
         {
             return IQuantGetRows(rawWeight, indices, rows, inDim, EnsureIq2SGetRowsKernel, "IQ2_S");
         }
 
+        // 中文：IQ3_S 量化权重矩阵乘（大批量走 simdgroup，否则走通用 IQuant 内核）。
         internal static MlxArray Iq3SMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (rows >= Iq2XxsMatmulSimdgroupMinRows && !Iq2XxsMatmulSimdgroupDisabled)
@@ -5642,16 +5728,19 @@ if (kind == 0) {
             return IQuantMatmul(input, rawWeight, rows, inDim, outDim, EnsureIq3SMatmulKernel, "IQ3_S");
         }
 
+        // 中文：IQ3_S 大批量矩阵乘的 simdgroup tile 内核封装。
         internal static MlxArray Iq3SMatmulSimdgroup(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return IQuantMatmulSimdgroup(input, rawWeight, rows, inDim, outDim, EnsureIq3SMatmulSimdgroupKernel, "IQ3_S");
         }
 
+        // 中文：从 IQ3_S 量化权重中按索引取行（embedding 查表）。
         internal static MlxArray Iq3SGetRows(MlxArray rawWeight, MlxArray indices, int rows, int inDim)
         {
             return IQuantGetRows(rawWeight, indices, rows, inDim, EnsureIq3SGetRowsKernel, "IQ3_S");
         }
 
+        // 中文：IQ 系列量化矩阵乘的通用基础内核派发实现（由各量化类型经委托复用）。
         private static MlxArray IQuantMatmul(
             MlxArray input,
             MlxArray rawWeight,
@@ -5703,6 +5792,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：IQ 系列量化按索引取行的通用实现（由各量化类型经委托复用）。
         private static MlxArray IQuantGetRows(
             MlxArray rawWeight,
             MlxArray indices,
@@ -5752,6 +5842,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：Q4_K 量化权重矩阵乘（大批量走 simdgroup，否则走通用 IQuant 内核）。
         internal static MlxArray Q4KMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (rows >= Iq2XxsMatmulSimdgroupMinRows && !Iq2XxsMatmulSimdgroupDisabled)
@@ -5762,11 +5853,13 @@ if (kind == 0) {
             return KQuantMatmul(input, rawWeight, rows, inDim, outDim, EnsureQ4KMatmulKernel, "Q4_K");
         }
 
+        // 中文：Q4_K 大批量矩阵乘的 simdgroup tile 内核封装。
         internal static MlxArray Q4KMatmulSimdgroup(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return IQuantMatmulSimdgroup(input, rawWeight, rows, inDim, outDim, EnsureQ4KMatmulSimdgroupKernel, "Q4_K");
         }
 
+        // 中文：Q5_K 量化权重矩阵乘（按 rows 选择 4 列解码、simdgroup 或通用 IQuant 内核）。
         internal static MlxArray Q5KMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (rows == 1 && !string.Equals(Environment.GetEnvironmentVariable("TS_MLX_Q5K_MATMUL4"), "0", StringComparison.Ordinal))
@@ -5790,11 +5883,13 @@ if (kind == 0) {
             return KQuantMatmul(input, rawWeight, rows, inDim, outDim, EnsureQ5KMatmulKernel, "Q5_K");
         }
 
+        // 中文：Q5_K 大批量矩阵乘的 simdgroup tile 内核封装。
         internal static MlxArray Q5KMatmulSimdgroup(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return IQuantMatmulSimdgroup(input, rawWeight, rows, inDim, outDim, EnsureQ5KMatmulSimdgroupKernel, "Q5_K");
         }
 
+        // 中文：Q6_K 量化权重矩阵乘（按 rows 选择 4 列解码、simdgroup 或通用 IQuant 内核）。
         internal static MlxArray Q6KMatmul(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             if (rows == 1 && !string.Equals(Environment.GetEnvironmentVariable("TS_MLX_Q6K_MATMUL4"), "0", StringComparison.Ordinal))
@@ -5818,16 +5913,19 @@ if (kind == 0) {
             return KQuantMatmul(input, rawWeight, rows, inDim, outDim, EnsureQ6KMatmulKernel, "Q6_K");
         }
 
+        // 中文：Q6_K 大批量矩阵乘的 simdgroup tile 内核封装。
         internal static MlxArray Q6KMatmulSimdgroup(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return IQuantMatmulSimdgroup(input, rawWeight, rows, inDim, outDim, EnsureQ6KMatmulSimdgroupKernel, "Q6_K");
         }
 
+        // 中文：IQ4_XS 大批量矩阵乘的 simdgroup tile 内核封装。
         internal static MlxArray Iq4XsMatmulSimdgroup(MlxArray input, MlxArray rawWeight, int rows, int inDim, int outDim)
         {
             return IQuantMatmulSimdgroup(input, rawWeight, rows, inDim, outDim, EnsureIq4XsMatmulSimdgroupKernel, "IQ4_XS");
         }
 
+        // 中文：Q5_K 解码期单行 4 列矩阵乘的自定义 Metal 内核。
         private static MlxArray Q5KMatmul4Cols(MlxArray input, MlxArray rawWeight, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -5872,6 +5970,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：Q6_K 解码期单行 4 列矩阵乘的自定义 Metal 内核。
         private static MlxArray Q6KMatmul4Cols(MlxArray input, MlxArray rawWeight, int inDim, int outDim)
         {
             if (!input.IsValid || !rawWeight.IsValid)
@@ -5916,21 +6015,25 @@ if (kind == 0) {
             });
         }
 
+        // 中文：从 Q4_K 量化权重中按索引取行（embedding 查表）。
         internal static MlxArray Q4KGetRows(MlxArray rawWeight, MlxArray indices, int rows, int inDim)
         {
             return KQuantGetRows(rawWeight, indices, rows, inDim, EnsureQ4KGetRowsKernel, "Q4_K");
         }
 
+        // 中文：从 Q5_K 量化权重中按索引取行（embedding 查表）。
         internal static MlxArray Q5KGetRows(MlxArray rawWeight, MlxArray indices, int rows, int inDim)
         {
             return KQuantGetRows(rawWeight, indices, rows, inDim, EnsureQ5KGetRowsKernel, "Q5_K");
         }
 
+        // 中文：从 Q6_K 量化权重中按索引取行（embedding 查表）。
         internal static MlxArray Q6KGetRows(MlxArray rawWeight, MlxArray indices, int rows, int inDim)
         {
             return KQuantGetRows(rawWeight, indices, rows, inDim, EnsureQ6KGetRowsKernel, "Q6_K");
         }
 
+        // 中文：执行 gated delta（门控增量）状态更新的自定义 Metal 内核。
         internal static void GatedDelta(
             MlxArray q,
             MlxArray k,
@@ -6013,6 +6116,7 @@ if (kind == 0) {
             nextState = stateResult;
         }
 
+        // 中文：Qwen3.5 GDN 注意力前处理的自定义 Metal 内核。
         internal static void Qwen35GdnPreprocess(
             MlxArray qkvRaw,
             MlxArray zRaw,
@@ -6137,6 +6241,7 @@ if (kind == 0) {
             nextConv = nextConvResult;
         }
 
+        // 中文：Qwen3.5 GDN 注意力前处理（打包输入版本）的自定义 Metal 内核。
         internal static void Qwen35GdnPreprocessPacked(
             MlxArray packedRaw,
             MlxArray convState,
@@ -6260,6 +6365,7 @@ if (kind == 0) {
             nextConv = nextConvResult;
         }
 
+        // 中文：Qwen3.5 GDN 注意力后处理的自定义 Metal 内核。
         internal static MlxArray Qwen35GdnPostprocess(
             MlxArray y,
             MlxArray zSilu,
@@ -6314,6 +6420,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：K 系列（Q4_K/Q5_K/Q6_K）量化矩阵乘的通用基础内核派发实现。
         private static MlxArray KQuantMatmul(
             MlxArray input,
             MlxArray rawWeight,
@@ -6365,6 +6472,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：K 系列（Q4_K/Q5_K/Q6_K）量化按索引取行的通用实现。
         private static MlxArray KQuantGetRows(
             MlxArray rawWeight,
             MlxArray indices,
@@ -6414,6 +6522,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：将 update 写入 input 指定 [start,stop) 区间并返回更新后的张量。
         internal static MlxArray SliceUpdate(MlxArray input, MlxArray update, int start, int stop)
         {
             if (!input.IsValid || !update.IsValid)
@@ -6438,6 +6547,7 @@ if (kind == 0) {
         /// single MLX op, instead of looping per-head with 1D updates (which
         /// would cost 4+ MLX dispatches per layer for K + V × kvHeads).
         /// </summary>
+        // 中文：按多维 starts/stops/strides 将 update 写入 input 的子区间并返回结果。
         internal static MlxArray SliceUpdateMulti(MlxArray input, MlxArray update, int[] starts, int[] stops, int[] strides)
         {
             if (!input.IsValid || !update.IsValid)
@@ -6458,6 +6568,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：按多维 starts/stops/strides 从 input 中切片并返回子张量。
         internal static MlxArray Slice(MlxArray input, int[] starts, int[] stops, int[] strides)
         {
             if (!input.IsValid)
@@ -6473,6 +6584,7 @@ if (kind == 0) {
             });
         }
 
+        // 中文：获取/缓存默认 GPU 计算流。
         private static MlxStream DefaultStream()
         {
             // The default MLX stream for a given device is a stable handle owned
@@ -6500,6 +6612,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_XS 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4XsMatmulKernel()
         {
             lock (fastKernelSync)
@@ -6525,6 +6638,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_NL 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4NlMatmulKernel()
         {
             lock (fastKernelSync)
@@ -6550,6 +6664,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_NL 多行批量矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4NlMatmulRowsKernel()
         {
             lock (fastKernelSync)
@@ -6575,6 +6690,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_NL MoE 按批矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4NlMoeMatmulBatchedKernel()
         {
             lock (fastKernelSync)
@@ -6600,6 +6716,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_NL MoE 按批多行矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4NlMoeMatmulBatchedRowedKernel()
         {
             lock (fastKernelSync)
@@ -6625,6 +6742,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_XS 解码期 4 列矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4XsMatmul4Kernel()
         {
             lock (fastKernelSync)
@@ -6650,6 +6768,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_XS 解码期 4 列 simd_sum 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4XsMatmul4SimdKernel()
         {
             lock (fastKernelSync)
@@ -6675,6 +6794,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_XS 多行批量矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4XsMatmulRowsKernel()
         {
             lock (fastKernelSync)
@@ -6700,6 +6820,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_XS 多行双列批量矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4XsMatmulRows2Kernel()
         {
             lock (fastKernelSync)
@@ -6725,6 +6846,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ4_XS 按索引取行的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4XsGetRowsKernel()
         {
             lock (fastKernelSync)
@@ -6750,6 +6872,7 @@ if (kind == 0) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ2_XXS 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2XxsMatmulKernel()
         {
             lock (fastKernelSync)
@@ -6792,6 +6915,7 @@ using namespace metal;
         // function name. Building the source via Replace at kernel-init
         // time avoids 6× copy-paste in the file while still producing a
         // const-per-call kernel that the Metal JIT can specialize.
+        // 中文：按反量化函数与块字节数动态拼装 IQ 系列 simdgroup 矩阵乘的 Metal 内核源码。
         private static string BuildIQuantMatmulSimdgroupSource(string dequantFunc, int blockBytes)
         {
             const string template = @"
@@ -6872,6 +6996,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         // Generic IQ/K-quant simdgroup matmul dispatcher. Same grid/TG
         // setup as Iq2XxsMatmulSimdgroup; the kernel itself is closured
         // via ensureKernel.
+        // 中文：IQ 系列量化大批量 simdgroup tile 矩阵乘的通用基础实现。
         private static MlxArray IQuantMatmulSimdgroup(
             MlxArray input, MlxArray rawWeight,
             int rows, int inDim, int outDim,
@@ -6924,6 +7049,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         // source from the template + a quant-specific dequant function
         // name and block byte count, paired with the per-quant header
         // (lookup tables / dequant helper definitions).
+        // 中文：惰性创建并缓存某量化类型的 simdgroup 矩阵乘内核（失败则标记禁用）的通用辅助。
         private static MlxFastMetalKernel EnsureSgKernel(
             ref MlxFastMetalKernel slot,
             ref bool disabledFlag,
@@ -6955,6 +7081,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ2_XXS simdgroup 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2XxsMatmulSimdgroupKernel()
         {
             lock (fastKernelSync)
@@ -6983,36 +7110,43 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         // kernel body (BuildIQuantMatmulSimdgroupSource) — only the
         // dequant function name + block byte count differ, plus the
         // per-quant lookup table header.
+        // 中文：惰性创建并缓存 IQ2_S simdgroup 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2SMatmulSimdgroupKernel() =>
             EnsureSgKernel(ref iq2SMatmulSimdgroupKernel, ref iq2SMatmulSimdgroupKernelDisabled,
                 "tensorsharp_iq2s_matmul_sg", "tensorsharp_dequant_iq2_s", 82,
                 Iq2SIq3SLookupHeader, "IQ2_S");
 
+        // 中文：惰性创建并缓存 IQ3_S simdgroup 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq3SMatmulSimdgroupKernel() =>
             EnsureSgKernel(ref iq3SMatmulSimdgroupKernel, ref iq3SMatmulSimdgroupKernelDisabled,
                 "tensorsharp_iq3s_matmul_sg", "tensorsharp_dequant_iq3_s", 110,
                 Iq2SIq3SLookupHeader, "IQ3_S");
 
+        // 中文：惰性创建并缓存 IQ4_XS simdgroup 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq4XsMatmulSimdgroupKernel() =>
             EnsureSgKernel(ref iq4XsMatmulSimdgroupKernel, ref iq4XsMatmulSimdgroupKernelDisabled,
                 "tensorsharp_iq4xs_matmul_sg", "tensorsharp_dequant_iq4xs", 136,
                 Iq4XsHelpersHeader, "IQ4_XS");
 
+        // 中文：惰性创建并缓存 Q4_K simdgroup 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ4KMatmulSimdgroupKernel() =>
             EnsureSgKernel(ref q4KMatmulSimdgroupKernel, ref q4KMatmulSimdgroupKernelDisabled,
                 "tensorsharp_q4k_matmul_sg", "tensorsharp_dequant_q4k", 144,
                 KQuantHelpersHeader, "Q4_K");
 
+        // 中文：惰性创建并缓存 Q5_K simdgroup 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ5KMatmulSimdgroupKernel() =>
             EnsureSgKernel(ref q5KMatmulSimdgroupKernel, ref q5KMatmulSimdgroupKernelDisabled,
                 "tensorsharp_q5k_matmul_sg", "tensorsharp_dequant_q5k", 176,
                 KQuantHelpersHeader, "Q5_K");
 
+        // 中文：惰性创建并缓存 Q6_K simdgroup 矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ6KMatmulSimdgroupKernel() =>
             EnsureSgKernel(ref q6KMatmulSimdgroupKernel, ref q6KMatmulSimdgroupKernelDisabled,
                 "tensorsharp_q6k_matmul_sg", "tensorsharp_dequant_q6k", 210,
                 KQuantHelpersHeader, "Q6_K");
 
+        // 中文：惰性创建并缓存 IQ2_XXS MoE 按批矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2XxsMoeMatmulBatchedKernel()
         {
             lock (fastKernelSync)
@@ -7037,6 +7171,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ2_XXS MoE 按批且融合 gate/up+SiLU 的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2XxsMoeMatmulBatchedFusedGateUpSiluKernel()
         {
             lock (fastKernelSync)
@@ -7061,6 +7196,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ2_XXS MoE 按批多行矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2XxsMoeMatmulBatchedRowedKernel()
         {
             lock (fastKernelSync)
@@ -7085,6 +7221,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ2_XXS 按索引取行的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2XxsGetRowsKernel()
         {
             lock (fastKernelSync)
@@ -7112,6 +7249,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
 
 
 
+        // 中文：惰性创建并缓存 IQ2_S 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2SMatmulKernel()
         {
             lock (fastKernelSync)
@@ -7137,6 +7275,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ2_S 按索引取行的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq2SGetRowsKernel()
         {
             lock (fastKernelSync)
@@ -7162,6 +7301,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ3_S 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq3SMatmulKernel()
         {
             lock (fastKernelSync)
@@ -7187,6 +7327,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 IQ3_S 按索引取行的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureIq3SGetRowsKernel()
         {
             lock (fastKernelSync)
@@ -7212,6 +7353,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q4_K 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ4KMatmulKernel()
         {
             lock (fastKernelSync)
@@ -7237,6 +7379,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q4_K 按索引取行的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ4KGetRowsKernel()
         {
             lock (fastKernelSync)
@@ -7262,6 +7405,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q5_K 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ5KMatmulKernel()
         {
             lock (fastKernelSync)
@@ -7287,6 +7431,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q5_K 解码期 4 列矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ5KMatmul4Kernel()
         {
             lock (fastKernelSync)
@@ -7312,6 +7457,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q5_K 按索引取行的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ5KGetRowsKernel()
         {
             lock (fastKernelSync)
@@ -7337,6 +7483,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q6_K 基础矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ6KMatmulKernel()
         {
             lock (fastKernelSync)
@@ -7362,6 +7509,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q6_K 解码期 4 列矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ6KMatmul4Kernel()
         {
             lock (fastKernelSync)
@@ -7387,6 +7535,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q6_K 按索引取行的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ6KGetRowsKernel()
         {
             lock (fastKernelSync)
@@ -7412,6 +7561,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 gated delta 状态更新的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureGatedDeltaKernel()
         {
             lock (fastKernelSync)
@@ -7437,6 +7587,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存单步（T=1）gated delta 状态更新的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureGatedDeltaT1Kernel()
         {
             lock (fastKernelSync)
@@ -7462,6 +7613,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Qwen3.5 GDN 前处理的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQwen35GdnPreprocessKernel()
         {
             lock (fastKernelSync)
@@ -7487,6 +7639,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Qwen3.5 GDN 打包输入前处理的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQwen35GdnPackedPreprocessKernel()
         {
             lock (fastKernelSync)
@@ -7512,6 +7665,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Qwen3.5 GDN 后处理的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQwen35GdnPostprocessKernel()
         {
             lock (fastKernelSync)
@@ -7537,6 +7691,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 head_dim=256 注意力的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureHeadDim256AttentionKernel()
         {
             lock (fastKernelSync)
@@ -7562,6 +7717,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存环形 KV 缓存解码注意力的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureCircularDecodeAttentionKernel()
         {
             lock (fastKernelSync)
@@ -7587,6 +7743,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存带 attention sink 的解码注意力的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureDecodeAttentionWithSinksKernel()
         {
             lock (fastKernelSync)
@@ -7612,6 +7769,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Gemma4 解码期 QKV 前处理的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureGemma4QkvPreprocessDecodeKernel()
         {
             lock (fastKernelSync)
@@ -7637,6 +7795,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 Q8 addmm 加偏置/残差的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ8AddmmAddKernel()
         {
             lock (fastKernelSync)
@@ -7662,6 +7821,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 head_dim=512 解码注意力的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureDecodeAttentionHeadDim512Kernel()
         {
             lock (fastKernelSync)
@@ -7692,6 +7852,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         /// Non-circular. Uses simdgroup-fast online-softmax structure
         /// matching <see cref="CircularDecodeAttentionSource"/>.
         /// </summary>
+        // 中文：执行 head_dim=512 的解码注意力计算（自定义 Metal 内核）。
         internal static MlxArray DecodeAttentionHeadDim512(
             MlxArray qFlat,
             MlxArray kCache,
@@ -7749,6 +7910,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             });
         }
 
+        // 中文：惰性创建并缓存 Q8 矩阵乘并融合 GELU 与逐元素相乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ8MatmulGeluMulKernel()
         {
             lock (fastKernelSync)
@@ -7779,6 +7941,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         /// rows == 1). Replaces (mlx_quantized_matmul + mlx_binary_mul with
         /// gelu activation) for Gemma 4's PLE inp_gate stage.
         /// </summary>
+        // 中文：执行 Q8 量化矩阵乘并融合 GELU 与逐元素相乘（自定义 Metal 内核）。
         internal static MlxArray Q8MatmulGeluMul(
             MlxArray input, MlxArray weight, MlxArray scales, MlxArray biases,
             MlxArray gate, int inDim, int outDim, int blocksPerRow)
@@ -7823,6 +7986,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             });
         }
 
+        // 中文：惰性创建并缓存 Q8 量化矩阵乘的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ8MatmulKernel()
         {
             lock (fastKernelSync)
@@ -7855,6 +8019,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         /// f16). Implemented with simdgroup-fast reductions so it matches
         /// or slightly beats the built-in path.
         /// </summary>
+        // 中文：执行 Q8 量化权重矩阵乘（自定义 Metal 内核）。
         internal static MlxArray Q8Matmul(
             MlxArray input, MlxArray weight, MlxArray scales, MlxArray biases,
             int inDim, int outDim, int blocksPerRow)
@@ -7899,6 +8064,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             });
         }
 
+        // 中文：惰性创建并缓存 Q8 矩阵乘并融合 RMSNorm 的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureQ8RmsNormMatmulKernel()
         {
             lock (fastKernelSync)
@@ -7930,6 +8096,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         /// Uses MLX's affine Q8 layout (same inputs as
         /// <see cref="Q8AddmmAdd"/>).
         /// </summary>
+        // 中文：执行 RMSNorm 后接 Q8 量化矩阵乘的融合算子（自定义 Metal 内核）。
         internal static MlxArray Q8RmsNormMatmul(
             MlxArray input, MlxArray normWeight, MlxArray weight, MlxArray scales, MlxArray biases,
             float eps, int inDim, int outDim, int blocksPerRow)
@@ -7987,6 +8154,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         /// into a fresh array which the caller assigns to the residual
         /// tensor via <c>SetDeviceResult</c>.
         /// </summary>
+        // 中文：执行 Q8 量化矩阵乘并加上偏置/残差（自定义 Metal 内核）。
         internal static MlxArray Q8AddmmAdd(
             MlxArray input, MlxArray weight, MlxArray scales, MlxArray biases,
             MlxArray residual, int inDim, int outDim, int blocksPerRow)
@@ -8031,6 +8199,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             });
         }
 
+        // 中文：惰性创建并缓存按权重 scatter-add 累加行（MoE 合并）的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureScatterAddWeightedRowsKernel()
         {
             lock (fastKernelSync)
@@ -8056,6 +8225,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 RMSNorm 后接残差相加的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureRmsNormAddKernel()
         {
             lock (fastKernelSync)
@@ -8081,6 +8251,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存先残差相加再 RMSNorm 的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureAddRmsNormKernel()
         {
             lock (fastKernelSync)
@@ -8106,6 +8277,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存对半拆分并做 GELU 后相乘（gate/up）的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureGeluMulSplitKernel()
         {
             lock (fastKernelSync)
@@ -8131,6 +8303,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存将扁平张量重排为 head-first 布局的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureFlatToHeadFirstKernel()
         {
             lock (fastKernelSync)
@@ -8156,6 +8329,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：惰性创建并缓存 NeoX 风格 RoPE 旋转位置编码的 fast Metal 内核。
         private static MlxFastMetalKernel EnsureNeoXRopeKernel()
         {
             lock (fastKernelSync)
@@ -8181,6 +8355,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：编译创建自定义 fast Metal 内核。
         private static MlxFastMetalKernel CreateFastMetalKernel(string name, string[] inputs, string[] outputs, string source, string header)
         {
             IntPtr namePtr = IntPtr.Zero;
@@ -8216,6 +8391,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：将 C# 字符串数组封装为 MLX 原生字符串向量。
         private static MlxVectorString CreateStringVector(string[] values)
         {
             MlxVectorString vector = mlx_vector_string_new();
@@ -8245,6 +8421,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：将多个 MlxArray 封装为 MLX 原生数组向量（内核输入）。
         private static unsafe MlxVectorArray CreateVectorArray(params MlxArray[] values)
         {
             fixed (MlxArray* ptr = values)
@@ -8253,6 +8430,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：向 fast Metal 内核配置添加一个整型模板参数。
         private static void AddTemplateInt(MlxFastMetalKernelConfig config, string name, int value)
         {
             IntPtr namePtr = Marshal.StringToHGlobalAnsi(name);
@@ -8266,12 +8444,14 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：通过给定的取值委托查询 MLX 的某项内存数值。
         private static ulong QueryMemory(MemoryGetter getter)
         {
             nuint value = 0;
             return getter(ref value) == 0 ? value : 0;
         }
 
+        // 中文：配置 MLX 显存缓存上限。
         private static void ConfigureCacheLimit()
         {
             if (cacheLimitConfigured)
@@ -8306,6 +8486,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：配置 MLX 常驻（wired）内存上限。
         private static void ConfigureWiredLimit()
         {
             // mlx_set_wired_limit raises Metal's residency-set ceiling so
@@ -8372,6 +8553,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：获取本机物理内存总字节数。
         private static long GetPhysicalMemoryBytes()
         {
             try
@@ -8387,6 +8569,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             return 0;
         }
 
+        // 中文：配置 MLX 显存分配上限。
         private static void ConfigureMemoryLimit()
         {
             // mlx_set_memory_limit bounds total active GPU allocations.
@@ -8422,12 +8605,14 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：若 MLX 原生库不可用则抛出异常。
         private static void ThrowIfUnavailable()
         {
             if (mlx_metal_is_available(out bool metalAvailable) != 0 || !metalAvailable)
                 throw new PlatformNotSupportedException("MLX Metal is not available on this machine.");
         }
 
+        // 中文：检查原生返回码，失败则抛异常。
         private static void Check(int rc, string action)
         {
             if (rc == 0)
@@ -8442,6 +8627,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             throw new InvalidOperationException($"MLX-C failed while {action} (error code {rc}): {message}");
         }
 
+        // 中文：确保 MLX 全局错误处理回调已安装（只装一次）。
         private static void EnsureErrorHandlerInstalled()
         {
             lock (initSync)
@@ -8454,6 +8640,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：MLX 错误回调，捕获并保存原生错误消息。
         private static void CaptureError(IntPtr message, IntPtr data)
         {
             string text = Marshal.PtrToStringAnsi(message) ?? string.Empty;
@@ -8461,12 +8648,14 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
                 lastError = text;
         }
 
+        // 中文：清除已捕获的原生错误消息。
         private static void ClearCapturedError()
         {
             lock (errorSync)
                 lastError = string.Empty;
         }
 
+        // 中文：取出并清空已捕获的原生错误消息。
         private static string TakeCapturedError()
         {
             lock (errorSync)
@@ -8477,6 +8666,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：注册自定义 DllImport 本地库解析回调。
         private static void InstallResolver()
         {
             lock (initSync)
@@ -8489,6 +8679,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：自定义本地库解析回调，定位并加载 mlxc 原生库。
         private static IntPtr ResolveLibrary(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
         {
             if (!string.Equals(libraryName, LibraryName, StringComparison.OrdinalIgnoreCase))
@@ -8510,6 +8701,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             return IntPtr.Zero;
         }
 
+        // 中文：枚举所有可能的 mlxc 原生库候选文件路径。
         private static IEnumerable<string> GetLibraryCandidates()
         {
             foreach (string exact in SplitPathList(Environment.GetEnvironmentVariable("TENSORSHARP_MLX_LIBRARY")))
@@ -8525,6 +8717,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：枚举搜索原生库时的候选目录。
         private static IEnumerable<string> GetCandidateDirectories()
         {
             foreach (string dir in SplitPathList(Environment.GetEnvironmentVariable("TENSORSHARP_MLX_LIBRARY_DIR")))
@@ -8541,6 +8734,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
                 yield return dir;
         }
 
+        // 中文：从工作目录向上遍历常见构建输出目录以查找原生库。
         private static IEnumerable<string> WalkBuildDirectories(string cwd)
         {
             for (string dir = cwd; !string.IsNullOrEmpty(dir); dir = Directory.GetParent(dir)?.FullName)
@@ -8556,6 +8750,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：枚举指定目录下符合命名的原生库文件。
         private static IEnumerable<string> EnumerateLibraryFiles(string dir)
         {
             if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
@@ -8575,6 +8770,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             }
         }
 
+        // 中文：按平台分隔符拆分路径列表字符串。
         private static IEnumerable<string> SplitPathList(string value)
         {
             if (string.IsNullOrWhiteSpace(value))
@@ -8589,6 +8785,7 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
         [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
         private delegate void MlxErrorHandler(IntPtr message, IntPtr data);
 
+        // 中文：将 DType 映射为 MLX 数据类型枚举。
         private static int ToMlxDtype(DType dtype)
         {
             return dtype switch
@@ -8729,270 +8926,359 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             Maximum,
         }
 
+        // 中文：查询 Metal GPU 是否可用
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_metal_is_available")]
         private static extern int mlx_metal_is_available([MarshalAs(UnmanagedType.I1)] out bool res);
 
+        // 中文：设置全局错误处理回调
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_set_error_handler")]
         private static extern void mlx_set_error_handler(MlxErrorHandler handler, IntPtr data, IntPtr destructor);
 
+        // 中文：按设备类型和索引创建 MLX 设备对象
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_device_new_type")]
         private static extern MlxDevice mlx_device_new_type(int type, int index);
 
+        // 中文：释放 MLX 设备对象
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_device_free")]
         private static extern int mlx_device_free(MlxDevice dev);
 
+        // 中文：查询指定设备是否可用
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_device_is_available")]
         private static extern int mlx_device_is_available([MarshalAs(UnmanagedType.I1)] out bool avail, MlxDevice dev);
 
+        // 中文：设置默认计算设备
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_set_default_device")]
         private static extern int mlx_set_default_device(MlxDevice dev);
 
+        // 中文：清空 MLX 显存缓存池
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_clear_cache")]
         private static extern int mlx_clear_cache();
 
+        // 中文：获取当前活跃显存占用量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_get_active_memory")]
         private static extern int mlx_get_active_memory(ref nuint res);
 
+        // 中文：获取当前缓存池显存占用量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_get_cache_memory")]
         private static extern int mlx_get_cache_memory(ref nuint res);
 
+        // 中文：获取峰值显存占用量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_get_peak_memory")]
         private static extern int mlx_get_peak_memory(ref nuint res);
 
+        // 中文：重置峰值显存统计计数
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_reset_peak_memory")]
         private static extern int mlx_reset_peak_memory();
 
+        // 中文：设置 MLX 显存缓存上限
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_set_cache_limit")]
         private static extern int mlx_set_cache_limit(ref nuint previous, nuint limit);
 
+        // 中文：设置常驻（wired）显存上限
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_set_wired_limit")]
         private static extern int mlx_set_wired_limit(ref nuint previous, nuint limit);
 
+        // 中文：设置总显存使用上限
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_set_memory_limit")]
         private static extern int mlx_set_memory_limit(ref nuint previous, nuint limit);
 
+        // 中文：获取指定设备的默认执行流
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_get_default_stream")]
         private static extern int mlx_get_default_stream(out MlxStream stream, MlxDevice dev);
 
+        // 中文：释放执行流对象
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_stream_free")]
         private static extern int mlx_stream_free(MlxStream stream);
 
+        // 中文：从主机内存数据创建 MLX 数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_new_data")]
         private static extern MlxArray mlx_array_new_data(IntPtr data, int[] shape, int dim, int dtype);
 
+        // 中文：从托管内存数据创建 MLX 数组（附带自定义析构回调）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_new_data_managed")]
         private static extern MlxArray mlx_array_new_data_managed(IntPtr data, int[] shape, int dim, int dtype, IntPtr dtor);
 
+        // 中文：用单个 float32 标量创建 MLX 数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_new_float32")]
         private static extern MlxArray mlx_array_new_float32(float value);
 
+        // 中文：用单个 int 标量创建 MLX 数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_new_int")]
         private static extern MlxArray mlx_array_new_int(int value);
 
+        // 中文：释放 MLX 数组，回收其引用
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_free")]
         private static extern int mlx_array_free(MlxArray array);
 
+        // 中文：获取数组元素总数
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_size")]
         private static extern nuint mlx_array_size_native(MlxArray array);
 
+        // 中文：查询数组是否为行优先连续布局
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "_mlx_array_is_row_contiguous")]
         private static extern int mlx_array_is_row_contiguous_native(out bool result, MlxArray array);
 
+        // 中文：将数组转换为指定 DType
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_astype")]
         private static extern int mlx_astype(out MlxArray result, MlxArray array, int dtype, MlxStream stream);
 
+        // 中文：获取数组的 float32 主机数据指针
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_data_float32")]
         private static extern IntPtr mlx_array_data_float32(MlxArray array);
 
+        // 中文：获取数组的 float64 主机数据指针
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_data_float64")]
         private static extern IntPtr mlx_array_data_float64(MlxArray array);
 
+        // 中文：获取数组的 float16 主机数据指针
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_data_float16")]
         private static extern IntPtr mlx_array_data_float16(MlxArray array);
 
+        // 中文：获取数组的 int32 主机数据指针
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_data_int32")]
         private static extern IntPtr mlx_array_data_int32(MlxArray array);
 
+        // 中文：获取数组的 uint8 主机数据指针
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_data_uint8")]
         private static extern IntPtr mlx_array_data_uint8(MlxArray array);
 
+        // 中文：创建空的 MLX 数组向量（容器）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_array_new")]
         private static extern MlxVectorArray mlx_vector_array_new();
 
+        // 中文：从数组指针批量创建 MLX 数组向量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_array_new_data")]
         private static extern MlxVectorArray mlx_vector_array_new_data(IntPtr values, nuint size);
 
+        // 中文：释放 MLX 数组向量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_array_free")]
         private static extern int mlx_vector_array_free(MlxVectorArray vector);
 
+        // 中文：向数组向量追加一个数组元素
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_array_append_value")]
         private static extern int mlx_vector_array_append_value(MlxVectorArray vector, MlxArray value);
 
+        // 中文：获取数组向量中的元素个数
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_array_size")]
         private static extern nuint mlx_vector_array_size(MlxVectorArray vector);
 
+        // 中文：按索引取出数组向量中的数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_array_get")]
         private static extern int mlx_vector_array_get(out MlxArray result, MlxVectorArray vector, nuint index);
 
+        // 中文：创建空的 MLX 字符串向量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_string_new")]
         private static extern MlxVectorString mlx_vector_string_new();
 
+        // 中文：释放 MLX 字符串向量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_string_free")]
         private static extern int mlx_vector_string_free(MlxVectorString vector);
 
+        // 中文：向字符串向量追加一个字符串
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_string_append_value")]
         private static extern int mlx_vector_string_append_value(MlxVectorString vector, IntPtr value);
 
+        // 中文：强制对输出数组求值（触发实际计算）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_eval")]
         private static extern int mlx_eval(MlxVectorArray outputs);
 
+        // 中文：异步对输出数组求值（不阻塞）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_async_eval")]
         private static extern int mlx_async_eval(MlxVectorArray outputs);
 
+        // 中文：按指定形状和步长创建数组视图（零拷贝重布局）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_as_strided")]
         private static extern int mlx_as_strided(out MlxArray result, MlxArray array, int[] shape, nuint shapeCount, long[] strides, nuint stridesCount, nuint offset, MlxStream stream);
 
+        // 中文：改变数组形状（reshape）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_reshape")]
         private static extern int mlx_reshape(out MlxArray result, MlxArray array, int[] shape, nuint shapeCount, MlxStream stream);
 
+        // 中文：使数组在内存中连续化
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_contiguous")]
         private static extern int mlx_contiguous(out MlxArray result, MlxArray array, [MarshalAs(UnmanagedType.I1)] bool allowColMajor, MlxStream stream);
 
+        // 中文：沿指定轴拼接多个数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_concatenate_axis")]
         private static extern int mlx_concatenate_axis(out MlxArray result, MlxVectorArray arrays, int axis, MlxStream stream);
 
+        // 中文：创建指定形状并以给定值填充的数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_full")]
         private static extern int mlx_full(out MlxArray result, int[] shape, nuint shapeCount, MlxArray values, int dtype, MlxStream stream);
 
+        // 中文：创建等差序列（arange）数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_arange")]
         private static extern int mlx_arange(out MlxArray result, double start, double stop, double step, int dtype, MlxStream stream);
 
+        // 中文：按指定轴顺序转置数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_transpose_axes")]
         private static extern int mlx_transpose_axes(out MlxArray result, MlxArray array, int[] axes, nuint axesCount, MlxStream stream);
 
+        // 中文：逐元素取绝对值
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_abs")]
         private static extern int mlx_abs(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素取负
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_negative")]
         private static extern int mlx_negative(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求平方根
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_sqrt")]
         private static extern int mlx_sqrt(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求平方根的倒数
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_rsqrt")]
         private static extern int mlx_rsqrt(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求自然指数 e^x
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_exp")]
         private static extern int mlx_exp(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求自然对数
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_log")]
         private static extern int mlx_log(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求 log(1+x)
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_log1p")]
         private static extern int mlx_log1p(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素向下取整
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_floor")]
         private static extern int mlx_floor(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素向上取整
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_ceil")]
         private static extern int mlx_ceil(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求正弦
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_sin")]
         private static extern int mlx_sin(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求余弦
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_cos")]
         private static extern int mlx_cos(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求双曲正切
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_tanh")]
         private static extern int mlx_tanh(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素求 Sigmoid 激活
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_sigmoid")]
         private static extern int mlx_sigmoid(out MlxArray result, MlxArray input, MlxStream stream);
 
+        // 中文：逐元素加法
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_add")]
         private static extern int mlx_add(out MlxArray result, MlxArray lhs, MlxArray rhs, MlxStream stream);
 
+        // 中文：逐元素减法
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_subtract")]
         private static extern int mlx_subtract(out MlxArray result, MlxArray lhs, MlxArray rhs, MlxStream stream);
 
+        // 中文：逐元素乘法
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_multiply")]
         private static extern int mlx_multiply(out MlxArray result, MlxArray lhs, MlxArray rhs, MlxStream stream);
 
+        // 中文：逐元素除法
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_divide")]
         private static extern int mlx_divide(out MlxArray result, MlxArray lhs, MlxArray rhs, MlxStream stream);
 
+        // 中文：逐元素取较大值
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_maximum")]
         private static extern int mlx_maximum(out MlxArray result, MlxArray lhs, MlxArray rhs, MlxStream stream);
 
+        // 中文：逐元素求余数（取模）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_remainder")]
         private static extern int mlx_remainder(out MlxArray result, MlxArray lhs, MlxArray rhs, MlxStream stream);
 
+        // 中文：逐元素大于比较，返回布尔结果
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_greater")]
         private static extern int mlx_greater(out MlxArray result, MlxArray lhs, MlxArray rhs, MlxStream stream);
 
+        // 中文：按条件逐元素选择（where/条件三元）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_where")]
         private static extern int mlx_where(out MlxArray result, MlxArray condition, MlxArray whenTrue, MlxArray whenFalse, MlxStream stream);
 
+        // 中文：带偏置缩放的矩阵乘累加（beta*src + alpha*m1@m2）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_addmm")]
         private static extern int mlx_addmm(out MlxArray result, MlxArray src, MlxArray m1, MlxArray m2, float alpha, float beta, MlxStream stream);
 
+        // 中文：沿指定轴做 Softmax 归一化
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_softmax_axis")]
         private static extern int mlx_softmax_axis(out MlxArray result, MlxArray input, int axis, [MarshalAs(UnmanagedType.I1)] bool precise, MlxStream stream);
 
+        // 中文：沿指定轴重复元素若干次
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_repeat_axis")]
         private static extern int mlx_repeat_axis(out MlxArray result, MlxArray input, int repeats, int axis, MlxStream stream);
 
+        // 中文：LayerNorm 层归一化（fast 融合算子）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_layer_norm")]
         private static extern int mlx_fast_layer_norm(out MlxArray result, MlxArray input, MlxArray weight, MlxArray bias, float eps, MlxStream stream);
 
+        // 中文：RMSNorm 归一化（fast 融合算子）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_rms_norm")]
         private static extern int mlx_fast_rms_norm(out MlxArray result, MlxArray input, MlxArray weight, float eps, MlxStream stream);
 
+        // 中文：缩放点积注意力（SDPA 融合算子）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_scaled_dot_product_attention")]
         private static extern int mlx_fast_scaled_dot_product_attention(out MlxArray result, MlxArray query, MlxArray key, MlxArray value, float scale, IntPtr maskMode, MlxArray mask, MlxArray sinks, MlxStream stream);
 
+        // 中文：动态 RoPE 旋转位置编码
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_rope_dynamic")]
         private static extern int mlx_fast_rope_dynamic(out MlxArray result, MlxArray input, int dims, [MarshalAs(UnmanagedType.I1)] bool traditional, MlxOptionalFloat baseValue, float scale, MlxArray offsets, MlxArray freqs, MlxStream stream);
 
+        // 中文：沿指定轴按索引收集元素（take/gather）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_take_axis")]
         private static extern int mlx_take_axis(out MlxArray result, MlxArray input, MlxArray indices, int axis, MlxStream stream);
 
+        // 中文：沿指定轴求最大值的索引（argmax）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_argmax_axis")]
         private static extern int mlx_argmax_axis(out MlxArray result, MlxArray input, int axis, [MarshalAs(UnmanagedType.I1)] bool keepdims, MlxStream stream);
 
+        // 中文：沿指定轴按第 k 位做分区并返回索引（argpartition）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_argpartition_axis")]
         private static extern int mlx_argpartition_axis(out MlxArray result, MlxArray input, int kth, int axis, MlxStream stream);
 
+        // 中文：将更新值写入数组的指定切片区域
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_slice_update")]
         private static extern int mlx_slice_update(out MlxArray result, MlxArray input, MlxArray update, int[] starts, nuint startCount, int[] stops, nuint stopCount, int[] strides, nuint strideCount, MlxStream stream);
 
+        // 中文：提取数组的指定切片
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_slice")]
         private static extern int mlx_slice(out MlxArray result, MlxArray input, int[] starts, nuint startCount, int[] stops, nuint stopCount, int[] strides, nuint strideCount, MlxStream stream);
 
+        // 中文：量化权重矩阵乘
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_quantized_matmul")]
         private static extern int mlx_quantized_matmul(out MlxArray result, MlxArray input, MlxArray weight, MlxArray scales, MlxArray biases, [MarshalAs(UnmanagedType.I1)] bool transpose, MlxOptionalInt groupSize, MlxOptionalInt bits, IntPtr mode, MlxStream stream);
 
+        // 中文：将量化权重反量化为浮点数组
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_dequantize")]
         private static extern int mlx_dequantize(out MlxArray result, MlxArray weight, MlxArray scales, MlxArray biases, MlxOptionalInt groupSize, MlxOptionalInt bits, IntPtr mode, MlxArray globalScale, MlxOptionalDType dtype, MlxStream stream);
 
+        // 中文：创建自定义 Metal 内核的配置对象
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_config_new")]
         private static extern MlxFastMetalKernelConfig mlx_fast_metal_kernel_config_new();
 
+        // 中文：释放自定义 Metal 内核配置对象
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_config_free")]
         private static extern int mlx_fast_metal_kernel_config_free(MlxFastMetalKernelConfig config);
 
+        // 中文：为内核配置添加输出参数（形状与类型）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_config_add_output_arg")]
         private static extern int mlx_fast_metal_kernel_config_add_output_arg(MlxFastMetalKernelConfig config, int[] shape, nuint size, int dtype);
 
+        // 中文：设置自定义内核的网格尺寸
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_config_set_grid")]
         private static extern int mlx_fast_metal_kernel_config_set_grid(MlxFastMetalKernelConfig config, int grid1, int grid2, int grid3);
 
+        // 中文：设置自定义内核的线程组尺寸
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_config_set_thread_group")]
         private static extern int mlx_fast_metal_kernel_config_set_thread_group(MlxFastMetalKernelConfig config, int thread1, int thread2, int thread3);
 
+        // 中文：为内核配置添加 int 模板参数
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_config_add_template_arg_int")]
         private static extern int mlx_fast_metal_kernel_config_add_template_arg_int(MlxFastMetalKernelConfig config, IntPtr name, int value);
 
+        // 中文：创建自定义 fast Metal 内核
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_new")]
         private static extern MlxFastMetalKernel mlx_fast_metal_kernel_new(
             IntPtr name,
@@ -9003,46 +9289,59 @@ if (tile_b + TileSize <= InRows && tile_m + TileSize <= OutDim) {
             [MarshalAs(UnmanagedType.I1)] bool ensureRowContiguous,
             [MarshalAs(UnmanagedType.I1)] bool atomicOutputs);
 
+        // 中文：应用自定义 Metal 内核进行计算
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_fast_metal_kernel_apply")]
         private static extern int mlx_fast_metal_kernel_apply(ref MlxVectorArray outputs, MlxFastMetalKernel kernel, MlxVectorArray inputs, MlxFastMetalKernelConfig config, MlxStream stream);
 
         // ----- mlx_compile / mlx_closure_* (graph compilation) -----
 
+        // 中文：将函数编译为可复用的已编译闭包
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_compile")]
         private static extern int mlx_compile(out MlxClosure result, MlxClosure fun, [MarshalAs(UnmanagedType.I1)] bool shapeless);
 
+        // 中文：启用 MLX 图编译
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_enable_compile")]
         private static extern int mlx_enable_compile();
 
+        // 中文：禁用 MLX 图编译
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_disable_compile")]
         private static extern int mlx_disable_compile();
 
+        // 中文：设置 MLX 编译模式
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_set_compile_mode")]
         private static extern int mlx_set_compile_mode(int mode);
 
+        // 中文：创建空的 MLX 闭包
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_closure_new")]
         private static extern MlxClosure mlx_closure_new();
 
+        // 中文：释放 MLX 闭包
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_closure_free")]
         private static extern int mlx_closure_free(MlxClosure closure);
 
+        // 中文：用回调函数和载荷创建 MLX 闭包
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_closure_new_func_payload")]
         private static extern MlxClosure mlx_closure_new_func_payload(IntPtr fun, IntPtr payload, IntPtr destructor);
 
+        // 中文：对输入应用闭包并返回输出向量
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_closure_apply")]
         private static extern int mlx_closure_apply(ref MlxVectorArray result, MlxClosure closure, MlxVectorArray input);
 
+        // 中文：用原始数据批量设置数组向量内容
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_vector_array_set_data")]
         private static extern int mlx_vector_array_set_data(ref MlxVectorArray vec, IntPtr data, nuint size);
 
+        // 中文：获取数组的 DType 类型编号
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_array_dtype")]
         private static extern int mlx_array_dtype(out int dtype, MlxArray array);
 
         // ----- mlx_gather_mm / mlx_gather_qmm (MoE-friendly batched matmul) -----
 
+        // 中文：按索引收集的批量矩阵乘（MoE 友好）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_gather_mm")]
         private static extern int mlx_gather_mm(out MlxArray result, MlxArray a, MlxArray b, MlxArray lhsIndices, MlxArray rhsIndices, [MarshalAs(UnmanagedType.I1)] bool sortedIndices, MlxStream stream);
 
+        // 中文：按索引收集的量化批量矩阵乘（MoE 友好）
         [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl, EntryPoint = "mlx_gather_qmm")]
         private static extern int mlx_gather_qmm(out MlxArray result, MlxArray x, MlxArray w, MlxArray scales, MlxArray biases, MlxArray lhsIndices, MlxArray rhsIndices, [MarshalAs(UnmanagedType.I1)] bool transpose, MlxOptionalInt groupSize, MlxOptionalInt bits, IntPtr mode, [MarshalAs(UnmanagedType.I1)] bool sortedIndices, MlxStream stream);
     }

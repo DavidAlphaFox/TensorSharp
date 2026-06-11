@@ -22,6 +22,7 @@ namespace TensorSharp.Server.ResponseSerializers
     /// </summary>
     internal static class OllamaResponseFactory
     {
+        // 中文：构建 generate 接口的排队进度块，告知客户端当前排队位置与待处理数量。
         public static object QueueGenerateChunk(string model, int position, int pending) => new
         {
             model,
@@ -32,6 +33,7 @@ namespace TensorSharp.Server.ResponseSerializers
             queue_pending = pending,
         };
 
+        // 中文：构建 generate 流式响应中的单个 token 文本块（done=false）。
         public static object GenerateTokenChunk(string model, string piece) => new
         {
             model,
@@ -40,6 +42,7 @@ namespace TensorSharp.Server.ResponseSerializers
             done = false,
         };
 
+        // 中文：构建 generate 流式响应的终结块，附带 token 计数、耗时与 KV 缓存命中统计（done=true）。
         public static object GenerateFinalChunk(
             string model,
             int promptTokens,
@@ -63,6 +66,7 @@ namespace TensorSharp.Server.ResponseSerializers
             prompt_cache_hit_ratio = ComputeRatio(kvCacheReusedTokens, promptTokens),
         };
 
+        // 中文：构建 generate 接口的错误终结块（done_reason=error）。
         public static object GenerateError(string model, string error) => new
         {
             model,
@@ -73,6 +77,7 @@ namespace TensorSharp.Server.ResponseSerializers
             error,
         };
 
+        // 中文：构建 generate 接口的非流式完整响应，一次性返回全部内容与统计数据。
         public static object GenerateNonStreamingResponse(
             string model,
             string content,
@@ -97,6 +102,7 @@ namespace TensorSharp.Server.ResponseSerializers
             prompt_cache_hit_ratio = ComputeRatio(kvCacheReusedTokens, promptTokens),
         };
 
+        // 中文：构建 chat 接口的排队进度块，message 为空并附带排队位置与待处理数量。
         public static object QueueChatChunk(string model, int position, int pending) => new
         {
             model,
@@ -107,6 +113,7 @@ namespace TensorSharp.Server.ResponseSerializers
             queue_pending = pending,
         };
 
+        // 中文：构建 chat 流式响应中的原始 token 块，将片段填入 assistant 消息的 content。
         public static object ChatRawTokenChunk(string model, string piece) => new
         {
             model,
@@ -115,6 +122,7 @@ namespace TensorSharp.Server.ResponseSerializers
             done = false,
         };
 
+        // 中文：构建 chat 流式响应中已解析的块，分别填入正文 content 与思考 thinking 字段。
         public static object ChatParsedChunk(string model, string contentChunk, string thinkingChunk) => new
         {
             model,
@@ -123,6 +131,7 @@ namespace TensorSharp.Server.ResponseSerializers
             done = false,
         };
 
+        // 中文：构建 chat 原始流式响应的终结块，附带 token 计数、耗时与 KV 缓存统计（done=true）。
         public static object ChatRawFinalChunk(
             string model,
             int promptTokens,
@@ -146,6 +155,7 @@ namespace TensorSharp.Server.ResponseSerializers
             prompt_cache_hit_ratio = ComputeRatio(kvCacheReusedTokens, promptTokens),
         };
 
+        // 中文：构建 chat 已解析流式响应的终结块，含工具调用列表，并据此决定 done_reason 为 tool_calls 或 stop。
         public static object ChatParsedFinalChunk(
             string model,
             IReadOnlyList<ToolCall> collectedToolCalls,
@@ -179,6 +189,7 @@ namespace TensorSharp.Server.ResponseSerializers
             };
         }
 
+        // 中文：构建 chat 接口的错误终结块（done_reason=error）。
         public static object ChatErrorChunk(string model, string error) => new
         {
             model,
@@ -189,6 +200,7 @@ namespace TensorSharp.Server.ResponseSerializers
             error,
         };
 
+        // 中文：构建 chat 接口的非流式完整响应，包装传入的 message 并附带 token 与耗时统计。
         public static object ChatNonStreamingResponse(
             string model,
             object message,
@@ -214,6 +226,7 @@ namespace TensorSharp.Server.ResponseSerializers
             prompt_cache_hit_ratio = ComputeRatio(kvCacheReusedTokens, promptTokens),
         };
 
+        // 中文：构建非流式 chat 的 assistant 消息对象，含正文、思考内容与转换后的工具调用。
         public static object ChatNonStreamingMessage(string content, string thinking, IReadOnlyList<ToolCall> toolCalls) => new
         {
             role = "assistant",
@@ -222,12 +235,14 @@ namespace TensorSharp.Server.ResponseSerializers
             tool_calls = ConvertToolCalls(toolCalls),
         };
 
+        // 中文：构建仅含正文的简单 assistant 消息对象。
         public static object ChatPlainMessage(string content) => new
         {
             role = "assistant",
             content,
         };
 
+        // 中文：将内部 ToolCall 列表转换为 Ollama 工具调用的匿名对象数组，空列表返回 null。
         private static IReadOnlyList<object> ConvertToolCalls(IReadOnlyList<ToolCall> toolCalls)
         {
             if (toolCalls == null || toolCalls.Count == 0)
@@ -245,6 +260,7 @@ namespace TensorSharp.Server.ResponseSerializers
             return result;
         }
 
+        // 中文：返回当前 UTC 时间的 ISO-8601 字符串，作为 created_at 时间戳。
         private static string TimestampNow() => DateTime.UtcNow.ToString("o");
 
         /// <summary>
@@ -252,6 +268,7 @@ namespace TensorSharp.Server.ResponseSerializers
         /// Returns 0.0 when the prompt is empty so consumers can render the value
         /// uniformly without special-casing the no-tokens path.
         /// </summary>
+        // 中文：计算 KV 缓存命中占 prompt 的比例，prompt 为空时返回 0.0。
         private static double ComputeRatio(int reused, int total)
         {
             return total > 0 ? (double)reused / total : 0.0;

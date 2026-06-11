@@ -22,6 +22,7 @@ namespace TensorSharp.Server.Endpoints
     /// </summary>
     internal static class WebUiEndpoints
     {
+        // 中文：注册 Web UI 路由：队列状态、模型列表/加载，以及 SSE 聊天流，逻辑均委托给 WebUiAdapter。
         public static IEndpointRouteBuilder MapWebUiEndpoints(this IEndpointRouteBuilder endpoints)
         {
             endpoints.MapGet("/api/queue/status", (WebUiAdapter adapter) => adapter.GetQueueStatus());

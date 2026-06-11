@@ -9,6 +9,7 @@ namespace TensorSharp.Cuda
         private IntPtr context;
         private readonly int device;
 
+        // 中文：私有构造函数，保存底层上下文句柄、逻辑设备 ID 与驱动设备号。
         private CudaContext(IntPtr context, int deviceId, int device)
         {
             this.context = context;
@@ -20,6 +21,7 @@ namespace TensorSharp.Cuda
 
         public IntPtr Handle => context;
 
+        // 中文：初始化驱动并为指定设备保留主上下文（primary context）后设为当前，创建 CudaContext 实例。
         public static CudaContext Create(int deviceId)
         {
             CudaLibraryResolver.Register();
@@ -43,6 +45,7 @@ namespace TensorSharp.Cuda
             return new CudaContext(context, deviceId, device);
         }
 
+        // 中文：将本上下文设为当前线程的活动 CUDA 上下文，已释放则抛异常。
         public void MakeCurrent()
         {
             if (context == IntPtr.Zero)
@@ -51,6 +54,7 @@ namespace TensorSharp.Cuda
             CudaDriverApi.cuCtxSetCurrent(context).ThrowOnError();
         }
 
+        // 中文：释放上下文，若其为当前上下文则先清空，再释放设备主上下文（仅执行一次）。
         public void Dispose()
         {
             IntPtr handle = Interlocked.Exchange(ref context, IntPtr.Zero);

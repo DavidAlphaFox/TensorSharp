@@ -16,6 +16,7 @@ namespace TensorSharp.Cuda
         private long cachedBytes;
         private bool poolEnabled;
 
+        // 中文：构造函数，注册 CUDA 后端并初始化指定设备的上下文、流、cuBLAS 句柄与内核，配置内存池参数。
         public CudaAllocator(int deviceId = 0)
         {
             CudaBackend.Register();
@@ -65,11 +66,13 @@ namespace TensorSharp.Cuda
 
         internal CudaKernels Kernels { get; }
 
+        // 中文：分配一块指定元素类型与数量的 CUDA 存储。
         public Storage Allocate(DType elementType, long elementCount)
         {
             return new CudaStorage(this, elementType, elementCount);
         }
 
+        // 中文：从内存池借用设备显存，命中则复用，否则按对齐大小调用 cuMemAlloc 新分配。
         internal IntPtr RentDeviceMemory(long requestedBytes, out long allocationBytes)
         {
             ThrowIfDisposed();
@@ -92,6 +95,7 @@ namespace TensorSharp.Cuda
             return ptr;
         }
 
+        // 中文：归还设备显存，符合池化条件则缓存以备复用，否则调用 cuMemFree 释放。
         internal void ReturnDeviceMemory(IntPtr ptr, long allocationBytes)
         {
             if (ptr == IntPtr.Zero)
@@ -120,6 +124,7 @@ namespace TensorSharp.Cuda
             CudaDriverApi.cuMemFree(ptr);
         }
 
+        // 中文：查询设备显存占用比例（已用显存 / 总显存）。
         public float GetAllocatedMemoryRatio()
         {
             Context.MakeCurrent();
@@ -132,12 +137,14 @@ namespace TensorSharp.Cuda
             return (float)(1.0 - (double)freeBytes / totalBytes);
         }
 
+        // 中文：使当前上下文生效并同步流，等待所有已提交操作完成。
         public void Synchronize()
         {
             Context.MakeCurrent();
             Stream.Synchronize();
         }
 
+        // 中文：释放分配器，同步流、清空缓存显存并销毁内核、cuBLAS、流与上下文（仅执行一次）。
         public void Dispose()
         {
             if (Interlocked.Exchange(ref disposed, 1) != 0)
@@ -152,6 +159,7 @@ namespace TensorSharp.Cuda
             Context.Dispose();
         }
 
+        // 中文：释放内存池中所有缓存的设备显存块并清零计数。
         private void FreeCachedDeviceMemory()
         {
             lock (poolSync)
@@ -171,12 +179,14 @@ namespace TensorSharp.Cuda
             }
         }
 
+        // 中文：若分配器已释放则抛出 ObjectDisposedException。
         private void ThrowIfDisposed()
         {
             if (Volatile.Read(ref disposed) != 0)
                 throw new ObjectDisposedException(nameof(CudaAllocator));
         }
 
+        // 中文：将请求字节数对齐到分配粒度（小块向上取 2 的幂，大块按 1MB 对齐）以提高池复用率。
         private static long RoundAllocationSize(long bytes)
         {
             const long smallMax = 1L << 20;
@@ -195,6 +205,7 @@ namespace TensorSharp.Cuda
             return ((bytes + largeAlignment - 1) / largeAlignment) * largeAlignment;
         }
 
+        // 中文：从环境变量读取内存池上限（MB），解析失败则返回默认值。
         private static long ReadPoolLimit(string name, long defaultMb)
         {
             string value = Environment.GetEnvironmentVariable(name);

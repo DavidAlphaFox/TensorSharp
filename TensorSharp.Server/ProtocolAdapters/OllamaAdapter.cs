@@ -43,6 +43,7 @@ namespace TensorSharp.Server.ProtocolAdapters
         private readonly ServerHostingOptions _options;
         private readonly ILoggerFactory _loggerFactory;
 
+        // 中文：构造函数，注入并校验模型服务、推理队列、托管配置与日志工厂等依赖。
         public OllamaAdapter(
             ModelService svc,
             InferenceQueue queue,
@@ -57,6 +58,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Discovery -------------------------------------------------------
 
+        // 中文：处理 GET /api/tags，列出当前托管的模型及其名称、大小、修改时间等元数据。
         public IResult GetTags()
         {
             var files = string.IsNullOrWhiteSpace(_options.StartupModelPath)
@@ -77,6 +79,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             return Results.Json(new { models });
         }
 
+        // 中文：处理 POST /api/show，校验模型并返回该模型的格式、家族、文件大小等详情。
         public async Task ShowAsync(HttpContext ctx)
         {
             var body = await JsonSerializer.DeserializeAsync<JsonElement>(ctx.Request.Body);
@@ -116,6 +119,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Generate --------------------------------------------------------
 
+        // 中文：处理 POST /api/generate，解析提示词、采样参数与图片，入队后按流式或非流式分发生成。
         public async Task GenerateAsync(HttpContext ctx)
         {
             var generateLogger = _loggerFactory.CreateLogger("TensorSharp.Server.Ollama.Generate");
@@ -158,6 +162,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             }
         }
 
+        // 中文：以 NDJSON 流式输出生成结果，先发排队进度，确保模型加载后逐 token 推送，末尾发送统计块。
         private async Task StreamGenerateAsync(
             HttpContext ctx,
             string modelName,
@@ -197,6 +202,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             }
         }
 
+        // 中文：非流式生成，等待就绪并加载模型后聚合全部 token，一次性返回包含统计的 JSON 响应。
         private async Task CompleteGenerateAsync(
             HttpContext ctx,
             string modelName,
@@ -239,6 +245,7 @@ namespace TensorSharp.Server.ProtocolAdapters
 
         // ---- Chat ------------------------------------------------------------
 
+        // 中文：处理 POST /api/chat/ollama，解析多轮消息、工具与思考开关，入队后按流式或非流式分发对话。
         public async Task ChatAsync(HttpContext ctx)
         {
             var ollamaLogger = _loggerFactory.CreateLogger("TensorSharp.Server.Ollama.Chat");
@@ -292,6 +299,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             }
         }
 
+        // 中文：以 NDJSON 流式输出对话，按需用输出解析器分离思考/正文/工具调用，末尾发送最终块与统计。
         private async Task StreamChatAsync(
             HttpContext ctx,
             string modelName,
@@ -380,6 +388,7 @@ namespace TensorSharp.Server.ProtocolAdapters
         /// nothing user-visible to emit yet (e.g. it's still buffering thinking
         /// markers).
         /// </summary>
+        // 中文：辅助方法，对单个 token 运行流式解析器，返回待发送的 JSON 块，无可见内容时返回 null。
         private static object BuildParsedChatChunk(
             string model,
             IOutputParser parser,
@@ -404,6 +413,7 @@ namespace TensorSharp.Server.ProtocolAdapters
             return OllamaResponseFactory.ChatParsedChunk(model, contentChunk, thinkChunk);
         }
 
+        // 中文：非流式对话，聚合全部输出后用解析器分离内容与工具调用，一次性返回带统计与结束原因的响应。
         private async Task CompleteChatAsync(
             HttpContext ctx,
             string modelName,

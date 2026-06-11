@@ -39,6 +39,7 @@ namespace TensorSharp.Server
         private string _fingerprint;
         private bool _disposed;
 
+        // 中文：构造函数，绑定模型生命周期服务与日志记录器（生命周期为空时抛出异常）。
         internal InferenceEngineHost(ModelLifecycleService lifecycle, ILogger logger)
         {
             _lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
@@ -55,6 +56,7 @@ namespace TensorSharp.Server
         /// parallel requests via <c>ForwardBatch</c> and don't need to swap
         /// KV state between sequences, so they qualify even when
         /// <see cref="ModelBase.SupportsKVStateSnapshot"/> reports false.</summary>
+        // 中文：获取当前模型的推理引擎，按KV状态指纹懒构建/重建；模型不支持相关契约或未加载时返回null。
         public InferenceEngine TryGetEngine()
         {
             var model = _lifecycle.Model;
@@ -81,6 +83,7 @@ namespace TensorSharp.Server
 
         /// <summary>Drop the engine (if any). Called by <see cref="ModelLifecycleService"/>
         /// when the model is unloaded so we don't hold onto a stale block pool.</summary>
+        // 中文：在模型卸载时销毁并清空当前引擎及其指纹，避免持有陈旧的KV块池。
         public void Reset()
         {
             lock (_gate)
@@ -91,6 +94,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：释放宿主——加锁标记已释放并销毁引擎（连带终结工作线程、释放分页KV块池）。
         public void Dispose()
         {
             lock (_gate)

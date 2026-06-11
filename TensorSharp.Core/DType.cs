@@ -41,6 +41,7 @@ namespace TensorSharp
 
     public static class DTypeExtensions
     {
+        // 中文：返回数据类型的单元素字节大小（Q8_0 因块布局返回 1，仅供偏移缩放）。
         public static int Size(this DType value)
         {
             switch (value)
@@ -64,6 +65,7 @@ namespace TensorSharp
         /// rounded up to the 32-element block boundary (1 block = 34 bytes:
         /// 2-byte F16 scale + 32 int8 quants).
         /// </summary>
+        // 中文：计算存储 elementCount 个 Q8_0 元素的总字节数（按 32 元素/块、34 字节/块向上取整）。
         public static long Q8_0Bytes(long elementCount)
         {
             const int blockElems = 32;
@@ -72,6 +74,7 @@ namespace TensorSharp
             return blocks * blockBytes;
         }
 
+        // 中文：返回存储指定元素数量所需的总字节数（Q8_0 走块对齐计算，其余为元素数×单元素大小）。
         public static long ByteLengthFor(this DType value, long elementCount)
         {
             if (value == DType.Q8_0)
@@ -79,6 +82,7 @@ namespace TensorSharp
             return elementCount * value.Size();
         }
 
+        // 中文：将 DType 映射为对应的 CLR 类型（如 Float32 → float）。
         public static Type ToCLRType(this DType value)
         {
             switch (value)
@@ -96,6 +100,7 @@ namespace TensorSharp
 
     public static class DTypeBuilder
     {
+        // 中文：将 CLR 类型映射为对应的 DType（如 float → Float32）。
         public static DType FromCLRType(Type type)
         {
             if (type == typeof(Half))

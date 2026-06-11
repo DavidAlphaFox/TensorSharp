@@ -13,6 +13,7 @@ namespace TensorSharp.GGML
 {
     public static class GgmlLossOps
     {
+        // 中文：判断概率与目标索引张量是否满足原生交叉熵核的类型、连续性与形状约束。
         public static bool CanUseNativeCrossEntropyLoss(Tensor probs, Tensor targetIndices)
         {
             if (probs == null || targetIndices == null)
@@ -41,12 +42,14 @@ namespace TensorSharp.GGML
             return targetIndices.ElementCount() == (probs.ElementCount() / classCount);
         }
 
+        // 中文：校验输入后调用原生核计算交叉熵损失值并返回。
         public static float CrossEntropyLoss(Tensor probs, Tensor targetIndices, float smooth = 0.0f, float labelSmooth = 0.0f)
         {
             ValidateLossInputs(probs, targetIndices, "crossentropyloss");
             return GgmlNative.CrossEntropyLoss(CreateStandardView(probs), CreateContiguousTensor(targetIndices), smooth, labelSmooth);
         }
 
+        // 中文：校验梯度张量后调用原生核计算交叉熵反向，将梯度写入/累加到 grad。
         public static void CrossEntropyLossBackward(Tensor grad, Tensor probs, Tensor targetIndices, float lossGradient, float smooth = 0.0f, float labelSmooth = 0.0f, bool addGrad = true)
         {
             ValidateLossInputs(probs, targetIndices, "crossentropyloss_backward");
@@ -69,6 +72,7 @@ namespace TensorSharp.GGML
             GgmlNative.CrossEntropyLossBackward(CreateStandardView(grad), CreateStandardView(probs), CreateContiguousTensor(targetIndices), lossGradient, smooth, labelSmooth, addGrad);
         }
 
+        // 中文：校验损失输入是否满足原生核要求，不满足则抛出不支持异常。
         private static void ValidateLossInputs(Tensor probs, Tensor targetIndices, string opName)
         {
             if (!CanUseNativeCrossEntropyLoss(probs, targetIndices))
@@ -77,6 +81,7 @@ namespace TensorSharp.GGML
             }
         }
 
+        // 中文：将任意维度张量补齐为 4D 并换算字节步长，构造原生 4D 视图。
         private static GgmlTensorView4D CreateStandardView(Tensor tensor)
         {
             long[] paddedSizes = new long[] { 1, 1, 1, 1 };
@@ -113,11 +118,13 @@ namespace TensorSharp.GGML
                 rawBytes);
         }
 
+        // 中文：以张量缓冲起始指针、元素数与类型构造原生连续张量描述。
         private static GgmlContiguousTensor CreateContiguousTensor(Tensor tensor)
         {
             return new GgmlContiguousTensor(GetBufferStart(tensor), tensor.ElementCount(), tensor.ElementType);
         }
 
+        // 中文：返回张量考虑存储偏移后的缓冲起始指针。
         private static IntPtr GetBufferStart(Tensor tensor)
         {
             return ((GgmlStorage)tensor.Storage).PtrAtElement(tensor.StorageOffset);

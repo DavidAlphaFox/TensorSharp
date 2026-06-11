@@ -46,11 +46,13 @@ namespace TensorSharp.Server
         /// <summary>True once <see cref="Dispose"/> has been called.</summary>
         public bool IsDisposed { get; private set; }
 
+        // 中文：无参构造函数，以新生成的十六进制GUID作为会话id委托给主构造函数。
         public ChatSession()
             : this(Guid.NewGuid().ToString("N"))
         {
         }
 
+        // 中文：主构造函数，校验并设置会话id，初始化空跟踪历史与创建/最后使用时间戳。
         internal ChatSession(string id)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -66,6 +68,7 @@ namespace TensorSharp.Server
         /// Drop the session's tracked history. KV blocks are released by the
         /// inference engine when requests finish or are aborted.
         /// </summary>
+        // 中文：释放会话——幂等地标记已释放并清空跟踪历史（KV块由推理引擎释放）。
         public void Dispose()
         {
             if (IsDisposed)

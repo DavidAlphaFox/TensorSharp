@@ -17,6 +17,7 @@ namespace TensorSharp.Server
 
     internal static class TextUploadHelper
     {
+        // 中文：准备上传文本内容——优先按模型上下文一半的 token 上限截断（有分词器时），否则回退到字符上限截断，并返回截断元数据。
         internal static TextUploadResult PrepareTextContent(
             string textContent,
             ITokenizer tokenizer,

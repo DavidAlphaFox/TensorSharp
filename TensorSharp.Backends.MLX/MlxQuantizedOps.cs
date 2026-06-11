@@ -71,6 +71,7 @@ namespace TensorSharp.MLX
             // cache forever.
             public bool Offloadable;
 
+            // 中文：释放该权重条目持有的 MLX 量化权重/缩放/偏置数组并清空引用。
             public void Dispose()
             {
                 MlxNative.FreeArray(Weight);
@@ -87,6 +88,7 @@ namespace TensorSharp.MLX
         // remaining formats stay as GGUF file-backed views and use the row-dequant
         // fallback from ModelBase. This avoids expanding large IQ/UD models to full
         // Float32 residency during load.
+        // 中文：判断给定 GGML 量化类型是否被 MLX 后端支持（含原生 matmul 与文件视图回退两类）。
         public static bool SupportsQuantizedType(GgmlTensorType type)
         {
             return type switch
@@ -122,6 +124,7 @@ namespace TensorSharp.MLX
             };
         }
 
+        // 中文：以整数枚举值为入参的重载，先校验合法再委托给类型版判断是否支持。
         public static bool SupportsQuantizedType(int type)
         {
             return Enum.IsDefined(typeof(GgmlTensorType), type) && SupportsQuantizedType((GgmlTensorType)type);
@@ -137,6 +140,7 @@ namespace TensorSharp.MLX
         // Nemotron-H 30B / IQ2_XXS-UD, where the MoE expert weights are
         // IQ4_NL. Decode (rows=1, ~3× faster on GPU) is unaffected by
         // this trade since it's outside the regressed regime.
+        // 中文：读取 TS_MLX_IQ4NL_GPU 环境变量，判断 IQ4_NL 的 GPU 预载+matmul 路径是否启用（默认开）。
         private static bool Iq4NlGpuEnabled()
         {
             return !string.Equals(
@@ -144,6 +148,7 @@ namespace TensorSharp.MLX
                 "0", StringComparison.Ordinal);
         }
 
+        // 中文：判断该量化类型是否具备可预载到 MLX 的原生 matmul 表示（即能 GPU 预载的子集）。
         public static bool CanPreloadQuantizedType(int type)
         {
             return type == (int)GgmlTensorType.Q4_0 ||
@@ -172,6 +177,7 @@ namespace TensorSharp.MLX
         /// once at startup, and the OS evicts page-cache pages without
         /// further help. Wrapping those types in the LRU just adds churn.
         /// </summary>
+        // 中文：判断该量化类型预载时是否会复制一份 MLX 独立内存（repack 型 true，零拷贝包装型 false）。
         public static bool PreloadDuplicatesHostMemory(int ggmlType)
         {
             switch (ggmlType)
@@ -192,6 +198,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：在模型加载阶段把可预载的量化权重上传/包装为 MLX 数组并缓存（不支持的类型直接跳过）。
         public static void PreloadQuantizedWeight(
             MlxAllocator allocator,
             IntPtr cacheKey,
@@ -224,6 +231,7 @@ namespace TensorSharp.MLX
         // for future debugging — flip the IQ4_NL check on again once the
         // stacked layout is verified and the kernel either passes the
         // bounds check or is rewritten to match the actual GGUF layout.
+        // 中文：判断该量化类型是否有批量 MoE 专家 matmul 内核（目前仅 IQ2_XXS）。
         public static bool SupportsBatchedMoeMatmul(int ggmlType)
         {
             return ggmlType == (int)GgmlTensorType.IQ2_XXS;
@@ -248,6 +256,7 @@ namespace TensorSharp.MLX
         /// (gate_stack, up_stack), one per expert. Output is the post-SiLU
         /// product [K, intermediate], ready as input for the down matmul.
         /// </summary>
+        // 中文：用单个 Metal 内核融合 MoE 的 gate+up 量化 matmul 与 SiLUMul，输出 [K, intermediate]（仅 IQ2_XXS）。
         public static bool TryMoeFusedGateUpSilu(
             Tensor result,
             Tensor input,
@@ -323,6 +332,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：用单个批量内核替代逐专家分发，对堆叠的量化专家权重做 MoE matmul（支持共享/逐行输入）。
         public static bool TryMoeMatmulBatched(
             Tensor result,
             Tensor input,
@@ -407,6 +417,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：从分配器取设备 id，释放该缓存键对应的已预载量化权重（对外公开入口）。
         public static void ReleaseQuantizedWeight(MlxAllocator allocator, IntPtr cacheKey)
         {
             if (allocator == null)
@@ -414,6 +425,7 @@ namespace TensorSharp.MLX
             ReleaseQuantizedWeight(allocator.DeviceId, cacheKey);
         }
 
+        // 中文：按 (设备, 缓存键) 在缓存中查找条目，逐出其 MLX 数组并移除字典项（加锁）。
         internal static void ReleaseQuantizedWeight(int deviceId, IntPtr cacheKey)
         {
             if (cacheKey == IntPtr.Zero)
@@ -430,6 +442,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：清空指定设备上的全部量化权重缓存，逐出并释放对应 MLX 数组。
         internal static void ClearDeviceCache(int deviceId)
         {
             lock (Sync)
@@ -458,6 +471,7 @@ namespace TensorSharp.MLX
         /// Caller is responsible for removing the cache dictionary entry.
         /// Must be called under <see cref="Sync"/>.
         /// </summary>
+        // 中文：释放条目 MLX 数组并从 LRU 摘除；可卸载条目还会 madvise 提示 OS 回收其 mmap 页（须持锁）。
         private static void EvictNodeLocked(LinkedListNode<DeviceWeight> node)
         {
             DeviceWeight entry = node.Value;
@@ -472,11 +486,13 @@ namespace TensorSharp.MLX
                 MoeExpertOffload.AdvisePagesNotNeeded(entry.HostData, entry.RawBytes);
         }
 
+        // 中文：读取 TS_MLX_Q5K_RAW 环境变量，判断 Q5_K 是否走零拷贝原始内核（默认开）。
         private static bool UseRawQ5KKernel()
         {
             return !string.Equals(Environment.GetEnvironmentVariable("TS_MLX_Q5K_RAW"), "0", StringComparison.Ordinal);
         }
 
+        // 中文：量化权重 × Float32 输入的 matmul（result = input @ W），校验形状后确保权重已预载并在工作线程执行。
         public static bool TryAddmmQuantizedToFloat32(
             Tensor result,
             Tensor input,
@@ -497,6 +513,7 @@ namespace TensorSharp.MLX
                 result, input, weight, ggmlType, ne0, ne1, inputStorage, rows));
         }
 
+        // 中文：在工作线程内按量化类型分派对应内核执行 matmul（含 Q8_0 解码快路径与 MLX 通用回退），写回结果。
         private static bool RunAddmmQuantizedToFloat32(
             Tensor result, Tensor input, DeviceWeight weight, int ggmlType,
             long ne0, long ne1, MlxStorage inputStorage, int rows)
@@ -636,6 +653,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：将 RMSNorm 与量化 matmul 融合在单次工作线程调用内执行（Q8_0 有专用融合内核），减少队列往返。
         public static bool TryRmsNormAddmmQuantizedToFloat32(
             Tensor result,
             Tensor input,
@@ -736,6 +754,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：将量化 matmul 与残差相加融合在单次工作线程调用内执行（Q8_0 有专用融合内核），结果写回 residual。
         public static bool TryAddmmQuantizedAddToFloat32(
             Tensor residual,
             Tensor input,
@@ -835,6 +854,7 @@ namespace TensorSharp.MLX
             public readonly string Mode;
             public readonly int EpsBits;
 
+            // 中文：构造融合 FFN 闭包的缓存键，把 eps 以位形式存储以保证精确比较。
             public FusedFFNCacheKey(int ggmlType, int halfDim, int groupSize, int bits, string mode, float eps)
             {
                 GgmlType = ggmlType;
@@ -845,13 +865,16 @@ namespace TensorSharp.MLX
                 EpsBits = BitConverter.SingleToInt32Bits(eps);
             }
 
+            // 中文：逐字段比较两个融合 FFN 缓存键是否相等。
             public bool Equals(FusedFFNCacheKey other) =>
                 GgmlType == other.GgmlType && HalfDim == other.HalfDim
                 && GroupSize == other.GroupSize && Bits == other.Bits
                 && string.Equals(Mode, other.Mode, StringComparison.Ordinal)
                 && EpsBits == other.EpsBits;
 
+            // 中文：object 版相等判断，委托给类型化 Equals。
             public override bool Equals(object obj) => obj is FusedFFNCacheKey o && Equals(o);
+            // 中文：组合各关键字段生成哈希码。
             public override int GetHashCode() => HashCode.Combine(GgmlType, HalfDim, GroupSize, Bits, Mode, EpsBits);
         }
 
@@ -876,6 +899,7 @@ namespace TensorSharp.MLX
         /// Returns false for any other quant type so the caller falls back
         /// to the existing per-op path.
         /// </summary>
+        // 中文：用一个已编译 MLX 闭包融合 Gemma 4 稠密 FFN 解码步（norm+gate_up+gelu-mul+down+post-norm+残差），仅 Q8_0。
         public static bool TryFusedGemma4DenseFFNDecode(
             Tensor residual,
             Tensor hidden,
@@ -974,6 +998,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：按缓存键惰性编译并缓存融合 FFN 的 MLX 闭包（mlx_compile），并发竞态时复用他人已编译版本。
         private static MlxNative.CompiledClosure EnsureFusedFFNClosure(FusedFFNCacheKey key)
         {
             lock (s_FusedFFNClosures)
@@ -1056,6 +1081,7 @@ namespace TensorSharp.MLX
         /// <c>result = gelu(input @ weight) * gate</c>. Replaces a (Q8
         /// matmul + Ops.GELUMul) pair with one custom Metal dispatch.
         /// </summary>
+        // 中文：用单个 Metal 内核融合 Q8_0 matmul + GELU-tanh + 逐元素乘门控（result = gelu(input@W) * gate），仅解码单行。
         public static bool TryFusedQ8MatmulGeluMul(
             Tensor result, Tensor input, Tensor gate,
             IntPtr cacheKey, IntPtr hostData, int ggmlType,
@@ -1103,6 +1129,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：按行索引从量化权重中取行并反量化为 Float32（各 K 类/IQ 类有专用 GetRows 内核，其余走 take+dequantize）。
         public static bool TryGetRowsQuantizedToFloat32(
             Tensor result,
             IntPtr cacheKey,
@@ -1202,6 +1229,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：校验 matmul 输入/输出的存储类型、连续性、维度与形状是否匹配，并输出存储与行数。
         private static bool TryValidateMatmul(
             Tensor result,
             Tensor input,
@@ -1236,6 +1264,7 @@ namespace TensorSharp.MLX
             return rows >= 0;
         }
 
+        // 中文：按量化类型选择对应内核执行 matmul 并返回 MLX 结果数组（K 类/IQ 类专用，其余走 QuantizedMatmul）。
         private static MlxNative.MlxArray RunMatmul(
             MlxNative.MlxArray input,
             DeviceWeight weight,
@@ -1270,6 +1299,7 @@ namespace TensorSharp.MLX
                 weight.Mode);
         }
 
+        // 中文：判断 matmul 输出是否需要额外的连续化拷贝（默认否，仅 TS_MLX_QUANT_MATMUL_CONTIG=1 时强制开启）。
         private static bool MatmulOutputNeedsContiguous()
         {
             // mlx_quantized_matmul produces a row-major contiguous output for
@@ -1287,6 +1317,7 @@ namespace TensorSharp.MLX
             return false;
         }
 
+        // 中文：校验 GetRows 的结果与索引张量的类型、连续性、维度与形状是否匹配，并输出对应存储。
         private static bool TryValidateGetRows(
             Tensor result,
             Tensor indices,
@@ -1318,6 +1349,7 @@ namespace TensorSharp.MLX
             return true;
         }
 
+        // 中文：缓存核心——命中则触碰 LRU 返回，未命中则按量化类型创建设备权重、按需逐出 MoE 专家条目并入缓存（加锁）。
         private static DeviceWeight EnsureWeight(
             int deviceId,
             IntPtr cacheKey,
@@ -1402,6 +1434,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：把 Q4_0/Q4_1 的 GGUF 块解包重排为 MLX affine 4-bit 权重，计算半精度缩放与偏置并创建设备权重。
         private static unsafe DeviceWeight CreateQ4Weight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes, bool hasExplicitBias)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % Q4BlockElements != 0)
@@ -1456,6 +1489,7 @@ namespace TensorSharp.MLX
                 MlxAffineQ4Bits);
         }
 
+        // 中文：把 Q5_0/Q5_1 块的低4位与第5位高位合并为 5-bit 值并重排为 MLX affine 权重，计算缩放/偏置后创建设备权重。
         private static unsafe DeviceWeight CreateQ5Weight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes, bool hasExplicitBias)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % Q5BlockElements != 0)
@@ -1524,6 +1558,7 @@ namespace TensorSharp.MLX
                 MlxAffineQ5Bits);
         }
 
+        // 中文：把 Q4_K 超级块（256 元素/8 组）解包重排为 MLX affine 4-bit 权重，按组解析 6-bit 缩放/最小值生成缩放与偏置。
         private static unsafe DeviceWeight CreateQ4KWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % QK_K != 0)
@@ -1585,6 +1620,7 @@ namespace TensorSharp.MLX
                 MlxAffineQ4Bits);
         }
 
+        // 中文：把 Q5_K 超级块解包，合并低4位与高位 qh 第5位为 5-bit 值并重排为 MLX affine 权重，生成缩放与偏置。
         private static unsafe DeviceWeight CreateQ5KWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % QK_K != 0)
@@ -1651,6 +1687,7 @@ namespace TensorSharp.MLX
                 MlxAffineQ5Bits);
         }
 
+        // 中文：把 Q6_K 超级块（16 子块）合并 ql 低4位与 qh 高2位为 6-bit 值并重排为 MLX affine 权重，用对齐原生缓冲区生成 Float32 缩放/偏置。
         private static unsafe DeviceWeight CreateQ6KWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % QK_K != 0)
@@ -1746,6 +1783,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：以零拷贝方式将 Q4_K 原始 GGUF 字节包装为 MLX uchar 数组（供原始内核反量化），不做重排。
         private static DeviceWeight CreateQ4KRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             return CreateRawKWeight(
@@ -1760,6 +1798,7 @@ namespace TensorSharp.MLX
                 mode: "q4_k");
         }
 
+        // 中文：以零拷贝方式将 Q5_K 原始 GGUF 字节包装为 MLX uchar 数组（供原始内核反量化），不做重排。
         private static DeviceWeight CreateQ5KRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             return CreateRawKWeight(
@@ -1774,6 +1813,7 @@ namespace TensorSharp.MLX
                 mode: "q5_k");
         }
 
+        // 中文：以零拷贝方式将 Q6_K 原始 GGUF 字节包装为 MLX uchar 数组（供原始内核反量化），不做重排。
         private static DeviceWeight CreateQ6KRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             return CreateRawKWeight(
@@ -1788,6 +1828,7 @@ namespace TensorSharp.MLX
                 mode: "q6_k");
         }
 
+        // 中文：以零拷贝方式将 IQ2_XXS 原始 GGUF 字节包装为 MLX uchar 数组（供原始内核反量化），不做重排。
         private static DeviceWeight CreateIq2XxsRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             return CreateRawKWeight(
@@ -1802,6 +1843,7 @@ namespace TensorSharp.MLX
                 mode: "iq2_xxs");
         }
 
+        // 中文：以零拷贝方式将 IQ2_S 原始 GGUF 字节包装为 MLX uchar 数组（供原始内核反量化），不做重排。
         private static DeviceWeight CreateIq2SRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             return CreateRawKWeight(
@@ -1816,6 +1858,7 @@ namespace TensorSharp.MLX
                 mode: "iq2_s");
         }
 
+        // 中文：以零拷贝方式将 IQ3_S 原始 GGUF 字节包装为 MLX uchar 数组（供原始内核反量化），不做重排。
         private static DeviceWeight CreateIq3SRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             return CreateRawKWeight(
@@ -1830,6 +1873,7 @@ namespace TensorSharp.MLX
                 mode: "iq3_s");
         }
 
+        // 中文：各 K 类/IQ 类原始权重的通用工厂——校验维度后零拷贝包装 GGUF mmap 为 MLX uchar 数组并填好 bits/mode 等元信息。
         private static DeviceWeight CreateRawKWeight(
             int deviceId,
             int ggmlType,
@@ -1891,6 +1935,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：把 Q8_0 块的 int8 量化值异或 0x80 转为 uint8 并重排为 MLX affine 8-bit 权重，用对齐缓冲区生成半精度缩放/偏置。
         private static unsafe DeviceWeight CreateQ8Weight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % Q8_0BlockElements != 0)
@@ -1963,6 +2008,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：以零拷贝方式将 IQ4_XS 原始 GGUF 字节包装为 MLX uchar 数组（供 Iq4Xs 内核反量化），不做重排。
         private static DeviceWeight CreateIq4XsRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % QK_K != 0)
@@ -2011,6 +2057,7 @@ namespace TensorSharp.MLX
         // pointer with no copy — Apple Silicon unified memory makes this a
         // zero-cost wrap, and the OS keeps the pages resident for the
         // lifetime of the MlxArray reference.
+        // 中文：以零拷贝方式将 IQ4_NL（32 元素/块、18 字节）整行组包装为单个 MLX uchar 数组（供 Iq4Nl 内核反量化）。
         private static DeviceWeight CreateIq4NlRawWeight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % IQ4_NLBlockElements != 0)
@@ -2053,6 +2100,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：把 MXFP4 块的单字节指数缩放与 4-bit 尾数解包重排为 MLX mxfp4 权重（无偏置），用对齐缓冲区生成 uint8 缩放。
         private static unsafe DeviceWeight CreateMxfp4Weight(int deviceId, IntPtr hostData, long ne0, long ne1, long rawBytes)
         {
             if (ne0 <= 0 || ne1 <= 0 || ne0 > int.MaxValue || ne1 > int.MaxValue || ne0 % Mxfp4BlockElements != 0)
@@ -2120,6 +2168,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：把 32 个 4-bit 量化值按 MLX 期望布局（先低半字节、后高半字节）打包进 16 字节目标数组。
         private static unsafe void PackQ4Block(byte* source, byte[] destination, long destinationOffset)
         {
             for (int i = 0; i < 8; i++)
@@ -2137,6 +2186,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：同 PackQ4Block 的指针目标重载，把 32 个 4-bit 值按 MLX 布局打包进 16 字节原始缓冲区。
         private static unsafe void PackQ4Block(byte* source, byte* destination, long destinationOffset)
         {
             for (int i = 0; i < 8; i++)
@@ -2154,6 +2204,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：把一组无符号量化值按每值 bits 位连续位打包写入目标字节数组（处理跨字节边界）。
         private static void PackUnsignedBits(byte[] values, int bits, byte[] destination, long destinationOffset)
         {
             int bitPosition = 0;
@@ -2173,6 +2224,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：同 PackUnsignedBits 的指针重载，把 valueCount 个无符号值按每值 bits 位连续打包进原始缓冲区。
         private static unsafe void PackUnsignedBits(byte* values, int valueCount, int bits, byte* destination, long destinationOffset)
         {
             int bitPosition = 0;
@@ -2192,6 +2244,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：从 Q4_K/Q5_K 的 12 字节打包标度块中解出第 index 组的 6-bit 缩放与最小值（按 llama.cpp 的位拼接规则）。
         private static unsafe void GetScaleMinK4(int index, byte* packed, out byte scale, out byte min)
         {
             if (index < 4)
@@ -2205,6 +2258,7 @@ namespace TensorSharp.MLX
             min = (byte)((packed[index + 4] >> 4) | ((packed[index] >> 6) << 4));
         }
 
+        // 中文：固定托管数组（packed/scales/biases）取指针后转交底层工厂，创建半精度 affine 模式的设备权重。
         private static unsafe DeviceWeight CreateDeviceWeight(
             int deviceId,
             int ggmlType,
@@ -2242,6 +2296,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：从主机缓冲区构造并求值 MLX 权重/缩放/偏置数组，组装为 DeviceWeight 设备权重条目（底层公共工厂）。
         private static DeviceWeight CreateDeviceWeightFromHostBuffers(
             int deviceId,
             int ggmlType,
@@ -2300,6 +2355,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：把内核输出的 MLX 数组写回目标张量——整块覆盖则直接替换设备数组，否则按切片更新并释放输出。
         private static void SetDeviceResult(Tensor tensor, MlxNative.MlxArray output)
         {
             MlxStorage storage = (MlxStorage)tensor.Storage;
@@ -2319,14 +2375,18 @@ namespace TensorSharp.MLX
             public readonly int DeviceId;
             private readonly IntPtr value;
 
+            // 中文：构造由设备 id 与主机指针组成的权重缓存键。
             public CacheKey(int deviceId, IntPtr value)
             {
                 DeviceId = deviceId;
                 this.value = value;
             }
 
+            // 中文：按设备 id 与指针值判断两个缓存键是否相等。
             public bool Equals(CacheKey other) => DeviceId == other.DeviceId && value == other.value;
+            // 中文：object 版相等判断，委托给类型化 Equals。
             public override bool Equals(object obj) => obj is CacheKey other && Equals(other);
+            // 中文：组合设备 id 与指针值生成哈希码。
             public override int GetHashCode() => HashCode.Combine(DeviceId, value);
         }
     }

@@ -21,6 +21,7 @@ namespace TensorSharp.Server.Endpoints
     /// </summary>
     internal static class UploadEndpoints
     {
+        // 中文：注册 POST /api/upload 多部分文件上传端点，交由 WebUiAdapter.UploadAsync 处理。
         public static IEndpointRouteBuilder MapUploadEndpoints(this IEndpointRouteBuilder endpoints)
         {
             endpoints.MapPost("/api/upload",

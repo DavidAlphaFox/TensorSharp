@@ -17,9 +17,11 @@ namespace TensorSharp.Server
 {
     internal static class ChatHistoryPreparer
     {
+        // 中文：准备推理历史的便捷重载，使用空日志器。
         public static List<ChatMessage> PrepareHistoryForInference(List<ChatMessage> history, string arch)
             => PrepareHistoryForInference(history, arch, NullLogger.Instance);
 
+        // 中文：逐条规范化历史消息（如视频抽帧降采样），仅在有改动时复制列表，否则原样返回。
         public static List<ChatMessage> PrepareHistoryForInference(List<ChatMessage> history, string arch, ILogger logger)
         {
             if (history == null || history.Count == 0)
@@ -39,6 +41,7 @@ namespace TensorSharp.Server
             return prepared ?? history;
         }
 
+        // 中文：将上一轮跟踪历史中匹配前缀的助手原始输出 token 复用到本轮消息上，以便提示渲染器跨轮重用助手 token。
         public static List<ChatMessage> AugmentWithCachedRawTokens(List<ChatMessage> incoming, IReadOnlyList<ChatMessage> trackedHistory)
         {
             if (incoming == null)
@@ -101,6 +104,7 @@ namespace TensorSharp.Server
             return result;
         }
 
+        // 中文：用本轮输入历史加上新生成的助手消息（含原始 token）重建会话跟踪历史，供下一轮复用。
         public static void UpdateTrackedHistory(
             List<ChatMessage> trackedHistory,
             List<ChatMessage> incomingHistory,
@@ -122,6 +126,7 @@ namespace TensorSharp.Server
             });
         }
 
+        // 中文：判断单条消息是否含图像或音频等多模态内容。
         public static bool HasMultimodalContent(ChatMessage msg)
         {
             if (msg == null) return false;
@@ -129,6 +134,7 @@ namespace TensorSharp.Server
                    (msg.AudioPaths != null && msg.AudioPaths.Count > 0);
         }
 
+        // 中文：判断整段历史中是否有任一消息含多模态内容。
         public static bool HasMultimodalContent(List<ChatMessage> history)
         {
             if (history == null || history.Count == 0)
@@ -137,6 +143,7 @@ namespace TensorSharp.Server
             return history.Any(HasMultimodalContent);
         }
 
+        // 中文：按提示顺序收集历史中所有非空图像路径。
         public static List<string> GetImagePathsInPromptOrder(List<ChatMessage> history)
         {
             var imagePaths = new List<string>();
@@ -158,6 +165,7 @@ namespace TensorSharp.Server
             return imagePaths;
         }
 
+        // 中文：规范化单条消息——对 gemma4 视频消息按配置上限做均匀抽帧降采样，否则原样返回。
         private static ChatMessage NormalizeMessageForInference(ChatMessage msg, string arch, ILogger logger)
         {
             int maxVideoFrames = MediaHelper.GetConfiguredMaxVideoFrames();
@@ -187,6 +195,7 @@ namespace TensorSharp.Server
             };
         }
 
+        // 中文：浅复制一条聊天消息（各字段引用直接拷贝）。
         private static ChatMessage CloneShallow(ChatMessage src)
         {
             return new ChatMessage

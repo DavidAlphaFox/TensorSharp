@@ -47,11 +47,13 @@ namespace TensorSharp.Server.Logging
         private readonly RequestLoggingOptions _options;
 
         /// <summary>Backwards-compatible constructor used by tests and ad-hoc consumers; defaults to no low-noise paths.</summary>
+        // 中文：向后兼容的构造函数，使用默认（无低噪声路径）选项委托给主构造函数。
         public RequestLoggingMiddleware(RequestDelegate next, ILogger<RequestLoggingMiddleware> logger)
             : this(next, logger, new RequestLoggingOptions())
         {
         }
 
+        // 中文：主构造函数，注入下一个中间件、日志器与日志选项并做空值校验。
         public RequestLoggingMiddleware(
             RequestDelegate next,
             ILogger<RequestLoggingMiddleware> logger,
@@ -62,6 +64,7 @@ namespace TensorSharp.Server.Logging
             _options = options ?? throw new ArgumentNullException(nameof(options));
         }
 
+        // 中文：中间件主入口，分配请求 id 并进入日志作用域，记录请求开始/完成/异常及耗时与状态码。
         public async Task InvokeAsync(HttpContext context)
         {
             string requestId = ResolveRequestId(context);
@@ -125,6 +128,7 @@ namespace TensorSharp.Server.Logging
             }
         }
 
+        // 中文：优先沿用入站请求头中的请求 id（便于跨服务追踪），缺失时生成 12 位短 id。
         private static string ResolveRequestId(HttpContext context)
         {
             // Honor an inbound id (e.g. from a load balancer) so cross-service traces
@@ -139,6 +143,7 @@ namespace TensorSharp.Server.Logging
             return Guid.NewGuid().ToString("N").Substring(0, 12);
         }
 
+        // 中文：根据请求路径将客户端分类为 openai/ollama/webui，无法归类则返回 null。
         private static string ClassifyClient(PathString path)
         {
             string p = path.Value ?? string.Empty;
@@ -174,6 +179,7 @@ namespace TensorSharp.Server.Logging
         /// </summary>
         public HashSet<string> LowNoisePaths { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        // 中文：判断给定路径是否属于低噪声路径（其成功日志降级为 Debug）。
         internal bool IsLowNoisePath(PathString path)
         {
             string value = path.Value;
@@ -190,6 +196,7 @@ namespace TensorSharp.Server.Logging
         /// resolves a configured instance instead of the empty default. Idempotent;
         /// repeated calls fold their configuration into the same singleton.
         /// </summary>
+        // 中文：将 RequestLoggingOptions 注册到 DI，使中间件解析到已配置实例；幂等，多次调用合并配置。
         public static IServiceCollection AddTensorSharpRequestLogging(
             this IServiceCollection services,
             Action<RequestLoggingOptions> configure = null)
@@ -203,6 +210,7 @@ namespace TensorSharp.Server.Logging
             return services;
         }
 
+        // 中文：将请求日志中间件注册到应用管道。
         public static IApplicationBuilder UseTensorSharpRequestLogging(this IApplicationBuilder app)
         {
             return app.UseMiddleware<RequestLoggingMiddleware>();

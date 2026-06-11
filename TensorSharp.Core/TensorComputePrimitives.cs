@@ -15,6 +15,7 @@ namespace TensorSharp
 {
     public static unsafe class TensorComputePrimitives
     {
+        // 中文：返回指向张量首元素（含存储偏移）的原始指针。
         public static IntPtr GetStoragePointer(Tensor tensor)
         {
             if (tensor == null)
@@ -23,6 +24,7 @@ namespace TensorSharp
             return tensor.Storage.PtrAtElement(tensor.StorageOffset);
         }
 
+        // 中文：返回指向张量存储起始位置（忽略偏移）的原始指针。
         public static IntPtr GetStorageBasePointer(Tensor tensor)
         {
             if (tensor == null)
@@ -41,6 +43,7 @@ namespace TensorSharp
         // Native op binding code uses tensor.Storage.PtrAtElement directly (see
         // GgmlBasicOps.GetBufferStart) and intentionally bypasses this hook so
         // that GPU-only chaining stays asynchronous.
+        // 中文：取 Float32 张量的 float* 指针，先确保主机端可读（排空挂起的 GPU 写入）。
         public static float* GetFloatPointer(Tensor tensor)
         {
             if (tensor == null)
@@ -52,6 +55,7 @@ namespace TensorSharp
             return (float*)GetStoragePointer(tensor);
         }
 
+        // 中文：取 Float16 张量的 ushort* 指针，先确保主机端可读（排空挂起的 GPU 写入）。
         public static ushort* GetHalfPointer(Tensor tensor)
         {
             if (tensor == null)
@@ -63,14 +67,17 @@ namespace TensorSharp
             return (ushort*)GetStoragePointer(tensor);
         }
 
+        // 中文：从指针处非对齐加载一个 SIMD float 向量。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Vector<float> LoadVector(float* p) =>
             Unsafe.ReadUnaligned<Vector<float>>(ref *(byte*)p);
 
+        // 中文：将一个 SIMD float 向量非对齐写入指针处。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void StoreVector(float* p, Vector<float> v) =>
             Unsafe.WriteUnaligned(ref *(byte*)p, v);
 
+        // 中文：计算两个 float 向量的点积，SIMD 双累加器加标量尾处理。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Dot(float* a, float* b, int n)
         {
@@ -92,6 +99,7 @@ namespace TensorSharp
             return sum;
         }
 
+        // 中文：计算向量各元素平方和，SIMD 双累加器加标量尾处理。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float SumSquares(float* a, int n)
         {
@@ -118,6 +126,7 @@ namespace TensorSharp
             return sum;
         }
 
+        // 中文：就地将向量每个元素乘以标量 scale（SIMD 加标量尾处理）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Scale(float* data, float scale, int n)
         {
@@ -130,6 +139,7 @@ namespace TensorSharp
                 data[i] *= scale;
         }
 
+        // 中文：就地计算 dst += weight * src（SIMD 加标量尾处理）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ScaleAdd(float* dst, float* src, float weight, int n)
         {
@@ -142,6 +152,7 @@ namespace TensorSharp
                 dst[i] += weight * src[i];
         }
 
+        // 中文：一次性计算同一向量 b 与 a0..a3 四个向量的点积（复用 b 提升带宽利用率）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Dot4(float* a0, float* a1, float* a2, float* a3,
             float* b, int n,
@@ -179,6 +190,7 @@ namespace TensorSharp
             r3 = s3;
         }
 
+        // 中文：用同一 src 以四个权重分别累加到 d0..d3（dst_i += w_i * src）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ScaleAdd4(float* d0, float* d1, float* d2, float* d3,
             float* src, float w0, float w1, float w2, float w3, int n)
@@ -207,6 +219,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：就地计算 dst = (a - b) * scale（SIMD 加标量尾处理）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SubScale(float* dst, float* a, float* b, float scale, int n)
         {
@@ -219,6 +232,7 @@ namespace TensorSharp
                 dst[i] = (a[i] - b[i]) * scale;
         }
 
+        // 中文：就地将向量全部元素置零（SIMD 加标量尾处理）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Zero(float* data, int n)
         {
@@ -244,6 +258,7 @@ namespace TensorSharp
         /// Uses <see cref="System.Half"/> which the BCL implements with the
         /// hardware FP16 instructions when available.
         /// </summary>
+        // 中文：将 n 个 float 转换为 IEEE 754 binary16（half）写入 dst。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void F32ToF16(ushort* dst, float* src, int n)
         {
@@ -255,6 +270,7 @@ namespace TensorSharp
         /// Convert a contiguous block of <paramref name="n"/> half-precision
         /// values to F32. Useful when a downstream kernel only consumes F32.
         /// </summary>
+        // 中文：将 n 个 half（F16）转换为 float 写入 dst。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void F16ToF32(float* dst, ushort* src, int n)
         {
@@ -267,6 +283,7 @@ namespace TensorSharp
         /// vector <paramref name="b"/>. Each F16 element is converted to F32
         /// inside the inner loop using <see cref="BitConverter.UInt16BitsToHalf"/>.
         /// </summary>
+        // 中文：计算 F32 向量 a 与 F16 向量 b 的点积（内层逐元素转 F32）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float DotF32F16(float* a, ushort* b, int n)
         {
@@ -277,6 +294,7 @@ namespace TensorSharp
         }
 
         /// <summary>Four-way dot product variant of <see cref="DotF32F16"/>.</summary>
+        // 中文：DotF32F16 的四路变体，同一 F16 向量 b 与 a0..a3 求点积。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Dot4F32F16(float* a0, float* a1, float* a2, float* a3,
             ushort* b, int n,
@@ -298,6 +316,7 @@ namespace TensorSharp
         /// Read F16 source values, scale by <paramref name="weight"/> (F32),
         /// and accumulate into F32 destination buffer.
         /// </summary>
+        // 中文：将 F16 源乘以权重后累加到 F32 目标（dst += weight * src）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ScaleAddF16(float* dst, ushort* src, float weight, int n)
         {
@@ -306,6 +325,7 @@ namespace TensorSharp
         }
 
         /// <summary>Four-way scale-add variant of <see cref="ScaleAddF16"/>.</summary>
+        // 中文：ScaleAddF16 的四路变体，同一 F16 源以四个权重分别累加到 d0..d3。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ScaleAdd4F16(float* d0, float* d1, float* d2, float* d3,
             ushort* src, float w0, float w1, float w2, float w3, int n)
@@ -320,6 +340,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：选出 values 中最大的 k 个元素的下标写入 indices（基于最小值替换的就地选择）。
         public static void SelectTopKInPlace(ReadOnlySpan<float> values, int k, Span<int> indices)
         {
             if (k < 0)
@@ -353,6 +374,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：SelectTopKInPlace 的 float[] 重载，取前 n 个元素委托 span 版本。
         public static void SelectTopKInPlace(float[] values, int n, int k, int[] indices)
         {
             if (values == null)
@@ -363,6 +385,7 @@ namespace TensorSharp
             SelectTopKInPlace(values.AsSpan(0, n), k, indices);
         }
 
+        // 中文：SelectTopKInPlace 的指针重载，由 float* 与长度构造 span 委托主实现。
         public static void SelectTopKInPlace(float* values, int n, int k, int[] indices)
         {
             if (values == null)
@@ -373,6 +396,7 @@ namespace TensorSharp
             SelectTopKInPlace(new ReadOnlySpan<float>(values, n), k, indices);
         }
 
+        // 中文：数值稳定的 Sigmoid 激活，按 x 符号选择不同表达式避免溢出。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Sigmoid(float x)
         {
@@ -386,9 +410,11 @@ namespace TensorSharp
             return en / (1.0f + en);
         }
 
+        // 中文：SiLU（Swish）激活，返回 x * Sigmoid(x)。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float SiLU(float x) => x * Sigmoid(x);
 
+        // 中文：数值稳定的 Softplus 激活 log(1+e^x)，对极大/极小 x 做近似截断。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static float Softplus(float x)
         {
@@ -399,6 +425,7 @@ namespace TensorSharp
             return MathF.Log(1.0f + MathF.Exp(x));
         }
 
+        // 中文：借助 TensorPrimitives 就地对 data 应用 SiLU（用 scratch 暂存 Sigmoid 结果）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void ApplySiLUInPlace(Span<float> data, Span<float> scratch)
         {
@@ -406,6 +433,7 @@ namespace TensorSharp
             System.Numerics.Tensors.TensorPrimitives.Multiply(data, scratch, data);
         }
 
+        // 中文：就地计算 ReLU 平方（x>0 取 x*x，否则取 0），SIMD 加标量尾处理。
         public static void ReluSquaredInPlace(float* data, long count)
         {
             int vLen = Vector<float>.Count;
@@ -424,6 +452,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：ReluSquaredInPlace 的张量重载，对 Float32 张量整体就地应用 ReLU 平方。
         public static void ReluSquaredInPlace(Tensor tensor)
         {
             ReluSquaredInPlace(GetFloatPointer(tensor), tensor.ElementCount());

@@ -23,11 +23,13 @@ namespace TensorSharp.Server.Hosting
     {
         public const string AspNetCoreLoggerCategoryPrefix = "Microsoft.AspNetCore";
 
+        // 中文：从 TENSORSHARP_LOG_LEVEL 环境变量解析最小日志级别，缺省为 Information。
         public static LogLevel ResolveMinimumLevel()
         {
             return ParseLogLevel(Environment.GetEnvironmentVariable("TENSORSHARP_LOG_LEVEL")) ?? LogLevel.Information;
         }
 
+        // 中文：配置日志提供程序：压低 ASP.NET Core 噪声、按需挂载文件日志并设置最小级别。
         public static void Configure(ILoggingBuilder builder, ServerHostingOptions options, LogLevel minimumLevel)
         {
             if (builder == null) throw new ArgumentNullException(nameof(builder));
@@ -49,6 +51,7 @@ namespace TensorSharp.Server.Hosting
             builder.SetMinimumLevel(minimumLevel);
         }
 
+        // 中文：将字符串解析为 LogLevel 枚举，空或非法时返回 null。
         private static LogLevel? ParseLogLevel(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw))

@@ -41,6 +41,7 @@ namespace TensorSharp
 		unsafe public delegate void ApplyDim2KernelFuncton(float* x, long sizeX, long stridesX, float* y, long sizeY, long stridesY);
 		unsafe public delegate void ApplyDim3KernelFuncton(float* x, long sizeX, long stridesX, float* y, long sizeY, long stridesY, float* z, long sizeZ, long stridesZ);
 
+        // 中文：尝试获取连续 Float32 张量的裸指针与元素数，用于走快速路径（失败则返回 false）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         unsafe private static bool TryGetContiguousFloat(Tensor tensor, out float* ptr, out int length)
         {
@@ -56,6 +57,7 @@ namespace TensorSharp
             return false;
         }
 
+        // 中文：尝试把连续 Float32 张量按行（末维为列）拆出指针、行数、列数，用于按行向量化快速路径。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         unsafe private static bool TryGetContiguousRows(Tensor tensor, out float* ptr, out int rows, out int cols)
         {
@@ -77,12 +79,14 @@ namespace TensorSharp
             return false;
         }
 
+        // 中文：根据外层与内层工作量之积是否超过阈值，判断是否值得并行化。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool ShouldParallelize(int outerWork, int innerWork)
         {
             return outerWork > 1 && (long)outerWork * innerWork >= ParallelWorkThreshold;
         }
 
+        // 中文：对连续缓冲逐元素计算 SiLU（x*sigmoid(x)），借助 TensorPrimitives 向量化，处理原地与非原地两种情形。
         unsafe private static void SiLUContiguous(float* resultPtr, float* srcPtr, int length)
         {
             ReadOnlySpan<float> input = new ReadOnlySpan<float>(srcPtr, length);
@@ -108,6 +112,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：连续缓冲上计算 SiLU(gate)*up（SwiGLU 融合），向量化处理原地与非原地两种情形。
         unsafe private static void SiLUMulContiguous(float* resultPtr, float* gatePtr, float* upPtr, int length)
         {
             ReadOnlySpan<float> gate = new ReadOnlySpan<float>(gatePtr, length);
@@ -134,6 +139,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：逐元素计算 gate*sigmoid*up 并写入 output，使用 Vector<float> 向量化加尾部标量收尾。
         private static void MultiplySiLUGateUp(
             ReadOnlySpan<float> gate,
             ReadOnlySpan<float> up,
@@ -157,6 +163,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：连续缓冲上计算 x*sigmoid(gate)，向量化处理原地与非原地两种情形。
         unsafe private static void SigmoidMulContiguous(float* resultPtr, float* xPtr, float* gatePtr, int length)
         {
             ReadOnlySpan<float> x = new ReadOnlySpan<float>(xPtr, length);
@@ -183,18 +190,21 @@ namespace TensorSharp
             }
         }
 
+        // 中文：从裸指针处非对齐地读取一个 Vector<float>。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         unsafe private static Vector<float> LoadVec(float* ptr)
         {
             return Unsafe.ReadUnaligned<Vector<float>>(ref *(byte*)ptr);
         }
 
+        // 中文：向裸指针处非对齐地写入一个 Vector<float>。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         unsafe private static void StoreVec(float* ptr, Vector<float> value)
         {
             Unsafe.WriteUnaligned(ref *(byte*)ptr, value);
         }
 
+        // 中文：对两段连续缓冲做向量化点积（累加 lhs*rhs），尾部用标量收尾。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         unsafe private static float DotContiguous(float* lhs, float* rhs, int length)
         {
@@ -216,6 +226,7 @@ namespace TensorSharp
             return sum;
         }
 
+		// 中文：对单个张量做跨步迭代，逐元素调用一元核函数 func。
 		unsafe static void Apply1(Tensor tensor1, Apply1KernelFunction func)
 		{
 			float* buffer1 = (float*)CpuNativeHelpers.GetBufferStart(tensor1);
@@ -233,6 +244,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：对两个张量并行跨步迭代，逐元素调用二元核函数 func（支持按 step 分块）。
 		unsafe static void Apply2(Tensor tensor1, Tensor tensor2, Apply2KernelFunction func, int step = 1)
 		{
 			float* buffer1 = (float*)CpuNativeHelpers.GetBufferStart(tensor1);
@@ -252,6 +264,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：对三个张量并行跨步迭代，逐元素调用三元核函数 func。
 		unsafe static void Apply3(Tensor tensor1, Tensor tensor2, Tensor tensor3, Apply3KernelFunction func, int step = 1)
 		{
 			float* buffer1 = (float*)CpuNativeHelpers.GetBufferStart(tensor1);
@@ -274,6 +287,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：对四个张量并行跨步迭代，逐元素调用四元核函数 func。
 		unsafe static void Apply4(Tensor tensor1, Tensor tensor2, Tensor tensor3, Tensor tensor4, Apply4KernelFunction func)
 		{
 			float* buffer1 = (float*)CpuNativeHelpers.GetBufferStart(tensor1);
@@ -298,6 +312,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：对五个张量并行跨步迭代，逐元素调用五元核函数 func。
 		unsafe static void Apply5(Tensor tensor1, Tensor tensor2, Tensor tensor3, Tensor tensor4, Tensor tensor5, Apply5KernelFunction func, int step = 1)
 		{
 			float* buffer1 = (float*)CpuNativeHelpers.GetBufferStart(tensor1);
@@ -325,6 +340,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：沿指定维 iterationDim 对两个张量按维迭代，对每个切片调用核函数（传入该维的 size/stride）。
 		unsafe static void ApplyDim2(Tensor tensor1, Tensor tensor2, int iterationDim, ApplyDim2KernelFuncton func)
 		{
 			float* buffer1 = (float*)CpuNativeHelpers.GetBufferStart(tensor1);
@@ -344,6 +360,7 @@ namespace TensorSharp
 
 
 
+		// 中文：沿指定维 iterationDim 对三个张量按维迭代，对每个切片调用核函数（传入各自的 size/stride）。
 		unsafe static void ApplyDim3(Tensor tensor1, Tensor tensor2, Tensor tensor3, int iterationDim, ApplyDim3KernelFuncton func)
 		{
 			float* buffer1 = (float*)CpuNativeHelpers.GetBufferStart(tensor1);
@@ -372,6 +389,7 @@ namespace TensorSharp
         // rows in the outer loop (cache-friendly writes) and detect the
         // embedding-style "all indices in a row equal" pattern to emit a
         // single row memcpy instead of D scalar copies.
+        // 中文：判断 result/src/indices 是否均为 2D 连续 Float32 且外形匹配，若是则取出裸指针与 N/D 维度走 gather/scatter 快速路径。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe bool TryGetGatherScatter2DFast(
             Tensor result, Tensor src, Tensor indices, int dim,
@@ -404,6 +422,7 @@ namespace TensorSharp
             return true;
         }
 
+        // 中文：沿 dim 按 indices 收集（gather）元素到 result，含 2D 连续快速路径与嵌入式整行 memcpy 优化。
         unsafe public static void Gather(Tensor result, Tensor src, int dim, Tensor indices)
 		{
             if (TryGetGatherScatter2DFast(result, src, indices, dim,
@@ -483,6 +502,7 @@ namespace TensorSharp
 
 
 
+		// 中文：沿 dim 按 indices 把 src 元素散布（scatter）写入 result，含 2D 连续快速路径与整行 memcpy 优化。
 		unsafe public static void Scatter(Tensor result, Tensor src, int dim, Tensor indices)
 		{
             if (TryGetGatherScatter2DFast(result, src, indices, dim,
@@ -560,6 +580,7 @@ namespace TensorSharp
 			ApplyDim3(result, src, indices, dim, func);
 		}
 
+		// 中文：沿 dim 按 indices 把 src 元素累加散布（scatter-add）到 result，含 2D 连续快速路径与向量化整行累加。
 		unsafe public static void ScatterAdd(Tensor result, Tensor src, int dim, Tensor indices)
 		{
             if (TryGetGatherScatter2DFast(result, src, indices, dim,
@@ -647,6 +668,7 @@ namespace TensorSharp
 			ApplyDim3(result, src, indices, dim, func);
 		}
 
+		// 中文：沿 dim 按 indices 指定位置把 result 填充为常量 value（无 src），含 2D 连续快速路径。
 		unsafe public static void ScatterFill(Tensor result, float value, int dim, Tensor indices)
 		{
             // 2D-contig fast path for ScatterFill (no src tensor).
@@ -715,6 +737,7 @@ namespace TensorSharp
 
 
 
+		// 中文：把整个张量填充为常量 value，含 Float32 连续、Float16、Q8_0（仅置零）等多种类型快速路径。
 		unsafe public static void Fill(Tensor result, float value)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length))
@@ -780,6 +803,7 @@ namespace TensorSharp
 			Apply1(result, func);
 		}
 
+        // 中文：检查张量是否为零偏移、行主序紧密连续（未被切片窄化）的布局。
         private static bool IsContiguousNonNarrowed(Tensor t)
         {
             if (t.StorageOffset != 0) return false;
@@ -793,6 +817,7 @@ namespace TensorSharp
         }
 
 
+		// 中文：逐元素把 src 截断到 [min,max] 区间写入 result。
 		unsafe public static void Clamp(Tensor result, Tensor src, float min, float max)
 		{
 			unsafe void func(float* r, float* s)
@@ -803,6 +828,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：把 src 拷贝到 result，含连续同类型整块 memcpy、末维向量化与通用跨步逐元素三种路径。
 		unsafe public static void Copy(Tensor result, Tensor src)
 		{
             if (result.IsContiguous() && src.IsContiguous() &&
@@ -852,6 +878,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：沿指定维归约求和，将每个切片元素累加写入 result。
 		unsafe public static void Sum(Tensor result, Tensor src, int dimension)
 		{
 			unsafe void func(float* r, long rSize, long rStride, float* s, long sSize, long sStride)
@@ -867,6 +894,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：沿指定维归约求均值（和除以该维长度）写入 result。
 		unsafe public static void Mean(Tensor result, Tensor src, int dimension)
 		{
 			unsafe void func(float* r, long rSize, long rStride, float* s, long sSize, long sStride)
@@ -882,6 +910,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：沿指定维求最大值的下标（argmax），把索引写入 resultIndices。
 		unsafe public static void Argmax(Tensor resultIndices, Tensor src, int dimension)
 		{
 
@@ -905,6 +934,7 @@ namespace TensorSharp
 			ApplyDim2(resultIndices, src, dimension, func);
 		}
 
+		// 中文：沿指定维归约求最大值写入 result。
 		unsafe public static void Max(Tensor result, Tensor src, int dimension)
 		{
 			unsafe void func(float* r, long rSize, long rStride, float* s, long sSize, long sStride)
@@ -921,6 +951,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素张量相加 result=lhs+rhs，含连续 SIMD 快速路径与末维向量化/通用路径。
 		unsafe public static void Add(Tensor result, Tensor lhs, Tensor rhs)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -974,6 +1005,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素张量相减 result=lhs-rhs，含连续 SIMD 快速路径与末维向量化/通用路径。
 		unsafe public static void Sub(Tensor result, Tensor lhs, Tensor rhs)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1026,6 +1058,7 @@ namespace TensorSharp
 			}
 		}
 
+		// 中文：逐元素张量加标量 result=src+value，含连续 SIMD 快速路径与末维向量化/通用路径。
 		unsafe public static void Add(Tensor result, Tensor src, float value)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1078,6 +1111,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素求幂 result=src^value。
 		unsafe public static void Pow(Tensor result, Tensor src, float value)
 		{
 				unsafe void func(float* r, float* s)
@@ -1089,6 +1123,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素标量减张量 result=value-src（反向减法），含连续 SIMD 快速路径与末维向量化/通用路径。
 		unsafe public static void RSub(Tensor result, float value, Tensor src)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1142,6 +1177,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐元素张量乘标量 result=src*value，含连续 SIMD 快速路径与末维向量化/通用路径。
 		unsafe public static void Mul(Tensor result, Tensor src, float value)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1193,6 +1229,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素张量除以标量 result=lhs/rhs，含连续 SIMD 快速路径与末维向量化/通用路径。
 		unsafe public static void Div(Tensor result, Tensor lhs, float rhs)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1243,6 +1280,7 @@ namespace TensorSharp
 			}
 		}
 
+		// 中文：逐元素张量相乘 result=lhs*rhs，含连续 SIMD 快速路径与末维向量化/通用路径。
 		unsafe public static void Mul(Tensor result, Tensor lhs, Tensor rhs)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1296,6 +1334,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素张量相除 result=lhs/rhs，含末维向量化与通用跨步路径。
 		unsafe public static void Div(Tensor result, Tensor lhs, Tensor rhs)
 		{
 			int vectorSize = Vector<float>.Count;
@@ -1328,6 +1367,7 @@ namespace TensorSharp
 			}
 		}
 
+		// 中文：逐元素 ReLU（max(x,0)），含末维向量化与通用路径。
 		unsafe static public void Relu(Tensor result, Tensor src)
 		{
 			int vectorSize = Vector<float>.Count;
@@ -1358,6 +1398,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素取绝对值。
 		unsafe static public void Abs(Tensor result, Tensor src)
 		{
 			unsafe void func(float* r, float* s)
@@ -1367,6 +1408,7 @@ namespace TensorSharp
 			Apply2(result, src, func);
 		}
 
+		// 中文：逐元素取负。
 		unsafe static public void Neg(Tensor result, Tensor src)
 		{
 			unsafe void func(float* r, float* s)
@@ -1376,6 +1418,7 @@ namespace TensorSharp
 			Apply2(result, src, func);
 		}
 
+		// 中文：逐元素求平方根。
 		unsafe static public void Sqrt(Tensor result, Tensor src)
 		{
 			unsafe void func(float* r, float* s)
@@ -1385,6 +1428,7 @@ namespace TensorSharp
 			Apply2(result, src, func);
 		}
 
+		// 中文：逐元素求平方根的倒数（1/sqrt），含末维向量化与通用路径。
 		unsafe static public void Rsqrt(Tensor result, Tensor src)
 		{
 			int vectorSize = Vector<float>.Count;
@@ -1416,6 +1460,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐元素 Sigmoid，连续时走 TensorPrimitives 向量化快速路径，否则通用跨步。
 		unsafe static public void Sigmoid(Tensor result, Tensor src)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1435,6 +1480,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素计算 Sigmoid 反向梯度并加到 t 上（四元 apply）。
 		unsafe static public void AddSigmoidD(Tensor result, Tensor t, Tensor resW, Tensor resG)
 		{
 			unsafe void func(float* r, float* x, float* y, float* z)
@@ -1447,6 +1493,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐元素计算 Sigmoid 反向梯度（result=sigmoidD(resW,resG)），三元 apply。
 		unsafe static public void SigmoidD(Tensor result, Tensor resW, Tensor resG)
 		{
 			unsafe void func(float* r, float* x, float* y)
@@ -1459,6 +1506,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐元素 Tanh，连续时走标量循环快速路径，否则通用跨步。
 		unsafe static public void Tanh(Tensor result, Tensor src)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1482,6 +1530,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素自然对数 log，连续时走标量循环快速路径，否则通用跨步。
 		unsafe static public void Log(Tensor result, Tensor src)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1504,6 +1553,7 @@ namespace TensorSharp
 			Apply2(result, src, func);
 		}
 
+        // 中文：逐元素自然指数 exp，连续时走 TensorPrimitives 向量化快速路径，否则通用跨步。
         unsafe static public void Exp(Tensor result, Tensor src)
         {
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1522,6 +1572,7 @@ namespace TensorSharp
             Apply2(result, src, func);
         }
 
+        // 中文：逐元素计算 Tanh 反向梯度（result=tanhD(resW,resG)），三元 apply。
         unsafe static public void TanhD(Tensor result, Tensor resW, Tensor resG)
 		{
 			unsafe void func(float* r, float* x, float* y)
@@ -1534,6 +1585,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐元素计算 tanh(x+y)（result=addtanh(x,y)），三元 apply。
 		unsafe static public void AddTanh(Tensor result, Tensor srcX, Tensor srcY)
 		{
 			unsafe void func(float* r, float* x, float* y)
@@ -1545,6 +1597,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素计算 AddTanh 的反向梯度（result=addtanhD(x,y,z)），四元 apply。
 		unsafe static public void AddTanhD(Tensor result, Tensor srcX, Tensor srcY, Tensor srcZ)
 		{
 			unsafe void func(float* r, float* x, float* y, float* z)
@@ -1555,6 +1608,7 @@ namespace TensorSharp
 			Apply4(result, srcX, srcY, srcZ, func);
 		}
 
+		// 中文：逐元素计算 ReLU 反向梯度（result=relud(srcW,resG)），三元 apply。
 		unsafe static public void ReluD(Tensor result, Tensor srcW, Tensor resG)
 		{
 			unsafe void func(float* r, float* y, float* x)
@@ -1565,6 +1619,7 @@ namespace TensorSharp
 			Apply3(result, srcW, resG, func);
 		}
 
+		// 中文：逐元素计算 ReLU 反向梯度并累加（result=addrelud(x,w,g)），四元 apply。
 		unsafe static public void AddReluD(Tensor result, Tensor srcX, Tensor srcW, Tensor srcG)
 		{
 			unsafe void func(float* r, float*x, float* w, float* g)
@@ -1575,6 +1630,7 @@ namespace TensorSharp
 			Apply4(result, srcX, srcW, srcG, func);
 		}
 
+		// 中文：逐元素 SiLU（x*sigmoid(x)），连续时走向量化快速路径，否则通用跨步。
 		unsafe static public void SiLU(Tensor result, Tensor src)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1593,6 +1649,7 @@ namespace TensorSharp
 			Apply2(result, src, func);
 		}
 
+		// 中文：逐元素 GELU 激活，连续时走标量循环快速路径，否则通用跨步。
 		unsafe static public void GELU(Tensor result, Tensor src)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1614,6 +1671,7 @@ namespace TensorSharp
 			Apply2(result, src, func);
 		}
 
+		// 中文：逐元素计算 GELU(gate)*up（GeGLU 融合），含连续快速路径与通用三元 apply。
 		unsafe static public void GELUMul(Tensor result, Tensor gate, Tensor up)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1636,6 +1694,7 @@ namespace TensorSharp
 			Apply3(result, gate, up, func);
 		}
 
+		// 中文：逐元素计算 SiLU(gate)*up（SwiGLU 融合），含连续向量化快速路径与通用三元 apply。
 		unsafe static public void SiLUMul(Tensor result, Tensor gate, Tensor up)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1654,6 +1713,7 @@ namespace TensorSharp
 			Apply3(result, gate, up, func);
 		}
 
+		// 中文：逐元素计算 x*sigmoid(gate)，含连续向量化快速路径与通用三元 apply。
 		unsafe static public void SigmoidMul(Tensor result, Tensor x, Tensor gate)
 		{
             if (TryGetContiguousFloat(result, out float* resultPtr, out int length) &&
@@ -1674,6 +1734,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素计算 SiLU 反向梯度（result=SiLUD(srcW,resG)），三元 apply。
 		unsafe static public void SiLUD(Tensor result, Tensor srcW, Tensor resG)
 		{
 			unsafe void func(float* r, float* y, float* x)
@@ -1684,6 +1745,7 @@ namespace TensorSharp
 			Apply3(result, srcW, resG, func);
 		}
 
+		// 中文：逐元素计算 SiLU 反向梯度并累加（result=AddSiLUD(x,w,g)），四元 apply。
 		unsafe static public void AddSiLUD(Tensor result, Tensor srcG, Tensor srcW, Tensor resG)
 		{
 			unsafe void func(float* r, float* x, float* w, float* g)
@@ -1696,6 +1758,7 @@ namespace TensorSharp
 
 
 
+        // 中文：逐元素 LeakyReLU 激活，二元 apply。
         unsafe static public void LeakyReLU(Tensor result, Tensor src)
         {
             unsafe void func(float* r, float* s)
@@ -1707,6 +1770,7 @@ namespace TensorSharp
         }
 
 
+        // 中文：逐元素计算 LeakyReLU 反向梯度（result=LeakyReLUD(srcW,resG)），三元 apply。
         unsafe static public void LeakyReLUD(Tensor result, Tensor srcW, Tensor resG)
         {
             unsafe void func(float* r, float* y, float* x)
@@ -1717,6 +1781,7 @@ namespace TensorSharp
             Apply3(result, srcW, resG, func);
         }
 
+        // 中文：逐元素计算 LeakyReLU 反向梯度并累加（result=AddLeakyReLUD(x,w,g)），四元 apply。
         unsafe static public void AddLeakyReLUD(Tensor result, Tensor srcG, Tensor srcW, Tensor resG)
         {
             unsafe void func(float* r, float* x, float* w, float* g)
@@ -1728,6 +1793,7 @@ namespace TensorSharp
         }
 
 
+        // 中文：逐元素计算 result=x+y*val（带标量系数的乘加），三元 apply。
         unsafe static public void AddMulV(Tensor result, Tensor srcX, Tensor srcY, float val)
 		{
 			unsafe void func(float* r, float* x, float* y)
@@ -1739,6 +1805,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素计算 result=x*y+z*w（两积之和），含末维向量化与通用五元 apply。
 		unsafe static public void MulMulAdd(Tensor result, Tensor srcX, Tensor srcY, Tensor srcZ, Tensor srcW)
 		{
 			int vectorSize = Vector<float>.Count;
@@ -1777,6 +1844,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐元素计算 result=x+y*z（乘加），四元 apply。
 		unsafe static public void AddMul(Tensor result, Tensor srcX, Tensor srcY, Tensor srcZ)
 		{
 			unsafe void func(float* r, float* x, float* y, float* z)
@@ -1788,6 +1856,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐元素计算 result=x+y/z（加除），四元 apply。
 		unsafe static public void AddDiv(Tensor result, Tensor srcX, Tensor srcY, Tensor srcZ)
 		{
 			unsafe void func(float* r, float* x, float* y, float* z)
@@ -1799,6 +1868,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：按各样本原始序列长度构建自注意力 padding 掩码（有效位填 value，越界位填 maskedValue）。
 		unsafe static public void BuildSelfMask(Tensor result, Tensor originalLengths, int rows, int cols, int paddedSeqLen, float value, float maskedValue)
 		{
 			float* ptResult = (float*)CpuNativeHelpers.GetBufferStart(result);
@@ -1827,6 +1897,7 @@ namespace TensorSharp
 
 
 
+		// 中文：把每个切片连续重复 repeats 次写入 dst（repeat_interleave），按切片可并行 memcpy。
 		unsafe static public void RepeatInterleave(float* dst, float* src, int sliceCount, int repeats, int sliceSize)
 		{
             long sliceBytes = (long)sliceSize * sizeof(float);
@@ -1854,6 +1925,7 @@ namespace TensorSharp
             }
 		}
 
+	// 中文：对每行将未来位置（超过因果阈值的列）加上/填为 maskedValue，实现因果（causal）掩码，可并行。
 	unsafe static public void AddCausalMask(float* data, int totalRows, int cols, int seqLen, int startPos, float maskedValue)
 	{
         void MaskRow(int row)
@@ -1892,6 +1964,7 @@ namespace TensorSharp
         }
 	}
 
+		// 中文：构建下三角因果掩码（id<=j 填 value，其余填 maskedValue）。
 		unsafe static public void BuildTriMask(Tensor result, int rows, int cols, float value, float maskedValue)
 		{
 			float* ptResult = (float*)CpuNativeHelpers.GetBufferStart(result);
@@ -1916,6 +1989,7 @@ namespace TensorSharp
 
 
 
+		// 中文：构建结合 padding 长度与下三角因果约束的自注意力掩码。
 		unsafe static public void BuildSelfTriMask(Tensor result, Tensor originalLengths, int rows, int cols, int paddedSeqLen, float value, float maskedValue)
 		{
 			float* ptResult = (float*)CpuNativeHelpers.GetBufferStart(result);
@@ -1945,6 +2019,7 @@ namespace TensorSharp
 
 
 
+		// 中文：构建源-目标交叉注意力掩码（按源/目标各自原始长度判定有效位）。
 		unsafe static public void BuildSrcTgtMask(Tensor result, Tensor srcOriginalLengths, Tensor tgtOriginalLengths, int rows, int cols, int tgtPaddedSeqLen, float value, float maskedValue)
 		{
 			float* ptResult = (float*)CpuNativeHelpers.GetBufferStart(result);
@@ -1975,6 +2050,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：TopK 辅助——把 (data,idx) 插入降序排列的长度为 k 的值/索引数组中，挤掉最小者。
 		unsafe static public void replace_smaller(float* array, float* arrayIdx, int k, float data, float idx)
 		{
 			if (data < array[k - 1])
@@ -1997,6 +2073,7 @@ namespace TensorSharp
 			arrayIdx[0] = idx;
 		}
 
+		// 中文：逐行求 TopK 的值与索引，借助 replace_smaller 维护每行降序的前 k 名。
 		unsafe static public void TopK(Tensor outVal, Tensor outIdx, Tensor inVal, int k, int rows, int cols)
 		{
 			float* pOutVal = (float*)CpuNativeHelpers.GetBufferStart(outVal);
@@ -2024,6 +2101,7 @@ namespace TensorSharp
 			}
 		}
 
+		// 中文：对每行按位置应用旋转位置编码（RoPE），对相邻维度对做旋转变换。
 		unsafe static public void RoPE(Tensor tOut, Tensor tIn, int rows, int cols, int seqLen, int rowOffset)
 		{
 			float* result = (float*)CpuNativeHelpers.GetBufferStart(tOut);
@@ -2056,6 +2134,7 @@ namespace TensorSharp
 			}
 		}
 
+        // 中文：按张量元素类型（Int32 或 Float）读取第 index 个位置值并返回 int。
         unsafe static private int ReadPosition(Tensor positions, int index)
         {
             return positions.ElementType switch
@@ -2065,6 +2144,7 @@ namespace TensorSharp
             };
         }
 
+        // 中文：扩展版 RoPE，支持显式位置张量、NeoX 排布、YaRN 频率缩放与外推，可并行逐行应用旋转。
         unsafe static public void RoPEEx(Tensor tOut, Tensor tIn, Tensor positions, int rows, int cols, int ropeDim, int mode, float freqBase, float freqScale,
             int nCtxOrig = 0, float extFactor = 0.0f, float attnFactor = 1.0f, float betaFast = 0.0f, float betaSlow = 0.0f)
         {
@@ -2185,11 +2265,13 @@ namespace TensorSharp
             }
         }
 
+        // 中文：YaRN 辅助——按给定旋转圈数计算对应的修正维度位置。
         static private float YarnCorrDim(int nDims, int nCtxOrig, float nRot, float freqBase)
         {
             return nDims * MathF.Log(nCtxOrig / (nRot * 2.0f * MathF.PI)) / (2.0f * MathF.Log(freqBase));
         }
 
+        // 中文：YaRN 辅助——根据 betaFast/betaSlow 计算插值斜坡的低/高修正维度边界。
         static private void YarnCorrDims(int nDims, int nCtxOrig, float freqBase, float betaFast, float betaSlow, out float low, out float high)
         {
             if (betaFast == 0.0f && betaSlow == 0.0f)
@@ -2204,6 +2286,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：YaRN 辅助——按斜坡混合外推/内插角并乘以注意力缩放，输出该维度的 cos/sin。
         static private void YarnRoPE(float thetaExtrap, float freqScale, float corrDimLow, float corrDimHigh, int i0, float extFactor, float mscale,
             out float cosTheta, out float sinTheta)
         {
@@ -2216,6 +2299,7 @@ namespace TensorSharp
         }
 
 
+		// 中文：RoPE 的反向传播，对每行相邻维度对用反向旋转把上游梯度累加到 grad。
 		unsafe static public void RoPEGrad(Tensor tOut, Tensor tIn, int rows, int cols, int seqLen, int rowOffset)
 		{
 			float* grad = (float*)CpuNativeHelpers.GetBufferStart(tOut);
@@ -2247,6 +2331,7 @@ namespace TensorSharp
 			}
 		}
 
+		// 中文：扫描张量是否含非有限值（NaN/Inf），存在则返回 true。
 		unsafe static public bool IsCorrupted(Tensor tIn, int rows, int cols)
 		{
             float* pIn = (float*)CpuNativeHelpers.GetBufferStart(tIn);
@@ -2265,6 +2350,7 @@ namespace TensorSharp
 			return false;
         }
 
+		// 中文：逐行做数值稳定的 Softmax（减最大值后 exp 再归一化），含连续行的向量化与可并行快速路径。
 		unsafe static public void Softmax(Tensor tOut, Tensor tIn, int rows, int cols)
 		{
             if (TryGetContiguousRows(tOut, out float* contiguousOut, out int outRows, out int outCols) &&
@@ -2374,6 +2460,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：逐行计算 Softmax 反向梯度（grad=val*(adj-Σval*adj)），可选累加或覆盖到 grad。
 		unsafe static public void SoftmaxGrad(Tensor grad_, Tensor adj_, Tensor val_, int rows, int cols, bool addGrad)
 		{
 
@@ -2409,6 +2496,7 @@ namespace TensorSharp
 
 
 
+		// 中文：按行索引从 src 选取行写入/累加到 result（嵌入查表），含连续行的可并行向量化快速路径。
 		unsafe static public void IndexSelect(Tensor result_, Tensor src_, Tensor indice_, int rows, int cols, bool isAdd)
 		{
             if (TryGetContiguousRows(result_, out float* contiguousResult, out int resultRows, out int resultCols) &&
@@ -2498,6 +2586,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：IndexSelect 的反向，把上游梯度 adj 按索引累加回对应 grad 行（嵌入梯度散布）。
 		unsafe static public void IndexSelectGrad(Tensor grad_, Tensor adj_, Tensor indice_, int rows, int cols)
 		{
 			float* grad = (float*)CpuNativeHelpers.GetBufferStart(grad_);
@@ -2522,6 +2611,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐行做 LayerNorm（减均值除标准差后用 gamma 缩放、beta 平移），均值/方差用向量化累加。
 		unsafe static public void LayerNorm(Tensor out_,
 			Tensor in_,
 			Tensor gamma_,
@@ -2614,6 +2704,7 @@ namespace TensorSharp
 
 
 
+		// 中文：逐行做 RMSNorm（按均方根归一化后用 gamma 缩放、可选 beta 偏置），含连续行可并行向量化快速路径。
 		unsafe static public void RMSNorm(Tensor out_,
 			Tensor in_,
 			Tensor gamma_,
@@ -2738,6 +2829,7 @@ namespace TensorSharp
 
 		}
 
+        // 中文：LayerNorm 的反向，逐行计算并累加对输入 x、gamma、beta 的梯度（分有/无 beta 两种分支）。
         unsafe static public void LayerNormGrad(Tensor gradX_,
 			Tensor gradGamma_,
 			Tensor gradBeta_,
@@ -2851,6 +2943,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：RMSNorm 的反向，逐行按 RMS 雅可比计算并累加对 x、gamma、beta 的梯度，含梯度裁剪与 NaN 置零。
 		unsafe static public void RMSNormGrad(Tensor gradX_,
 			Tensor gradGamma_,
 			Tensor gradBeta_,
@@ -2939,6 +3032,7 @@ namespace TensorSharp
 		}
 
 
+        // 中文：逐元素执行 Adam 优化器一步更新（梯度归一化裁剪、一/二阶矩估计与偏差修正后更新权重并清零梯度）。
         unsafe static public void Adam(Tensor tw, Tensor tg, Tensor tv, Tensor tm, int rows, int cols, float gradNormFactor, float step_size, float clipval, float regc, float decay_rate_v, float decay_rate_m, int iter, float eps)
 		{
 			float* w = (float*)CpuNativeHelpers.GetBufferStart(tw);
@@ -2986,6 +3080,7 @@ namespace TensorSharp
 		#region Internal operations
 
 
+		// 中文：标量 ReLU（负数取 0）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float relu(float w)
 		{
@@ -2995,6 +3090,7 @@ namespace TensorSharp
 
 		}
 
+		// 中文：标量 ReLU 反向梯度（w>0 透传 g，否则 0）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float relud(float w, float g)
 		{
@@ -3003,6 +3099,7 @@ namespace TensorSharp
 			return 0.0f;
 		}
 
+		// 中文：标量 ReLU 反向梯度并累加到 t（w>0 加 g，否则不变）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float addrelud(float t, float w, float g)
 		{
@@ -3011,6 +3108,7 @@ namespace TensorSharp
 			return t;
 		}
 
+        // 中文：标量 LeakyReLU（负数乘 0.01）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static float LeakyReLU(float w)
         {
@@ -3020,6 +3118,7 @@ namespace TensorSharp
 
         }
 
+        // 中文：标量 LeakyReLU 反向梯度（w>=0 透传 g，否则 0.01*g）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static float LeakyReLUD(float w, float g)
         {
@@ -3028,6 +3127,7 @@ namespace TensorSharp
             return 0.01f * g;
         }
 
+        // 中文：标量 LeakyReLU 反向梯度并累加到 t。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static float AddLeakyReLUD(float t, float w, float g)
         {
@@ -3037,18 +3137,21 @@ namespace TensorSharp
         }
 
 
+        // 中文：标量 SiLU（w*sigmoid(w)）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float SiLU(float w)
 		{
 			return w / (1.0f + (float)Math.Exp(-w));
 		}
 
+		// 中文：标量 GELU（tanh 近似形式）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float GELU(float x)
 		{
 			return 0.5f * x * (1.0f + (float)Math.Tanh(0.7978845608f * (x + 0.044715f * x * x * x)));
 		}
 
+		// 中文：标量 SiLU 反向梯度（导数 sig*(1+w*(1-sig)) 乘上游 resG）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float SiLUD(float w, float resG)
 		{
@@ -3057,6 +3160,7 @@ namespace TensorSharp
 			return resG * grad;
 		}
 
+		// 中文：标量 SiLU 反向梯度并累加到 t。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float AddSiLUD(float t, float w, float resG)
 		{
@@ -3065,12 +3169,14 @@ namespace TensorSharp
 			return t + resG * grad;
 		}
 
+		// 中文：标量加法 x+y。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float add(float x, float y)
 		{
 			return x + y;
 		}
 
+		// 中文：标量乘法 x*y。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float mul(float x, float y)
 		{
@@ -3078,12 +3184,14 @@ namespace TensorSharp
 		}
 
 
+		// 中文：标量除法 x/y。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float div(float x, float y)
 		{
 			return x / y;
 		}
 
+		// 中文：标量 Sigmoid（1/(1+e^-x)）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float sigmoid(float x)
 		{
@@ -3091,6 +3199,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：标量 Sigmoid 反向梯度（resW*(1-resW)*resG，resW 为前向输出）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float sigmoidD(float resW, float resG)
 		{
@@ -3098,6 +3207,7 @@ namespace TensorSharp
 		}
 
 
+		// 中文：标量 Sigmoid 反向梯度并累加到 t。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float addSigmoidD(float t, float resW, float resG)
 		{
@@ -3106,12 +3216,14 @@ namespace TensorSharp
 
 
 
+		// 中文：标量两积之和 x*y+z*w。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float mulmuladd(float x, float y, float z, float w)
 		{
 			return x * y + z * w;
 		}
 
+		// 中文：标量截断到 [min,max] 区间。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float clamp(float val, float min, float max)
 		{
@@ -3122,12 +3234,14 @@ namespace TensorSharp
 			return val;
 		}
 
+		// 中文：标量乘加 x+y*z。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float addmul(float x, float y, float z)
 		{
 			return x + y * z;
 		}
 
+		// 中文：标量加除 x+y/z。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float adddiv(float x, float y, float z)
 		{
@@ -3135,18 +3249,21 @@ namespace TensorSharp
 		}
 
 
+		// 中文：标量 tanh(x+y)。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float addtanh(float x, float y)
 		{
 			return (float)Math.Tanh(x + y);
 		}
 
+		// 中文：标量 Tanh 反向梯度并累加到 t（(1-resW^2)*resG）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float addtanhD(float t, float resW, float resG)
 		{
 			return t + (1.0f - resW * resW) * resG;
 		}
 
+		// 中文：标量 Tanh 反向梯度（(1-resW^2)*resG，resW 为前向输出）。
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		static float tanhD(float resW, float resG)
 		{

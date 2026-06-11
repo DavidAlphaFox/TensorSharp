@@ -19,6 +19,7 @@ namespace TensorSharp
     [Serializable]
     public abstract class Storage : RefCounted
     {
+        // 中文：构造存储对象，记录分配器、元素类型与元素数量。
         public Storage(IAllocator allocator, DType elementType, long elementCount)
         {
             Allocator = allocator;
@@ -39,28 +40,40 @@ namespace TensorSharp
         // ElementCount * ElementType.Size() as before.
         public long ByteLength => ElementType.ByteLengthFor(ElementCount);
 
+        // 中文：判断当前是否为该存储的唯一持有者（引用计数为 1）。
         public bool IsOwnerExclusive()
         {
             return GetCurrentRefCount() == 1;
         }
 
+        // 中文：返回指定元素索引处的原生内存指针。
         public abstract IntPtr PtrAtElement(long index);
 
 
+        // 中文：从指定位置读取 length 个元素并以 int 数组返回。
         public abstract int[] GetElementsAsInt(long index, int length);
+        // 中文：将 int 数组写入指定位置。
         public abstract void SetElementsAsInt(long index, int[] value);
 
 
+        // 中文：返回该存储所在位置的描述（如 CPU / 某号 GPU）。
         public abstract string LocationDescription();
 
+        // 中文：读取指定索引处的单个元素并转为 float。
         public abstract float GetElementAsFloat(long index);
+        // 中文：从指定位置读取 length 个元素并以 float 数组返回。
         public abstract float[] GetElementsAsFloat(long index, int length);
+        // 中文：以 float 写入指定索引处的单个元素。
         public abstract void SetElementAsFloat(long index, float value);
+        // 中文：将 float 数组写入指定位置。
         public abstract void SetElementsAsFloat(long index, float[] value);
 
+        // 中文：将 half（半精度）数组写入指定位置。
         public abstract void SetElementsAsHalf(long index, half[] value);
 
+        // 中文：从原生源指针拷贝 byteCount 字节到本存储的指定位置。
         public abstract void CopyToStorage(long storageIndex, IntPtr src, long byteCount);
+        // 中文：从本存储的指定位置拷贝 byteCount 字节到目标指针。
         public abstract void CopyFromStorage(IntPtr dst, long storageIndex, long byteCount);
 
         /// <summary>
@@ -74,6 +87,7 @@ namespace TensorSharp
         /// goes through <see cref="PtrAtElement"/> directly and intentionally
         /// skips this hook so that op chaining stays asynchronous.
         /// </summary>
+        // 中文：在主机直接读写存储字节前，确保异步后端的在途计算已完成（默认空实现）。
         public virtual void EnsureHostReadable()
         {
         }

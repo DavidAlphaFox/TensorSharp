@@ -30,10 +30,12 @@ namespace TensorSharp
         /// <summary>
         /// Construct a new reference counted object. The reference count automatically starts at 1.
         /// </summary>
+        // 中文：构造引用计数对象，初始引用计数为 1。
         public RefCounted()
         {
         }
 
+        // 中文：终结器；若对象尚未释放则调用 Destroy() 释放资源。
         ~RefCounted()
         {
             if (refCount > 0)
@@ -46,12 +48,14 @@ namespace TensorSharp
         /// <summary>
         /// This method is called when the reference count reaches zero. It will be called at most once to allow subclasses to release resources.
         /// </summary>
+        // 中文：引用计数归零时调用，由子类实现以释放底层资源。
         protected abstract void Destroy();
 
         /// <summary>
         /// Returns true if the object has already been destroyed; false otherwise.
         /// </summary>
         /// <returns>true if the object is destroyed; false otherwise.</returns>
+        // 中文：返回对象是否已被销毁（引用计数为 0）。
         protected bool IsDestroyed()
         {
             return refCount == 0;
@@ -60,6 +64,7 @@ namespace TensorSharp
         /// <summary>
         /// Throws an exception if the object has been destroyed, otherwise does nothing.
         /// </summary>
+        // 中文：若对象已被销毁则抛出异常，否则不做任何操作。
         protected void ThrowIfDestroyed()
         {
             if (IsDestroyed())
@@ -68,6 +73,7 @@ namespace TensorSharp
             }
         }
 
+        // 中文：返回当前引用计数值。
         protected int GetCurrentRefCount()
         {
             return refCount;
@@ -76,6 +82,7 @@ namespace TensorSharp
         /// <summary>
         /// Increments the reference count. If the object has previously been destroyed, an exception is thrown.
         /// </summary>
+        // 中文：以无锁自旋方式原子递增引用计数；已销毁则抛异常。
         public void AddRef()
         {
             int curRefCount;
@@ -104,6 +111,7 @@ namespace TensorSharp
         /// Decrements the reference count. If the reference count reaches zero, the object is destroyed.
         /// If the object has previously been destroyed, an exception is thrown.
         /// </summary>
+        // 中文：以无锁自旋方式原子递减引用计数，归零时调用 Destroy() 销毁对象。
         public void Release()
         {
             int original;

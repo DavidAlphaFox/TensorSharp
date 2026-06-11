@@ -23,6 +23,7 @@ namespace TensorSharp.Server.Endpoints
     /// </summary>
     internal static class HealthEndpoints
     {
+        // 中文：注册健康检查端点 GET /，并配置 SPA 回退把未匹配路径回退到 Web UI 的 index.html。
         public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder endpoints, IWebHostEnvironment environment)
         {
             endpoints.MapGet("/", () => Results.Ok("TensorSharp.Server is running"));

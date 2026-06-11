@@ -22,6 +22,7 @@ namespace TensorSharp.Server.Endpoints
     /// </summary>
     internal static class OllamaEndpoints
     {
+        // 中文：注册 Ollama 兼容路由（version/tags/show/generate/chat），各路径委托给 OllamaAdapter 对应方法。
         public static IEndpointRouteBuilder MapOllamaEndpoints(this IEndpointRouteBuilder endpoints)
         {
             endpoints.MapGet("/api/version", () => Results.Json(new { version = "0.1.0" }));

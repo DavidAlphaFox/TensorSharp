@@ -34,6 +34,7 @@ namespace TensorSharp.Server.RequestParsers
         /// The UI references previously uploaded files by absolute path, so we
         /// don't decode any binary content here.
         /// </summary>
+        // 中文：解析 Web UI 的 messages 数组，按绝对路径引用已上传文件，不解码二进制内容。
         public static List<ChatMessage> ParseWebUi(JsonElement messagesEl)
         {
             var messages = new List<ChatMessage>();
@@ -70,6 +71,7 @@ namespace TensorSharp.Server.RequestParsers
         /// base64 array under <c>"images"</c>; we materialise each one as a PNG
         /// in the upload directory and reference them by absolute path.
         /// </summary>
+        // 中文：解析 Ollama 的 messages 数组，将每条消息内 base64 图片落盘为 PNG 并按路径引用。
         public static List<ChatMessage> ParseOllama(JsonElement messagesEl, string uploadDir)
         {
             var messages = new List<ChatMessage>();
@@ -105,6 +107,7 @@ namespace TensorSharp.Server.RequestParsers
         /// either a plain string content, or an array of parts where each part
         /// is either text or an image (data URL or external URL).
         /// </summary>
+        // 中文：解析 OpenAI 的 messages 数组，支持字符串内容或文本/图片分块结构，并将 data URL 图片落盘。
         public static List<ChatMessage> ParseOpenAI(JsonElement messagesEl, string uploadDir)
         {
             var messages = new List<ChatMessage>();
@@ -164,6 +167,7 @@ namespace TensorSharp.Server.RequestParsers
         /// <c>/api/generate</c>. Returns null when no images are present so the
         /// downstream code path can short-circuit cleanly.
         /// </summary>
+        // 中文：解码 Ollama /api/generate 顶层 images 的 base64 数组并落盘，无图片时返回 null。
         public static List<string> DecodeBase64Images(JsonElement body, string uploadDir)
         {
             if (!body.TryGetProperty("images", out var imgs) || imgs.ValueKind != JsonValueKind.Array)
@@ -181,6 +185,7 @@ namespace TensorSharp.Server.RequestParsers
             return paths.Count > 0 ? paths : null;
         }
 
+        // 中文：将 base64 图片解码为字节并以随机 GUID 文件名写入上传目录，返回生成的文件路径。
         private static string WriteBase64Image(string base64, string uploadDir)
         {
             byte[] imgData = Convert.FromBase64String(base64);

@@ -25,6 +25,7 @@ namespace TensorSharp.Server.Hosting
     /// </summary>
     internal static class StartupModelLoader
     {
+        // 中文：若配置了启动模型，则在接受请求前预加载到 ModelService 并预热内核；配置不一致时快速抛错。
         public static void LoadIfConfigured(
             ServerHostingOptions options,
             ModelService modelService,

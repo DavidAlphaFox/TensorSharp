@@ -33,11 +33,13 @@ namespace TensorSharp.Server
         private readonly ConcurrentDictionary<string, ChatSession> _sessions = new(StringComparer.Ordinal);
         private readonly ILogger<SessionManager> _logger;
 
+        // 中文：无参构造函数，使用空日志记录器委托给主构造函数。
         public SessionManager()
             : this(NullLogger<SessionManager>.Instance)
         {
         }
 
+        // 中文：主构造函数，注入日志记录器并预先创建内置的默认会话。
         public SessionManager(ILogger<SessionManager> logger)
         {
             _logger = logger ?? NullLogger<SessionManager>.Instance;
@@ -62,6 +64,7 @@ namespace TensorSharp.Server
         /// Create a new session with a freshly-generated id. The returned session is
         /// already registered and can be looked up via <see cref="GetSession"/>.
         /// </summary>
+        // 中文：创建并注册一个带新生成id的会话，循环重试直至成功加入注册表后返回。
         public ChatSession CreateSession()
         {
             while (true)
@@ -83,6 +86,7 @@ namespace TensorSharp.Server
         /// as "stateless client"). Returns null when the id is provided but no such
         /// session exists.
         /// </summary>
+        // 中文：按id查找会话；id为空时返回默认会话，id无对应会话时返回null。
         public ChatSession GetSession(string id)
         {
             if (string.IsNullOrWhiteSpace(id))
@@ -99,6 +103,7 @@ namespace TensorSharp.Server
         ///
         /// The default session cannot be removed; this method returns null for it.
         /// </summary>
+        // 中文：从注册表移除指定会话并返回（不在此处释放）；默认会话不可移除，无匹配时返回null。
         public ChatSession TryRemove(string id)
         {
             if (string.IsNullOrWhiteSpace(id))

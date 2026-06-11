@@ -43,6 +43,7 @@ namespace TensorSharp.Server
         // so a vision encoder on the request thread can't race the engine's
         // batched forward on the GPU.
 
+        // 中文：构造函数——注入模型生命周期、引擎宿主、提示词渲染器与遥测，并校验非空。
         public ChatGenerationPipeline(
             ModelLifecycleService lifecycle,
             InferenceEngineHost engineHost,
@@ -57,6 +58,7 @@ namespace TensorSharp.Server
             _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
         }
 
+        // 中文：聊天流式接口——封装带指标的版本，只流式产出非空文本片段。
         public async IAsyncEnumerable<string> ChatStreamAsync(
             ChatSession session,
             List<ChatMessage> history,
@@ -74,6 +76,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：核心生成流水线——准备历史、渲染（含多模态）提示词、提交引擎、流式解码 UTF-8 片段并处理停止序列与遥测，最后产出完成统计。
         public async IAsyncEnumerable<(string piece, bool done, int promptTokens, int evalTokens, int kvCacheReusedTokens, long totalNs, long promptNs, long evalNs)>
             ChatStreamWithMetricsAsync(
                 ChatSession session,
@@ -306,6 +309,7 @@ namespace TensorSharp.Server
             }
         }
 
+        // 中文：单轮 generate 流式接口——把提示词包成单条消息走聊天链路，但不跟踪多轮历史（用于 Ollama /api/generate）。
         public async IAsyncEnumerable<(string piece, bool done, int promptTokens, int evalTokens, int kvCacheReusedTokens, long totalNs, long promptNs, long evalNs)>
             GenerateStreamAsync(
                 ChatSession session,
@@ -334,6 +338,7 @@ namespace TensorSharp.Server
 
         /// <summary>Trim the prompt so the prompt+max-tokens fits inside the
         /// model's context window. Multimodal embedding spans are not split.</summary>
+        // 中文：裁剪提示词使「提示+生成预留」不超过模型上下文窗口，从头部截断且不切分多模态嵌入区间，超限则抛异常。
         public List<int> TruncatePromptToContext(ChatSession session, List<int> inputTokens, int maxTokens, string requestId = null)
         {
             var model = _lifecycle.Model;
@@ -367,6 +372,7 @@ namespace TensorSharp.Server
             return inputTokens.GetRange(trimStart, kept);
         }
 
+        // 中文：判断历史中是否含图像或音频附件，从而决定是否需要多模态预处理。
         private static bool RequiresMultimodalPreparation(List<ChatMessage> history)
         {
             if (history == null) return false;
@@ -387,6 +393,7 @@ namespace TensorSharp.Server
         /// different one (prefix cache correctly bypassed). Returns null when the
         /// prompt has no media, leaving text-only cache behavior unchanged.
         /// </summary>
+        // 中文：按提示顺序为所有图像/音频附件构建稳定指纹（用于前缀缓存命中区分），纯文本时返回 null。
         private static string BuildMediaFingerprint(List<ChatMessage> history)
         {
             if (history == null) return null;
@@ -418,6 +425,7 @@ namespace TensorSharp.Server
         /// Find the length of the longest prefix of the byte buffer that forms valid UTF-8.
         /// Strips any trailing incomplete multi-byte sequence.
         /// </summary>
+        // 中文：返回字节缓冲区中构成合法 UTF-8 的最长前缀长度，剥离末尾未完成的多字节序列。
         private static int FindValidUtf8Length(List<byte> bytes)
         {
             int len = bytes.Count;

@@ -23,6 +23,7 @@ namespace TensorSharp.Server.Hosting
     /// </summary>
     internal static class WebRootSetup
     {
+        // 中文：解析并确保 Web UI 静态资源的 wwwroot 目录存在，标准解析失败时回退到可执行文件旁的目录或新建空目录。
         public static void Resolve(IWebHostEnvironment environment, string baseDirectory)
         {
             if (environment == null) throw new ArgumentNullException(nameof(environment));

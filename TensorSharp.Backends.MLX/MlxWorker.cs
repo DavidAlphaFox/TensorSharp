@@ -20,6 +20,7 @@ namespace TensorSharp.MLX
         private static long _queueCount;
         public static long DispatchCount => Volatile.Read(ref _dispatchCount);
         public static long QueueCount => Volatile.Read(ref _queueCount);
+        // 中文：将派发计数与入队计数清零，用于诊断统计的基准重置。
         public static void ResetDispatchCount()
         {
             Volatile.Write(ref _dispatchCount, 0);
@@ -28,6 +29,7 @@ namespace TensorSharp.MLX
 
         public static MlxWorker Shared { get; } = new MlxWorker();
 
+        // 中文：私有构造，创建并启动后台 MLX 工作线程（单例 Shared 使用）。
         private MlxWorker()
         {
             thread = new Thread(Run)
@@ -45,6 +47,7 @@ namespace TensorSharp.MLX
         // the work inline.
         public bool IsOnWorkerThread => Thread.CurrentThread.ManagedThreadId == Volatile.Read(ref workerThreadId);
 
+        // 中文：在工作线程上同步执行 func 并返回结果；若已在工作线程则内联执行以避免自我死锁，否则入队等待。
         public T Invoke<T>(Func<T> func)
         {
             if (func == null)
@@ -63,6 +66,7 @@ namespace TensorSharp.MLX
             return item.GetResult();
         }
 
+        // 中文：无返回值版本的同步 Invoke，将 Action 包装为 Func 后委托给泛型 Invoke。
         public void Invoke(Action action)
         {
             if (action == null)
@@ -81,6 +85,7 @@ namespace TensorSharp.MLX
         // (e.g. mlx_array_free, mlx_async_eval). Skipping the signal/wait round
         // trip is worth ~1-2 microseconds per call, which adds up over the
         // 10^5-10^6 MLX ops issued per benchmark run.
+        // 中文：发后即忘地入队工作项，不等待完成、保持 FIFO 顺序且吞掉异常，仅用于纯副作用的 MLX 操作。
         public void Dispatch(Action action)
         {
             if (action == null)
@@ -101,6 +106,7 @@ namespace TensorSharp.MLX
             queue.Add(new FireAndForgetItem(action));
         }
 
+        // 中文：工作线程主循环，记录自身线程 ID 后从阻塞队列中逐个取出并执行工作项。
         private void Run()
         {
             Volatile.Write(ref workerThreadId, Thread.CurrentThread.ManagedThreadId);
@@ -108,12 +114,14 @@ namespace TensorSharp.MLX
                 item.Execute();
         }
 
+        // 中文：若工作线程已释放则抛出 ObjectDisposedException。
         private void ThrowIfDisposed()
         {
             if (Volatile.Read(ref disposed) != 0)
                 throw new ObjectDisposedException(nameof(MlxWorker));
         }
 
+        // 中文：幂等释放，标记已释放并停止队列接收，使工作线程在处理完现有项后退出。
         public void Dispose()
         {
             if (Interlocked.Exchange(ref disposed, 1) != 0)
@@ -134,11 +142,13 @@ namespace TensorSharp.MLX
             private T result;
             private Exception exception;
 
+            // 中文：构造带返回值的工作项，保存待执行的委托。
             public WorkItem(Func<T> func)
             {
                 this.func = func;
             }
 
+            // 中文：在工作线程执行委托，捕获结果或异常，最后置位完成信号唤醒等待者。
             public void Execute()
             {
                 try
@@ -155,6 +165,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：阻塞等待工作项完成，若执行抛出异常则重新抛出，否则返回结果。
             public T GetResult()
             {
                 completed.Wait();
@@ -168,11 +179,13 @@ namespace TensorSharp.MLX
         {
             private readonly Action action;
 
+            // 中文：构造发后即忘工作项，保存待执行的副作用 Action。
             public FireAndForgetItem(Action action)
             {
                 this.action = action;
             }
 
+            // 中文：执行副作用 Action 并刻意吞掉任何异常（发后即忘语义）。
             public void Execute()
             {
                 try

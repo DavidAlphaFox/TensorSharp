@@ -15,11 +15,13 @@ namespace TensorSharp.Core
     {
         private readonly Action action;
 
+        // 中文：构造函数，保存在释放时要执行的委托动作。
         public DelegateDisposable(Action action)
         {
             this.action = action;
         }
 
+        // 中文：释放时调用所保存的委托，实现 using 退出时执行自定义清理逻辑。
         public virtual void Dispose()
         {
             action();

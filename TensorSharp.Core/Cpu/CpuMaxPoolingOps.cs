@@ -13,6 +13,7 @@ namespace TensorSharp.Cpu
 {
     public static class CpuMaxPoolingOps
     {
+        // 中文：根据输入尺寸、卷积描述和取整模式计算最大池化输出张量的尺寸。
         public static long[] OutputSize(long[] inputSizes, bool ceilMode, ConvolutionDesc2d cd)
         {
             int dimw = 3;
@@ -37,6 +38,7 @@ namespace TensorSharp.Cpu
         }
 
 
+        // 中文：空间最大池化前向，逐批调用原生算子计算输出并记录最大值索引。
         public static void SpatialMaxPoolingForward(Tensor input, Tensor output, Tensor indices, ConvolutionDesc2d cd, bool ceilMode)
         {
             if (input.DimensionCount != 4)
@@ -111,6 +113,7 @@ namespace TensorSharp.Cpu
         }
 
 
+        // 中文：空间最大池化反向，按记录的索引逐批将梯度回传到输入梯度张量。
         public static void SpatialMaxPoolingBackward(Tensor input, Tensor gradOutput, Tensor gradInput, Tensor indices, ConvolutionDesc2d cd, bool ceilMode)
         {
             int dimw = 3;

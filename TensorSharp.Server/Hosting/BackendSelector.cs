@@ -20,6 +20,7 @@ namespace TensorSharp.Server.Hosting
     /// </summary>
     internal static class BackendSelector
     {
+        // 中文：将客户端请求的后端（或 null 表示用默认）解析为本机实际支持的后端，不支持则给出错误。
         public static bool TryResolveSupportedBackend(
             ServerHostingOptions options,
             string requestedBackend,

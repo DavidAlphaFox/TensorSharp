@@ -9,6 +9,7 @@ namespace TensorSharp.MLX
         private static readonly bool Qwen35GdnPackedKernelsEnabled =
             string.Equals(Environment.GetEnvironmentVariable("TS_MLX_QWEN35_GDN_PACKED_KERNELS"), "1", StringComparison.Ordinal);
 
+        // 中文：从环境变量解析 Qwen3.5 GDN 打包内核启用的最小序列长度，缺省/非法时返回 64。
         private static int ResolveQwen35GdnPackedMinSeqLen()
         {
             string env = Environment.GetEnvironmentVariable("TS_MLX_QWEN35_GDN_PACKED_MIN_SEQ_LEN");
@@ -18,6 +19,7 @@ namespace TensorSharp.MLX
             return 64;
         }
 
+        // 中文：在设备上同步求值（Eval）该 MLX 张量的计算图，非 MLX 张量或异常时返回 false。
         public static bool TryEvaluate(Tensor tensor)
         {
             if (tensor == null || tensor.Storage is not MlxStorage)
@@ -45,6 +47,7 @@ namespace TensorSharp.MLX
         // predicted next token in pipelined greedy decode. The host can sync
         // it via Tensor.GetElementsAsInt(1)[0] without bringing the full
         // [vocab] logits tensor across the device→host boundary.
+        // 中文：在设备端对 logits 沿最后一维做 argmax，把预测的下一个 token 写入 int32 结果张量，避免整段 vocab 跨设备拷回主机。
         public static bool TryArgMaxLastAxis(Tensor result, Tensor logits)
         {
             if (result == null || logits == null) return false;
@@ -92,6 +95,7 @@ namespace TensorSharp.MLX
         //
         // Requires: routerLogits shape [1, numExperts], topIndices [K]
         // int32, routeWeights [1, K] float32, all MLX-backed.
+        // 中文：在设备端完成 MoE 路由的 top-K 选取与归一化 softmax，输出选中专家索引及其权重，省去每 MoE 层的主机同步。
         public static bool TryMoeRouterTopKSoftmax(
             Tensor routerLogits,
             Tensor topIndices,
@@ -180,6 +184,7 @@ namespace TensorSharp.MLX
         // each saved kernel × 8 experts × 60 layers adds up.
         // Returns false when the caller should fall back to its own
         // eager path (e.g. non-MLX storage, compile disabled, errors).
+        // 中文：以单个融合 Metal 内核就地执行 output += scalar * src，校验通过后委派给 worker 线程执行。
         public static bool TryAddScaledInPlace(Tensor output, Tensor src, float scalar)
         {
             if (MlxCompiledOps.Disabled) return false;
@@ -193,6 +198,7 @@ namespace TensorSharp.MLX
             return MlxWorker.Shared.Invoke(() => RunAddScaledInPlace(output, src, scalar));
         }
 
+        // 中文：TryAddScaledInPlace 的实际执行体，构建视图与标量、调用融合 AddScaled 内核并把结果写回 output。
         private static bool RunAddScaledInPlace(Tensor output, Tensor src, float scalar)
         {
             MlxNative.MlxArray outView = default;
@@ -227,6 +233,7 @@ namespace TensorSharp.MLX
         // layer boundaries so Metal command-buffer issue overlaps with
         // completion of earlier layers — mirrors ollama mlxrunner's
         // mlx.AsyncEval at each forward step.
+        // 中文：异步调度该 MLX 张量的图执行后立即返回，用于在层边界让命令缓冲发射与前序层完成重叠。
         public static bool TryAsyncEvaluate(Tensor tensor)
         {
             if (tensor == null || tensor.Storage is not MlxStorage)
@@ -249,6 +256,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：将拥有完整存储的连续 MLX 张量物化为紧致连续数组并同步求值后写回，否则返回 false。
         public static bool TryMaterialize(Tensor tensor)
         {
             if (tensor == null
@@ -282,6 +290,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：按 int32 索引向量在设备端从 src 收集行（take + 连续化）写入 result，实现行级 gather。
         public static bool TryGatherRows(Tensor result, Tensor src, Tensor indices)
         {
             if (!CanUseResult(result)
@@ -326,6 +335,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：按已排序去重的索引把加权后的 rows 散加（scatter-add）回 output 对应行，用于 MoE 专家结果合并而避免主机散射。
         public static bool TryScatterAddWeightedRows(Tensor output, Tensor rows, Tensor indices, Tensor weights)
         {
             // indices must be sorted and unique. Qwen35's per-expert prefill
@@ -393,6 +403,7 @@ namespace TensorSharp.MLX
         /// Saves one MLX dispatch vs the equivalent Ops.Add + Ops.RMSNorm pair
         /// in the pre-norm transformer block pattern.
         /// </summary>
+        // 中文：融合执行 residual += input 并将其 RMSNorm 结果写入 normedOut，省去一次 MLX 调度（pre-norm 块模式）。
         public static bool TryAddRmsNorm(Tensor residual, Tensor input, Tensor normWeight, float eps, Tensor normedOut)
         {
             if (!CanUseResult(residual)
@@ -448,6 +459,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：融合执行 (input 的 RMSNorm) 与残差相加并就地写回 residual。
         public static bool TryRmsNormAddInPlace(Tensor residual, Tensor input, Tensor normWeight, float eps)
         {
             if (!CanUseResult(residual)
@@ -495,6 +507,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：对拼接的 gateUp 张量做 GeGLU 融合：拆出 gate/up 两半，gate 过 GELU 后与 up 逐元素相乘写入 result。
         public static bool TryGeluMulSplit(Tensor result, Tensor gateUp, int halfDim)
         {
             if (!CanUseResult(result)
@@ -546,6 +559,7 @@ namespace TensorSharp.MLX
         /// offset/strided view). <paramref name="src"/> must be a 3D
         /// MLX-backed float tensor <c>[heads, seqLen, headDim]</c>.
         /// </summary>
+        // 中文：用单次 slice_update 把 src 写入 KV 缓存的 [:, startPos:startPos+seqLen, :] 区间，替代逐头拷贝循环。
         public static bool TryWriteKvCacheBlock(Tensor cache, Tensor src, int startPos, int seqLen)
         {
             if (cache == null || src == null)
@@ -625,6 +639,7 @@ namespace TensorSharp.MLX
         /// <c>[NumKVHeads, 1, HeadDim]</c> (the layout the cache slice_update
         /// expects). Replaces 5 separate MLX dispatches per layer.
         /// </summary>
+        // 中文：Gemma 4 解码步 QKV 预处理融合内核：单核内拆分 QKV、对各头做 RMSNorm 并对 Q/K 施加 NeoX RoPE，输出指定布局。
         public static bool TryGemma4QkvPreprocessDecode(
             Tensor qOut,
             Tensor kOut,
@@ -716,6 +731,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：把扁平的 [seqLen, numHeads*headDim] 张量（可带列偏移）重排为 head-first 的 [numHeads, seqLen, headDim]。
         public static bool TryFlatToHeadFirst(Tensor result, Tensor input, int numHeads, int seqLen, int headDim, int colOffset = 0)
         {
             if (!CanUseResult(result)
@@ -761,6 +777,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：对扁平布局 [seqLen, numHeads*headDim] 的数据就地施加 NeoX 风格 RoPE 旋转位置编码。
         public static bool TryNeoXRoPEFlatInPlace(Tensor data, Tensor cosTable, Tensor sinTable,
             int numHeads, int seqLen, int headDim, int rotHalf)
         {
@@ -786,6 +803,7 @@ namespace TensorSharp.MLX
             return TryNeoXRoPEInPlace(data, cosTable, sinTable, numHeads, seqLen, headDim, rotHalf, headFirst: false);
         }
 
+        // 中文：对 head-first 布局 [numHeads, seqLen, headDim] 的数据就地施加 NeoX 风格 RoPE 旋转位置编码。
         public static bool TryNeoXRoPEHeadFirstInPlace(Tensor data, Tensor cosTable, Tensor sinTable,
             int numHeads, int seqLen, int headDim, int rotHalf)
         {
@@ -812,6 +830,7 @@ namespace TensorSharp.MLX
             return TryNeoXRoPEInPlace(data, cosTable, sinTable, numHeads, seqLen, headDim, rotHalf, headFirst: true);
         }
 
+        // 中文：NeoX RoPE 的共用执行体，按 headFirst 标志调用底层内核并把旋转后的结果写回 data。
         private static bool TryNeoXRoPEInPlace(Tensor data, Tensor cosTable, Tensor sinTable,
             int numHeads, int seqLen, int headDim, int rotHalf, bool headFirst)
         {
@@ -853,6 +872,7 @@ namespace TensorSharp.MLX
 
             public int Length => length;
 
+            // 中文：物化并异步求值缓存中的 K/V 数组，限制图深度，返回是否有数组被求值。
             public bool TryEvaluateState()
             {
                 try
@@ -867,6 +887,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：释放 K/V 缓存数组并把缓存长度清零，重置注意力 KV 缓存状态。
             public void Reset()
             {
                 MlxNative.FreeArray(kCache);
@@ -876,6 +897,7 @@ namespace TensorSharp.MLX
                 length = 0;
             }
 
+            // 中文：headDim=256 的注意力：将本步 K/V 追加进缓存并对 Q 运行融合注意力内核，结果写入 result 并推进缓存长度。
             public bool TryAttentionHeadDim256(
                 Tensor result,
                 Tensor qHeads,
@@ -980,6 +1002,7 @@ namespace TensorSharp.MLX
                 });
             }
 
+            // 中文：将本步 K/V（连续化后）与已有缓存沿序列轴拼接，构造更新后的 K/V 缓存数组。
             private bool TryBuildUpdatedCache(Tensor kHeads, Tensor vHeads,
                 out MlxNative.MlxArray nextK, out MlxNative.MlxArray nextV)
             {
@@ -1033,6 +1056,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：释放注意力 KV 缓存（委托给 Reset）。
             public void Dispose()
             {
                 Reset();
@@ -1048,6 +1072,7 @@ namespace TensorSharp.MLX
             private int keyDim;
             private int valueDim;
 
+            // 中文：释放 GDN 的卷积状态与 delta 状态，重置门控 DeltaNet 缓存的循环状态。
             public void Reset()
             {
                 MlxNative.FreeArray(convState);
@@ -1056,6 +1081,7 @@ namespace TensorSharp.MLX
                 deltaState = default;
             }
 
+            // 中文：物化并异步求值 GDN 的卷积状态与 delta 状态，限制图深度，返回是否有状态被求值。
             public bool TryEvaluateState()
             {
                 try
@@ -1070,6 +1096,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：释放 GDN 全部缓存（循环状态及缓存的全 1 归一化权重数组）。
             public void Dispose()
             {
                 Reset();
@@ -1079,6 +1106,7 @@ namespace TensorSharp.MLX
                 onesValue = default;
             }
 
+            // 中文：Qwen3.5 GDN 门控 DeltaNet 的打包内核入口，校验张量形状/启用条件后委派 worker 执行打包预处理与 delta 递推。
             public bool TryRunQwen35Packed(
                 Tensor result,
                 Tensor packedRaw,
@@ -1136,6 +1164,7 @@ namespace TensorSharp.MLX
                     convKernel, eps));
             }
 
+            // 中文：打包 GDN 的实际执行体：打包预处理→Q/K 融合 RMSNorm+缩放→门控 delta 递推→后处理门控，更新卷积/delta 状态并写回结果。
             private bool RunQwen35PackedInner(
                 Tensor result, Tensor packedRaw, Tensor convWeight, Tensor dtBias, Tensor aLog, Tensor normWeight,
                 int seqLen, int packedDim, int qkvDim, int keyDim, int valueDim,
@@ -1304,6 +1333,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：Qwen3.5 GDN 门控 DeltaNet 的非打包内核入口，校验各输入张量形状后委派 worker 执行完整 GDN 计算。
             public bool TryRunQwen35(
                 Tensor result,
                 Tensor qkvRaw,
@@ -1369,6 +1399,7 @@ namespace TensorSharp.MLX
                     convKernel, eps));
             }
 
+            // 中文：非打包 GDN 的实际执行体：深度卷积+SiLU→拆分 QKV→Q/K 归一化缩放→门控/beta 计算→门控 delta 递推→RMSNorm 与 z 门控，更新状态并写回结果（可选走打包快路径）。
             private bool RunQwen35Inner(
                 Tensor result, Tensor qkvRaw, Tensor zRaw, Tensor betaRaw, Tensor alphaRaw,
                 Tensor convWeight, Tensor dtBias, Tensor aLog, Tensor normWeight,
@@ -1665,6 +1696,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：按需惰性初始化 GDN 的卷积状态与 delta 状态为零张量（仅在尚未分配时）。
             private void EnsureState(int convTail, int qkvDim, int numValueHeads, int headValueDim, int headKeyDim)
             {
                 if (!convState.IsValid)
@@ -1673,6 +1705,7 @@ namespace TensorSharp.MLX
                     deltaState = MlxNative.Full(new[] { 1, numValueHeads, headValueDim, headKeyDim }, 0.0f, DType.Float32);
             }
 
+            // 中文：按需缓存用于 Q/K RMSNorm 的全 1 权重数组，维度变化时重建。
             private void EnsureNormWeights(int keyDim, int valueDim)
             {
                 if (!onesKey.IsValid || this.keyDim != keyDim)
@@ -1689,6 +1722,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：以逐核位移加权求和的方式对拼接序列执行 GDN 的因果深度卷积，支持 channel-major/kernel-major 两种权重布局。
             private static MlxNative.MlxArray RunDepthwiseConv(
                 MlxNative.MlxArray concat,
                 MlxNative.MlxArray convWeight,
@@ -1761,6 +1795,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：计算 SiLU 激活 x * sigmoid(x)。
             private static MlxNative.MlxArray Silu(MlxNative.MlxArray input)
             {
                 MlxNative.MlxArray sigmoid = default;
@@ -1775,6 +1810,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：计算 Softplus 激活 log(1 + exp(x))。
             private static MlxNative.MlxArray Softplus(MlxNative.MlxArray input)
             {
                 MlxNative.MlxArray exp = default;
@@ -1795,6 +1831,7 @@ namespace TensorSharp.MLX
                 }
             }
 
+            // 中文：将输入数组逐元素乘以标量值。
             private static MlxNative.MlxArray MulScalar(MlxNative.MlxArray input, float value)
             {
                 MlxNative.MlxArray scalar = default;
@@ -1810,6 +1847,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：将数组连续化并异步求值以约束计算图深度（不阻塞主机），就地替换为求值后的数组。
         private static bool Materialize(ref MlxNative.MlxArray array)
         {
             if (!array.IsValid)
@@ -1838,6 +1876,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：预填充阶段的因果注意力，优先走 head-first 融合 SDPA，失败时可选回退到分块向量化预填充注意力。
         public static bool TryPrefillAttention(
             Tensor result,
             Tensor qHeads,
@@ -1885,6 +1924,7 @@ namespace TensorSharp.MLX
         /// [numHeads]. Sliding-window attention is supported via
         /// <paramref name="slidingWindow"/> &gt; 0; pass 0 for full causal.
         /// </summary>
+        // 中文：带每头注意力 sink 的解码注意力（GPT-OSS 系列），支持滑动窗口，使 K/V 缓存保留在设备上。
         public static bool TryDecodeAttentionWithSinks(
             Tensor result,
             Tensor qFlat,
@@ -1956,6 +1996,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：单步解码注意力，按 circular 标志对 KV 缓存做线性/环形切片（必要时拼接绕回段），整段子图打包进单次 worker 往返执行。
         public static bool TryDecodeAttention(
             Tensor result,
             Tensor qFlat,
@@ -2062,6 +2103,7 @@ namespace TensorSharp.MLX
         /// otherwise. Drops in for the existing TryDecodeAttention non-
         /// circular branch when head_dim == 512.
         /// </summary>
+        // 中文：Gemma 4 全局层（headDim=512、非环形）解码注意力，形状匹配时调用定制 simdgroup Metal 内核。
         public static bool TryDecodeAttentionHeadDim512(
             Tensor result,
             Tensor qFlat,
@@ -2136,6 +2178,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：环形 KV 缓存的解码注意力，从 firstSlot 起按环形布局调用定制内核，避免显式绕回拼接。
         private static bool TryCircularDecodeAttention(
             Tensor result,
             Tensor qFlat,
@@ -2220,6 +2263,7 @@ namespace TensorSharp.MLX
             });
         }
 
+        // 中文：head-first 布局注意力的入口，校验快注意力可用性与各张量形状后委派 worker 执行内部计算。
         private static bool TryRunHeadFirstAttention(
             Tensor result,
             Tensor qHeads,
@@ -2264,6 +2308,7 @@ namespace TensorSharp.MLX
                 result, qHeads, kHeads, vHeads, numHeads, numKVHeads, seqLen, kvLen, headDim, maskMode, scale));
         }
 
+        // 中文：head-first 注意力实际执行体：连续化输入，headDim=256 走定制内核否则走 MLX 快 SDPA，并把结果转回序列主序扁平写入 result。
         private static bool RunHeadFirstAttentionInner(
             Tensor result, Tensor qHeads, Tensor kHeads, Tensor vHeads,
             int numHeads, int numKVHeads, int seqLen, int kvLen, int headDim, string maskMode, float scale)
@@ -2388,6 +2433,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：分块向量化预填充注意力，按可向量化的块大小切分查询，逐块对前缀 K/V 运行因果注意力。
         private static bool TryRunChunkedVectorPrefillAttention(
             Tensor result,
             Tensor qHeads,
@@ -2446,6 +2492,7 @@ namespace TensorSharp.MLX
             }
         }
 
+        // 中文：判断给定的头数/序列长/headDim 是否落在 MLX 快 SDPA 内核支持范围内。
         private static bool CanUseFastAttention(int numHeads, int numKVHeads, int seqLen, int kvLen, int headDim)
         {
             if (seqLen <= 0 || kvLen <= 0 || seqLen > kvLen || numKVHeads <= 0 || numHeads % numKVHeads != 0)
@@ -2466,6 +2513,7 @@ namespace TensorSharp.MLX
             return true;
         }
 
+        // 中文：根据 GQA 分组大小计算向量内核可处理的最大查询长度（min(8, 32/groupSize)）。
         private static int MaxVectorQueryLen(int groupSize)
         {
             if (groupSize <= 0)
@@ -2473,6 +2521,7 @@ namespace TensorSharp.MLX
             return Math.Min(8, 32 / groupSize);
         }
 
+        // 中文：从环境变量读取快注意力允许的最大 headDim，缺省返回 256。
         private static int MaxFastAttentionHeadDim()
         {
             string value = Environment.GetEnvironmentVariable("TS_MLX_SDPA_MAX_HEAD_DIM");
@@ -2481,6 +2530,7 @@ namespace TensorSharp.MLX
             return 256;
         }
 
+        // 中文：校验张量是否为可作结果使用的 MLX 后端、float32、连续张量。
         private static bool CanUseResult(Tensor tensor)
         {
             return tensor != null
@@ -2489,6 +2539,7 @@ namespace TensorSharp.MLX
                 && tensor.IsContiguous();
         }
 
+        // 中文：校验张量是否为可用的 MLX 后端、int32、一维、连续向量（如索引）。
         private static bool CanUseInt32Vector(Tensor tensor)
         {
             return tensor != null
@@ -2498,6 +2549,7 @@ namespace TensorSharp.MLX
                 && tensor.IsContiguous();
         }
 
+        // 中文：校验张量是否为注意力可用的 MLX 后端、float32 或 float16 张量。
         private static bool CanUseAttentionTensor(Tensor tensor)
         {
             return tensor != null
@@ -2505,6 +2557,7 @@ namespace TensorSharp.MLX
                 && (tensor.ElementType == DType.Float32 || tensor.ElementType == DType.Float16);
         }
 
+        // 中文：校验张量是否为 GDN 内核可用的 MLX 后端、float32、连续张量。
         private static bool CanUseGdnTensor(Tensor tensor)
         {
             return tensor != null
@@ -2513,11 +2566,13 @@ namespace TensorSharp.MLX
                 && tensor.IsContiguous();
         }
 
+        // 中文：从张量的 MLX 存储创建对应的 MLX 数组视图。
         private static MlxNative.MlxArray GetView(Tensor tensor)
         {
             return ((MlxStorage)tensor.Storage).CreateArrayView(tensor);
         }
 
+        // 中文：把计算结果写回张量存储——整存储时直接替换设备数组，否则按切片更新并释放临时数组。
         private static void SetDeviceResult(Tensor tensor, MlxNative.MlxArray output)
         {
             MlxStorage storage = (MlxStorage)tensor.Storage;
