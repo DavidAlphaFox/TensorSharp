@@ -69,6 +69,7 @@ namespace TensorSharp.Runtime
         /// <paramref name="other"/>. Returns 0 for empty / null inputs. Returns
         /// <see cref="Count"/> when <paramref name="other"/> starts with the entire cache.
         /// </summary>
+        // 中文：返回缓存 token 序列与 other 的最长公共前缀长度，用于判断可复用的缓存量。
         public int CommonPrefixLength(IReadOnlyList<int> other)
         {
             if (other == null || other.Count == 0 || _tokens.Count == 0)
@@ -89,6 +90,7 @@ namespace TensorSharp.Runtime
         /// (or equal to it). False when <paramref name="input"/> is shorter than the cache
         /// or when any token differs.
         /// </summary>
+        // 中文：判断缓存的 token 序列是否恰为 input 的前缀（或与之相等）。
         public bool IsPrefixOf(IReadOnlyList<int> input)
         {
             if (input == null || input.Count < _tokens.Count)
@@ -107,6 +109,7 @@ namespace TensorSharp.Runtime
         /// AND logits were recorded for the position right after it.
         /// In that case <paramref name="logits"/> receives a fresh copy of the cached logits.
         /// </summary>
+        // 中文：当缓存序列与 input 完全一致且已记录其后续 logits 时，输出该 logits 的副本并返回 true。
         public bool TryGetExactMatchLogits(IReadOnlyList<int> input, [NotNullWhen(true)] out float[]? logits)
         {
             logits = null;
@@ -127,6 +130,7 @@ namespace TensorSharp.Runtime
         /// Drop everything and return to the empty state. The caller is responsible for
         /// also calling <see cref="IModelArchitecture.ResetKVCache"/> on the model.
         /// </summary>
+        // 中文：清空全部 token 与缓存 logits，使缓存回到空状态（模型侧需调用方另行重置）。
         public void Reset()
         {
             _tokens.Clear();
@@ -138,6 +142,7 @@ namespace TensorSharp.Runtime
         /// invalidated. The caller is responsible for also calling
         /// <see cref="IModelArchitecture.TruncateKVCache"/> on the model.
         /// </summary>
+        // 中文：仅保留前 length 个 token 并作废缓存 logits（模型侧 KV 缓存需调用方同步截断）。
         public void TruncateTo(int length)
         {
             if (length < 0)
@@ -159,6 +164,7 @@ namespace TensorSharp.Runtime
         /// final forward call (logits for the next token to be generated). May be null when
         /// the caller does not need to cache them (e.g. mid-prefill chunks).
         /// </summary>
+        // 中文：记录模型已在当前前缀之上前向了 newTokens，追加这些 token 并更新缓存的下一步 logits。
         public void RecordAppend(IReadOnlyList<int> newTokens, float[]? nextLogits)
         {
             if (newTokens == null)
@@ -173,6 +179,7 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Convenience overload for appending a single token (typical decode step).
         /// </summary>
+        // 中文：追加单个 token 的便捷重载（典型 decode 步），并更新缓存的下一步 logits。
         public void RecordAppend(int token, float[]? nextLogits)
         {
             _tokens.Add(token);
@@ -191,6 +198,7 @@ namespace TensorSharp.Runtime
         /// <paramref name="supportsTruncation"/> models that report <c>false</c> can only
         /// reuse the cache when the entire current cache is a prefix of the new input.
         /// </summary>
+        // 中文：根据当前缓存与目标 inputTokens 规划复用方案（精确命中/部分复用/重置），仅生成计划不改状态。
         public ReusePlan PlanReuse(IReadOnlyList<int> inputTokens, bool supportsTruncation)
         {
             if (inputTokens == null || inputTokens.Count == 0)
@@ -248,6 +256,7 @@ namespace TensorSharp.Runtime
         /// </summary>
         public float[]? CachedLogits { get; }
 
+        // 中文：私有构造，统一设置复用方案的种类、可复用前缀长度、待前向 token 数与缓存 logits。
         private ReusePlan(ReusePlanKind kind, int reusedPrefix, int tokensToForward, float[]? cachedLogits)
         {
             Kind = kind;
@@ -256,12 +265,15 @@ namespace TensorSharp.Runtime
             CachedLogits = cachedLogits;
         }
 
+        // 中文：构造「精确命中」方案，无需前向，直接携带缓存的 logits。
         public static ReusePlan ExactMatch(float[]? cachedLogits)
             => new(ReusePlanKind.ExactMatch, 0, 0, cachedLogits);
 
+        // 中文：构造「部分复用」方案，保留指定前缀并前向其余 token。
         public static ReusePlan Reuse(int reusedPrefix, int tokensToForward)
             => new(ReusePlanKind.PartialReuse, reusedPrefix, tokensToForward, null);
 
+        // 中文：构造「重置」方案，清空缓存并从头前向全部输入 token。
         public static ReusePlan Reset(int tokensToForward)
             => new(ReusePlanKind.Reset, 0, tokensToForward, null);
     }

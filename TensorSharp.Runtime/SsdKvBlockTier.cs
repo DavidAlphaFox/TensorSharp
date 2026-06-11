@@ -51,6 +51,7 @@ namespace TensorSharp.Runtime
         private readonly Thread _writerThread;
         private volatile bool _disposed;
 
+        // 中文：构造 SSD 溢出层，校验参数、计算指纹哈希、创建根目录、重建已有文件索引并启动后台写线程。
         public SsdKvBlockTier(string rootDir, long maxBytes, string fingerprint, ILogger logger = null)
         {
             if (string.IsNullOrWhiteSpace(rootDir))
@@ -85,6 +86,7 @@ namespace TensorSharp.Runtime
             get { lock (_gate) return _index.Count; }
         }
 
+        // 中文：按哈希同步读取磁盘上的 KV 块，命中则更新 LRU 顺序并校验头部后返回原始负载。
         public bool TryRead(KvBlockHash hash, out byte[] payload)
         {
             string path = PathFor(hash);
@@ -137,6 +139,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将一个 KV 块异步入队，交由后台写线程落盘（空负载或已释放时直接忽略）。
         public void EnqueueWrite(KvBlockHash hash, byte[] payload)
         {
             if (payload == null || payload.Length == 0)
@@ -153,6 +156,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：清空溢出层，删除所有已落盘文件并重置索引、LRU 链表与驻留字节计数。
         public void Clear()
         {
             lock (_gate)
@@ -168,6 +172,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：释放资源，停止接收新写入、等待后台写线程退出并销毁写队列。
         public void Dispose()
         {
             if (_disposed)
@@ -180,6 +185,7 @@ namespace TensorSharp.Runtime
             _writeQueue.Dispose();
         }
 
+        // 中文：后台写线程主循环，持续从队列取出写任务并逐个落盘，异常仅记日志不中断。
         private void WriterLoop()
         {
             try
@@ -202,6 +208,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将单个 KV 块原子写入磁盘（先写 .tmp 再 move），并更新索引/LRU、按容量上限淘汰旧块。
         private void WriteBlock(KvBlockHash hash, byte[] payload)
         {
             string path = PathFor(hash);
@@ -273,6 +280,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：启动时扫描根目录下已有的 .kvb 文件，校验文件名与头部合法后重建内存索引与 LRU。
         private void ReindexExistingFiles()
         {
             if (!Directory.Exists(_rootDir))
@@ -316,6 +324,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：读取文件头并校验 magic、版本与指纹哈希，确保不是其它模型遗留的块。
         private bool ValidateHeader(string file)
         {
             try
@@ -335,6 +344,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：循环读取流直到填满目标缓冲或到达流尾，返回实际读取的字节数。
         private static int ReadExact(Stream s, Span<byte> dest)
         {
             int read = 0;
@@ -348,12 +358,14 @@ namespace TensorSharp.Runtime
             return read;
         }
 
+        // 中文：根据哈希的十六进制串计算块文件路径（按前两位做哈希分区子目录）。
         private string PathFor(KvBlockHash hash)
         {
             string hex = hash.ToHexString();
             return Path.Combine(_rootDir, hex.Substring(0, 2), hex + ".kvb");
         }
 
+        // 中文：用 FNV-1a 算法对指纹字符串计算稳定哈希，避免每次读取都做 SHA-256。
         private static ulong StableFingerprintHash(string fingerprint)
         {
             // Lightweight FNV-1a so we don't pay SHA-256 cost on every read.

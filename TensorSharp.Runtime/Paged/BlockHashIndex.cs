@@ -26,21 +26,25 @@ namespace TensorSharp.Runtime.Paged
 
         public int Count => _index.Count;
 
+        // 中文：将内容哈希到物理块的映射注册到索引（同一哈希只保留首个块）。
         public void Register(KvBlockHash hash, KvBlock block)
         {
             _index.TryAdd(hash, block);
         }
 
+        // 中文：按内容哈希查找已索引的物理块（前缀缓存命中），未命中返回 false。
         public bool TryGet(KvBlockHash hash, out KvBlock block)
         {
             return _index.TryGetValue(hash, out block);
         }
 
+        // 中文：从索引中移除指定哈希（块被驱逐或复用时调用）。
         public void Unregister(KvBlockHash hash)
         {
             _index.Remove(hash);
         }
 
+        // 中文：清空整个哈希索引。
         public void Clear()
         {
             _index.Clear();

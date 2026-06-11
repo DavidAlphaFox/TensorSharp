@@ -64,6 +64,7 @@ namespace TensorSharp.Runtime
         /// element types they don't compress (returning the same array is
         /// fine; callers treat the return value as read-only).
         /// </summary>
+        // 中文：将原始 K/V 字节块编码为新分配的字节数组（不压缩的类型可原样返回）。
         byte[] Encode(ReadOnlySpan<byte> rawBlock);
 
         /// <summary>
@@ -75,6 +76,7 @@ namespace TensorSharp.Runtime
         /// header mismatch, version skew, or any condition that makes the
         /// encoded blob unsafe to reinject into the model.
         /// </summary>
+        // 中文：将编码块解码回原始字节写入 rawDestination；头部/版本不匹配或不安全时返回 false 且不部分写入。
         bool TryDecode(ReadOnlySpan<byte> encoded, Span<byte> rawDestination);
     }
 }

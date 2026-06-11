@@ -54,6 +54,7 @@ namespace TensorSharp.Runtime.Paged
         internal KvBlock PrevFree;
         internal KvBlock NextFree;
 
+        // 中文：以稳定物理 id 构造空块，引用计数与已用槽位归零、无内容哈希。
         public KvBlock(int id)
         {
             Id = id;
@@ -65,6 +66,7 @@ namespace TensorSharp.Runtime.Paged
         /// <summary>True when the block is in the free queue.</summary>
         public bool IsFree => RefCount == 0;
 
+        // 中文：返回包含 id、引用计数、已用槽位与是否有哈希的调试字符串。
         public override string ToString()
             => $"KvBlock(id={Id}, refs={RefCount}, used={Used}, hash={(ContentHash.HasValue ? "yes" : "no")})";
     }
@@ -81,6 +83,7 @@ namespace TensorSharp.Runtime.Paged
         private readonly KvBlock _tail;   // sentinel
         private int _count;
 
+        // 中文：构造空闲块双向链表，建立头尾哨兵节点并初始化计数为零。
         public FreeBlockQueue()
         {
             _head = new KvBlock(-1);
@@ -93,6 +96,7 @@ namespace TensorSharp.Runtime.Paged
         public int Count => _count;
 
         /// <summary>Append to the tail (most-recently-freed end).</summary>
+        // 中文：将块追加到队尾（最近释放端）；若块已在某队列则抛异常。
         public void Enqueue(KvBlock block)
         {
             if (block.PrevFree != null || block.NextFree != null)
@@ -106,6 +110,7 @@ namespace TensorSharp.Runtime.Paged
         }
 
         /// <summary>Pop from the head (least-recently-used).</summary>
+        // 中文：从队首（最久未用端）弹出一个块，队列为空返回 null。
         public KvBlock Dequeue()
         {
             if (_count == 0)
@@ -117,6 +122,7 @@ namespace TensorSharp.Runtime.Paged
 
         /// <summary>Remove the given block from anywhere in the queue. The block
         /// must currently be in this queue; otherwise behavior is undefined.</summary>
+        // 中文：O(1) 从队列任意位置摘除指定块并清空其前后指针。
         public void Remove(KvBlock block)
         {
             if (block.PrevFree == null && block.NextFree == null)
@@ -129,6 +135,7 @@ namespace TensorSharp.Runtime.Paged
         }
 
         /// <summary>Peek the first block without removing.</summary>
+        // 中文：查看队首块但不移除，队列为空返回 null。
         public KvBlock PeekFront()
         {
             if (_count == 0) return null;

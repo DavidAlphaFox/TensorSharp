@@ -21,6 +21,7 @@ namespace TensorSharp.Runtime
         private readonly SamplingConfig _config;
         private readonly Random _rng;
 
+        // 中文：构造采样器，保存配置并按 Seed 创建确定性或随机的随机数生成器。
         public TokenSampler(SamplingConfig config)
         {
             _config = config ?? SamplingConfig.Default;
@@ -33,6 +34,7 @@ namespace TensorSharp.Runtime
         /// <param name="logits">Raw logits from the model (vocabSize elements).</param>
         /// <param name="generatedTokenIds">Previously generated token ids for penalty computation.</param>
         /// <returns>Selected token id.</returns>
+        // 中文：核心采样入口，依次应用惩罚、温度、softmax、min-p、top-k、top-p 后采样并返回 token id。
         public int Sample(float[] logits, IList<int>? generatedTokenIds = null)
         {
             int vocabSize = logits.Length;
@@ -64,6 +66,7 @@ namespace TensorSharp.Runtime
         /// Check whether any stop sequence has been produced, and return
         /// the trimmed decoded text and whether generation should stop.
         /// </summary>
+        // 中文：检测是否已生成任一停止序列，命中则截断文本并返回应停止标志。
         public (string text, bool shouldStop) CheckStopSequences(string decodedSoFar)
         {
             if (_config.StopSequences == null || _config.StopSequences.Count == 0)
@@ -78,6 +81,7 @@ namespace TensorSharp.Runtime
             return (decodedSoFar, false);
         }
 
+        // 中文：判断是否启用了任意一种惩罚（重复/存在/频率）。
         private bool HasPenalties()
         {
             return _config.RepetitionPenalty != 1.0f ||
@@ -87,6 +91,7 @@ namespace TensorSharp.Runtime
 
         #region Penalty Application
 
+        // 中文：统计已生成 token 出现次数，对其分数施加重复（乘法）、存在与频率（加法）惩罚。
         private void ApplyPenalties(float[] scores, IList<int>? generatedTokenIds)
         {
             if (generatedTokenIds == null || generatedTokenIds.Count == 0)
@@ -134,6 +139,7 @@ namespace TensorSharp.Runtime
 
         #region Temperature
 
+        // 中文：用温度对所有分数做缩放（除以温度），温度越高分布越平缓。
         private static void ApplyTemperature(float[] scores, float temperature)
         {
             float invT = 1.0f / temperature;
@@ -145,6 +151,7 @@ namespace TensorSharp.Runtime
 
         #region Softmax
 
+        // 中文：数值稳定的 softmax，先减最大值再取指数归一化为概率分布。
         private static float[] Softmax(float[] scores)
         {
             int n = scores.Length;
@@ -176,6 +183,7 @@ namespace TensorSharp.Runtime
         /// Returns indices of top-K tokens sorted by probability (descending).
         /// If topK is 0, returns all indices sorted by probability.
         /// </summary>
+        // 中文：通过快速选择取概率最高的前 K 个 token 并按概率降序返回其索引（K 为 0 则返回全部）。
         private int[] ApplyTopK(float[] probs)
         {
             int n = probs.Length;
@@ -203,10 +211,13 @@ namespace TensorSharp.Runtime
         private sealed class ProbComparer : IComparer<int>
         {
             private readonly float[] _p;
+            // 中文：构造比较器，保存概率数组引用。
             public ProbComparer(float[] p) => _p = p;
+            // 中文：按概率降序比较两个索引。
             public int Compare(int a, int b) => _p[b].CompareTo(_p[a]);
         }
 
+        // 中文：基于快速选择的部分排序，使前 k 个位置为概率最大的元素。
         private static void PartialSort(int[] indices, float[] probs, int lo, int hi, int k)
         {
             while (lo < hi)
@@ -220,6 +231,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：快速选择的分区操作，将概率不小于基准值的索引移到前部并返回基准位置。
         private static int Partition(int[] indices, float[] probs, int lo, int hi)
         {
             float pivotVal = probs[indices[hi]];
@@ -244,6 +256,7 @@ namespace TensorSharp.Runtime
         /// Filter candidates to the smallest set whose cumulative probability >= topP.
         /// Input candidates must be sorted by probability descending.
         /// </summary>
+        // 中文：核采样（top-p），保留累积概率达到 TopP 的最小候选集合（输入需按概率降序）。
         private int[] ApplyTopP(float[] probs, int[] candidates)
         {
             if (_config.TopP >= 1.0f)
@@ -277,6 +290,7 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Zero out probabilities below min_p * max_probability.
         /// </summary>
+        // 中文：min-p 过滤，将概率低于 MinP*最大概率 的 token 概率置零。
         private void ApplyMinP(float[] probs)
         {
             if (_config.MinP <= 0f)
@@ -295,6 +309,7 @@ namespace TensorSharp.Runtime
 
         #region Final Sampling
 
+        // 中文：在候选集合上重新归一化概率并做多项式（轮盘赌）随机采样，返回选中的 token id。
         private int SampleFromCandidates(float[] probs, int[] candidates)
         {
             if (candidates.Length == 0)
@@ -321,6 +336,7 @@ namespace TensorSharp.Runtime
             return candidates[candidates.Length - 1];
         }
 
+        // 中文：返回数组中最大值所在的索引（贪婪解码用）。
         private static int Argmax(float[] values)
         {
             int best = 0;

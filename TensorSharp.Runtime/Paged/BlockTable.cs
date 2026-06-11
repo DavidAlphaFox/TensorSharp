@@ -24,6 +24,7 @@ namespace TensorSharp.Runtime.Paged
         private int _numTokens;
         private readonly int _blockSize;
 
+        // 中文：构造块表，记录每块容纳的 token 数（块大小）。
         public BlockTable(int blockSize)
         {
             _blockSize = blockSize;
@@ -40,6 +41,7 @@ namespace TensorSharp.Runtime.Paged
 
         /// <summary>The physical block that covers position <paramref name="tokenPos"/>.
         /// </summary>
+        // 中文：返回覆盖指定 token 位置的物理块，越界或未分配则抛异常。
         public KvBlock GetBlockAt(int tokenPos)
         {
             if (tokenPos < 0) throw new ArgumentOutOfRangeException(nameof(tokenPos));
@@ -53,11 +55,13 @@ namespace TensorSharp.Runtime.Paged
         /// <summary>Slot index within the physical block for position
         /// <paramref name="tokenPos"/>. Combined with the block's storage span
         /// this gives the byte offset for that token's K/V.</summary>
+        // 中文：返回指定 token 位置在其物理块内的槽位下标（位置对块大小取余）。
         public int GetSlotInBlock(int tokenPos)
         {
             return tokenPos % _blockSize;
         }
 
+        // 中文：在序列尾部追加一个新分配的物理块。
         public void AppendBlock(KvBlock block)
         {
             _blocks.Add(block);
@@ -65,6 +69,7 @@ namespace TensorSharp.Runtime.Paged
 
         /// <summary>Mark <paramref name="newTokens"/> additional tokens as
         /// committed. Called by the executor after each forward.</summary>
+        // 中文：推进已提交 token 计数；若所需块数超过已分配块数则抛异常。
         public void AdvanceTokens(int newTokens)
         {
             _numTokens += newTokens;
@@ -79,6 +84,7 @@ namespace TensorSharp.Runtime.Paged
         /// past <paramref name="newTokenCount"/>). The returned blocks are
         /// removed from this table. The caller is responsible for calling
         /// <see cref="BlockPool.Free(System.Collections.Generic.IReadOnlyList{KvBlock})"/>.</summary>
+        // 中文：将序列截断回指定 token 数，移除并返回多余的尾部块供调用方释放。
         public List<KvBlock> TruncateTo(int newTokenCount)
         {
             if (newTokenCount < 0 || newTokenCount > _numTokens)
@@ -104,12 +110,14 @@ namespace TensorSharp.Runtime.Paged
         /// the sequence must re-prefill from position 0, but the blocks already
         /// reserved for it (sized for the would-be reused prefix) stay so the
         /// re-prefill can write into them without reallocating.</summary>
+        // 中文：将已提交 token 计数清零但保留已分配的物理块（活缓存续接回退时重新预填用）。
         public void ResetTokensKeepingBlocks()
         {
             _numTokens = 0;
         }
 
         /// <summary>Drop ALL blocks. Returned to the caller for freeing.</summary>
+        // 中文：清空所有块并将其返回给调用方释放，同时把 token 计数清零。
         public List<KvBlock> Clear()
         {
             var all = new List<KvBlock>(_blocks);

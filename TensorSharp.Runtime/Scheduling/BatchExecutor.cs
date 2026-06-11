@@ -65,6 +65,7 @@ namespace TensorSharp.Runtime.Scheduling
         // Re-used scratch buffer for inject/extract. Sized to one full block.
         private byte[] _scratch;
 
+        // 中文：构造批执行器，注入模型、块池、调度器与日志，并缓存块大小。
         public BatchExecutor(
             IModelArchitecture model,
             BlockPool pool,
@@ -92,6 +93,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// Set <c>TS_SCHED_DISABLE_BATCHED=1</c> to force the per-sequence
         /// fallback even when the model declares <see cref="IBatchedPagedModel"/>.
         /// Used to A/B the two paths on the same workload.</summary>
+        // 中文：执行一次调度步——在 GPU 锁内择路（融合按序/批量分页/N=1 快路/逐序回退），返回各序列步进结果。
         public List<SequenceStepResult> ExecuteStep(SchedulerOutput output)
         {
             // Serialise GGML backend access with anything else that calls
@@ -330,6 +332,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// The caller distinguishes the two via SupportsLinearKVMigration
         /// to decide whether the situation is expected (silent fallback)
         /// or worth logging (real migration failure).</summary>
+        // 中文：必要时把当前 owner 的线性缓存 K/V 迁入分页存储，使后续批量分页前向能读到完整历史。
         private bool TryMigrateOwnerToPagedIfNeeded(IBatchedPagedModel batched)
         {
             if (_currentOwner == null
@@ -350,6 +353,7 @@ namespace TensorSharp.Runtime.Scheduling
             return false;
         }
 
+        // 中文：读取 TS_BATCHED_N1_FAST_PATH 环境变量，判断 N=1 快路是否启用（默认开启）。
         private static bool IsBatchedN1FastPathEnabled()
         {
             // Default ON. The bug that previously made this dangerous (a
@@ -363,12 +367,14 @@ namespace TensorSharp.Runtime.Scheduling
             return raw != "0" && !string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase);
         }
 
+        // 中文：读取 TS_SCHED_DISABLE_BATCHED 环境变量，判断是否强制禁用批量分页路径。
         private static bool IsBatchedPathDisabled()
         {
             string raw = Environment.GetEnvironmentVariable("TS_SCHED_DISABLE_BATCHED");
             return !string.IsNullOrEmpty(raw) && raw != "0" && raw.ToLowerInvariant() != "false";
         }
 
+        // 中文：将本步工作按是否有待注入的多模态嵌入拆分为多模态组与纯文本组。
         private (List<ScheduledSequenceWork> multimodal, List<ScheduledSequenceWork> text) SplitMultimodalWork(SchedulerOutput output)
         {
             var multimodal = new List<ScheduledSequenceWork>();
@@ -384,6 +390,7 @@ namespace TensorSharp.Runtime.Scheduling
             return (multimodal, text);
         }
 
+        // 中文：把一组工作项包装为子 SchedulerOutput，便于分别下发到不同执行路径。
         private static SchedulerOutput MakeSubOutput(List<ScheduledSequenceWork> work)
         {
             var sub = new SchedulerOutput();
@@ -391,6 +398,7 @@ namespace TensorSharp.Runtime.Scheduling
             return sub;
         }
 
+        // 中文：vLLM 风格批量分页前向——组装位置/槽映射/块表上下文，一次 ForwardBatch 处理多序列并回写状态与结果。
         private List<SequenceStepResult> ExecuteStepBatched(IBatchedPagedModel batched, SchedulerOutput output)
         {
             // The batched paged path manages K/V in paged storage (slot mapping),
@@ -510,6 +518,7 @@ namespace TensorSharp.Runtime.Scheduling
             return results;
         }
 
+        // 中文：读取 TS_PER_SEQ_FUSED 环境变量，判断逐序列融合解码路径是否启用（默认开启）。
         private static bool IsPerSeqFusedEnabled()
         {
             // Default ON. Set TS_PER_SEQ_FUSED=0 to force concurrent requests
@@ -519,6 +528,7 @@ namespace TensorSharp.Runtime.Scheduling
             return raw != "0" && !string.Equals(raw, "false", StringComparison.OrdinalIgnoreCase);
         }
 
+        // 中文：判定本步是否走融合路径——N>=2 总是走；单序列仅当其已持有融合缓存时才走。
         private static bool ShouldUsePerSeqFused(IBatchedPagedModel fused, SchedulerOutput output)
         {
             int count = output.ScheduledWork.Count;
@@ -549,6 +559,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// the path does not itself CAPTURE blocks back into the shared pool
         /// (a concurrent request never writes the shared block storage), so it
         /// can't corrupt blocks shared via copy-on-write.</summary>
+        // 中文：逐序列融合解码——每个请求用独立 KV 缓存跑一次融合 Forward，处理 owner 移交、前缀注入、采样与逐序结果。
         private List<SequenceStepResult> ExecuteStepPerSequenceFused(IBatchedPagedModel fused, SchedulerOutput output)
         {
             int n = output.ScheduledWork.Count;
@@ -644,6 +655,7 @@ namespace TensorSharp.Runtime.Scheduling
             return results;
         }
 
+        // 中文：逐序列回退路径——每步至多前向一个序列，按策略选定 owner、确保归属、采样并前向、捕获满块。
         private List<SequenceStepResult> ExecuteStepPerSequence(SchedulerOutput output)
         {
             var results = new List<SequenceStepResult>(1);
@@ -856,6 +868,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// scheduler and executor on the same worker thread, so the live-cache fields
         /// are not concurrently mutated here.
         /// </summary>
+        // 中文：计算可由活跃 KV 缓存直接续接的最长 prompt 前缀长度（用于滑窗模型跨轮免重 prefill），不满足条件返回 0。
         public int ComputeLiveContinuationLcp(SequenceState seq)
         {
             if (seq == null || !_liveCacheValid || _liveCacheSeq == null || _liveCacheLen <= 0)
@@ -893,6 +906,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// flag the sequence so <see cref="EnsureOwnership"/> keeps the live cache
         /// instead of reset+inject. Returns false (caller falls back to the pooled
         /// path) if blocks can't be reserved. Invoked by the scheduler at admission.</summary>
+        // 中文：为序列预留块并标记复用前缀，使其在 EnsureOwnership 时直接续用活跃缓存；预留失败返回 false。
         public bool TryAdoptLiveCache(SequenceState seq, int lcp)
         {
             if (seq == null || lcp <= 0) return false;
@@ -916,6 +930,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// If a different sequence is the current owner, extract its state into
         /// its blocks, reset the model, and inject this sequence's state from
         /// its blocks.</summary>
+        // 中文：确保模型 KV 状态归属给定序列——优先活跃缓存续接，否则抽出旧 owner、重置缓存、再注入新序列状态。
         private void EnsureOwnership(SequenceState seq)
         {
             if (ReferenceEquals(_currentOwner, seq))
@@ -999,6 +1014,7 @@ namespace TensorSharp.Runtime.Scheduling
             _ownerForwardedTokens = 0;
         }
 
+        // 中文：从序列已计算位置起取出本次 prefill 块对应数量的 prompt token，组成输入数组。
         private int[] BuildPrefillChunk(SequenceState seq, ScheduledSequenceWork work)
         {
             int want = work.NumScheduledTokens;
@@ -1008,6 +1024,7 @@ namespace TensorSharp.Runtime.Scheduling
             return buf;
         }
 
+        // 中文：用序列采样配置从其最近一次 logits 采样出下一个 token，无 logits 时抛异常。
         private static int SampleFromLogits(SequenceState seq)
         {
             if (seq.LastLogits == null)
@@ -1019,6 +1036,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         /// <summary>Extract all blocks for the current owner into PagedKvStorage.
         /// Called when swapping out.</summary>
+        // 中文：换出时把 owner 当前在模型中的 K/V 逐块抽取写回各分页块存储（滑窗已过期块跳过，因其早已捕获）。
         private void ExtractAllBlocks(SequenceState seq, int tokensInModel)
         {
             if (!_model.SupportsKVStateSnapshot) return;
@@ -1063,6 +1081,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         /// <summary>Inject all blocks for <paramref name="seq"/> into the model's
         /// fresh KV state. Called when swapping in.</summary>
+        // 中文：换入时把序列各分页块中的 K/V 逐块注入回模型新建的 KV 状态。
         private void InjectAllBlocks(SequenceState seq, int tokensToInject)
         {
             if (!_model.SupportsKVStateSnapshot) return;
@@ -1101,6 +1120,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>For each newly-full block, extract its content into the
         /// pool's storage and ask the scheduler to register the content hash
         /// for prefix sharing.</summary>
+        // 中文：把刚写满的块内容抽取进池存储并通知调度器注册内容哈希以支持前缀共享，返回本次捕获块数。
         private int CaptureNewlyFullBlocks(SequenceState seq)
         {
             if (!_model.SupportsKVStateSnapshot) return 0;
@@ -1132,6 +1152,7 @@ namespace TensorSharp.Runtime.Scheduling
             return captured;
         }
 
+        // 中文：确保抽取/注入复用的暂存缓冲区至少有指定字节数，不足则重新分配。
         private void EnsureScratch(int bytes)
         {
             if (_scratch == null || _scratch.Length < bytes)
@@ -1139,6 +1160,7 @@ namespace TensorSharp.Runtime.Scheduling
         }
 
         /// <summary>Reset internal state. Called by the engine on model reload.</summary>
+        // 中文：清空 owner、活跃缓存追踪等全部内部状态并重置模型 KV 缓存（模型重载时调用）。
         public void Reset()
         {
             _currentOwner = null;
@@ -1165,6 +1187,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         public bool IsNoOp => TokensForwarded == 0 && Error == null;
 
+        // 中文：构造一个未前向任何 token 的空操作步进结果。
         public static SequenceStepResult NoOp(SequenceState s) => new()
         {
             Sequence = s,
@@ -1180,6 +1203,7 @@ namespace TensorSharp.Runtime.Scheduling
     {
         /// <summary>Drive a single batched forward pass given the scheduler's
         /// per-step metadata. Returns per-sequence logits.</summary>
+        // 中文：按调度器逐步元数据驱动一次批量前向，返回各序列的 logits。
         IReadOnlyList<float[]> ForwardBatch(BatchedForwardContext ctx);
 
         /// <summary>True iff <c>ForwardBatch</c> handles multimodal
@@ -1211,6 +1235,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// from <see cref="SupportsLinearKVMigration"/>) tells the
         /// executor to keep the sequence on the per-seq path instead of
         /// dispatching it through <see cref="ForwardBatch"/>.</summary>
+        // 中文：把指定序列的 K/V 历史从线性缓存迁入分页存储，成功返回 true（默认不支持，返回 false）。
         bool TryMigrateLinearKVToPaged(SequenceState owner, int blockSize) => false;
 
         /// <summary>Notify the model that a sequence has been released by
@@ -1224,6 +1249,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// the same recurrent-state slot and trample each other's hidden
         /// state. Models implementing <see cref="SupportsPerSequenceFusedForward"/>
         /// also free the released request's per-request KV cache here.</summary>
+        // 中文：通知模型某请求已被调度器释放，以回收按 RequestId 维护的每序列状态（默认空操作）。
         void OnSequenceReleased(string requestId) { }
 
         // ---- Per-sequence fused forward (high-throughput concurrent decode) ----
@@ -1252,6 +1278,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// model's active cache (creating an empty one the first time). Returns
         /// true when the cache was freshly created, signalling the caller to
         /// inject any prefix-cache-reused prefix before the first forward.</summary>
+        // 中文：将指定请求的每请求 KV 缓存设为模型当前缓存（首次会新建空缓存），新建时返回 true 以提示注入复用前缀。
         bool BindSequenceCache(string requestId) => false;
 
         /// <summary>Transition the current single-stream (N==1) owner — whose
@@ -1259,17 +1286,20 @@ namespace TensorSharp.Runtime.Scheduling
         /// without copying KV bytes, and give the primary cache a fresh empty
         /// allocation. Called once when the first concurrent step finds a prior
         /// owner so its history is preserved as an isolated per-request cache.</summary>
+        // 中文：将当前单流 owner 的主缓存零拷贝移交为某请求的独立缓存，并为主缓存重新分配空缓存（默认空操作）。
         void AdoptPrimaryCacheToFused(string requestId) { }
 
         /// <summary>Reinstate the primary (single-stream) cache as the model's
         /// active cache before an N==1 step that follows a multi-sequence
         /// episode. No-op when the primary cache is already active.</summary>
+        // 中文：在多序列阶段后回到 N=1 步前，重新将主（单流）缓存设为模型当前缓存（已是主缓存时为空操作）。
         void RestorePrimaryCache() { }
 
         /// <summary>True iff a per-request fused cache holder already exists for
         /// <paramref name="requestId"/> (i.e. the sequence has run on the fused
         /// path before and must stay on it — its tail K/V isn't reconstructable
         /// from paged storage).</summary>
+        // 中文：判断指定请求是否已存在每请求融合缓存（存在则该序列必须继续走融合路径）。
         bool HasFusedSequenceCache(string requestId) => false;
     }
 

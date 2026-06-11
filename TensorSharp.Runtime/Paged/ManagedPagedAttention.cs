@@ -52,6 +52,7 @@ namespace TensorSharp.Runtime.Paged
         /// mapped to a KV head via <paramref name="numHeads"/> / <paramref name="numKvHeads"/>.
         /// Backed by <c>float[]</c> arrays so we can parallelise across
         /// (sequence, head) without ref-struct capture restrictions.</summary>
+        // 中文：批量分页注意力前向：按（序列, 头）并行，对每个 query token 做因果/滑窗在线 softmax 注意力。
         public static void Forward(
             float[] q,
             float[] kBlocks,
@@ -121,6 +122,7 @@ namespace TensorSharp.Runtime.Paged
         /// <c>numerator / denominator</c>. This is the same pattern as
         /// FlashAttention's recurrence, just unfused and unsimd'd.
         /// </summary>
+        // 中文：对单个 query token 沿其块表遍历上下文，用在线 softmax 累加并写出注意力输出。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ComputeSingleQueryAttention(
             float[] q,
@@ -216,6 +218,7 @@ namespace TensorSharp.Runtime.Paged
         ///     last <c>slidingWindow</c> tokens (matches the per-token-position
         ///     mask the gpt-oss attention layers alternate ON for even layers).
         /// </summary>
+        // 中文：带注意力 sink 与滑动窗口的分页注意力前向（gpt-oss 式），sink 作为参与分母但零 V 的虚拟位置。
         public static void ForwardWithSinks(
             float[] q,
             float[] kBlocks,
@@ -276,6 +279,7 @@ namespace TensorSharp.Runtime.Paged
             });
         }
 
+        // 中文：单 query token 的在线 softmax 注意力，用 sink logit 预置运行最大值与分母（numerator 不计 sink）。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void ComputeSingleQueryAttentionWithSinks(
             float[] q,
@@ -354,6 +358,7 @@ namespace TensorSharp.Runtime.Paged
         /// <c>[numTokens, numKvHeads, headDim]</c>. The paged buffers are
         /// laid out as <c>[numBlocks, blockSize, numKvHeads, headDim]</c>.
         /// </summary>
+        // 中文：按 slotMapping 将新 token 的 K/V 散写到分页 K/V 缓冲的对应块槽位。
         public static void WriteKvToPagedPool(
             float[] k,
             float[] v,

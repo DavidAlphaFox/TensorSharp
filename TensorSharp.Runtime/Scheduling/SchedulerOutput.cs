@@ -15,6 +15,7 @@ namespace TensorSharp.Runtime.Scheduling
     /// </summary>
     public sealed class ScheduledSequenceWork
     {
+        // 中文：构造单序列调度决策，记录序列、本步调度的 token 数及是否为新准入/预填充。
         public ScheduledSequenceWork(
             SequenceState seq,
             int numScheduledTokens,
@@ -47,6 +48,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <see cref="SequenceState.NumComputedTokens"/> at scheduling time.</summary>
         public int StartPosition => Sequence.NumComputedTokens;
 
+        // 中文：返回该调度项的可读摘要（请求 ID、token 数、预填充/解码、是否新准入）。
         public override string ToString()
             => $"Work({Sequence.RequestId} +{NumScheduledTokens} {(IsPrefill ? "prefill" : "decode")}{(IsNewAdmission ? " new" : "")})";
     }
@@ -57,6 +59,7 @@ namespace TensorSharp.Runtime.Scheduling
     /// </summary>
     public sealed class SchedulerOutput
     {
+        // 中文：构造空的单步调度输出，初始化已调度工作、被抢占与已完成请求 ID 列表。
         public SchedulerOutput()
         {
             ScheduledWork = new List<ScheduledSequenceWork>();
@@ -70,6 +73,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         /// <summary>Sum of <see cref="ScheduledSequenceWork.NumScheduledTokens"/>
         /// across all scheduled work. Used for token-budget telemetry.</summary>
+        // 中文：累加所有已调度工作项的 token 数，得到本步的总调度 token 量。
         public int TotalScheduledTokens
         {
             get

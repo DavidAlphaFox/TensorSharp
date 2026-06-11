@@ -52,8 +52,10 @@ namespace TensorSharp.Runtime
         private long _capturedBlocks;
 
         /// <summary>Construct a disabled manager (all operations are no-ops).</summary>
+        // 中文：创建一个已禁用的管理器实例，所有缓存操作均为空操作。
         public static PagedKvCacheManager Disabled() => new(new PagedKvCacheConfig { Enabled = false }, fingerprint: string.Empty, logger: null);
 
+        // 中文：便捷构造函数，使用无编解码器（透传）模式委托给完整构造函数。
         public PagedKvCacheManager(PagedKvCacheConfig config, string fingerprint, ILogger logger)
             : this(config, fingerprint, logger, codec: null)
         {
@@ -67,6 +69,7 @@ namespace TensorSharp.Runtime
         /// ever sees raw bytes in its own KV layout. Pass <c>null</c> to use
         /// the historical passthrough behaviour.
         /// </summary>
+        // 中文：完整构造函数，校验配置、按需初始化 SSD 溢出层并创建带淘汰回调的内存块存储层。
         public PagedKvCacheManager(PagedKvCacheConfig config, string fingerprint, ILogger logger, IKvBlockCodec codec)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -101,6 +104,7 @@ namespace TensorSharp.Runtime
         public string Fingerprint => _fingerprint;
         public IKvBlockCodec Codec => _codec;
 
+        // 中文：汇总内存层/SSD 层的字节与块数及命中/未命中/已捕获计数，返回诊断用统计快照。
         public PagedKvCacheStats GetStats() => new(
             ramBytes: _ramTier?.ResidentBytes ?? 0,
             ramBlocks: _ramTier?.Count ?? 0,
@@ -115,6 +119,7 @@ namespace TensorSharp.Runtime
         /// Reset all in-memory and on-disk state. Used when the underlying model is
         /// unloaded or its KV-state fingerprint changes.
         /// </summary>
+        // 中文：清空内存层与 SSD 层的全部缓存并重置命中/未命中/捕获统计计数。
         public void Clear()
         {
             _ramTier?.Clear();
@@ -124,6 +129,7 @@ namespace TensorSharp.Runtime
             Interlocked.Exchange(ref _capturedBlocks, 0);
         }
 
+        // 中文：释放资源，关闭并清理 SSD 溢出层。
         public void Dispose() => _ssdTier?.Dispose();
 
         /// <summary>
@@ -132,6 +138,7 @@ namespace TensorSharp.Runtime
         /// lazily inside <see cref="TryRestorePrefix"/>). Used by the session
         /// manager to decide whether paging beats the in-session reuse path.
         /// </summary>
+        // 中文：校验模型支持与指纹后，逐块哈希统计输入 token 在内存层可命中的最长连续前导块数。
         public int CountAvailableBlocks(IModelArchitecture model, IReadOnlyList<int> inputTokens)
         {
             if (!IsEnabled || model == null || inputTokens == null || inputTokens.Count == 0)
@@ -164,6 +171,7 @@ namespace TensorSharp.Runtime
         /// restoration the caller must update its <see cref="KVCache"/> token list
         /// to reflect the restored prefix.
         /// </summary>
+        // 中文：从缓存逐块取回并（按需解码后）注入模型 KV 缓存，恢复尽可能长的块对齐前缀并更新命中/未命中统计，返回已恢复 token 数。
         public int TryRestorePrefix(IModelArchitecture model, IReadOnlyList<int> inputTokens)
         {
             if (!IsEnabled || model == null || inputTokens == null || inputTokens.Count == 0)
@@ -259,6 +267,7 @@ namespace TensorSharp.Runtime
         /// whose hash already exists in the tier are not re-extracted, so calling
         /// this after every prefill is cheap.
         /// </summary>
+        // 中文：将模型前 upToTokens 个 token（向下取整到块边界）的 KV 状态按块抽取、（按需编码后）幂等地存入内存层。
         public void Capture(IModelArchitecture model, IReadOnlyList<int> tokens, int upToTokens)
         {
             if (!IsEnabled || model == null || tokens == null || upToTokens <= 0)
@@ -310,6 +319,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：先查内存层，未命中则查 SSD 层并将磁盘命中回填到内存层以加速后续查找。
         private bool TryFetch(KvBlockHash hash, out byte[] payload)
         {
             if (_ramTier.TryGet(hash, out payload))

@@ -29,6 +29,7 @@ namespace TensorSharp.Runtime
         private readonly long _maxBytes;
         private readonly Action<KvBlockHash, byte[]> _spillOnEvict;
 
+        // 中文：构造内存块存储，校验字节上限并保存淘汰时的溢出回调。
         public PagedKvBlockStore(long maxBytes, Action<KvBlockHash, byte[]> spillOnEvict = null)
         {
             if (maxBytes <= 0)
@@ -49,6 +50,7 @@ namespace TensorSharp.Runtime
 
         public long MaxBytes => _maxBytes;
 
+        // 中文：按哈希查找块，命中则将其移到 LRU 头部并返回其字节负载。
         public bool TryGet(KvBlockHash hash, [NotNullWhen(true)] out byte[] payload)
         {
             lock (_gate)
@@ -65,6 +67,7 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：判断指定哈希的块是否存在（不更新 LRU 顺序）。
         public bool Contains(KvBlockHash hash)
         {
             lock (_gate)
@@ -77,6 +80,7 @@ namespace TensorSharp.Runtime
         /// afterwards. If <paramref name="hash"/> is already present the call is a
         /// no-op (existing entry is touched).
         /// </summary>
+        // 中文：插入块；按需 LRU 淘汰尾部以腾出空间（淘汰块经回调溢出到 SSD），已存在则仅刷新其顺序。
         public void Put(KvBlockHash hash, byte[] payload)
         {
             if (payload == null)
@@ -127,6 +131,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：清空索引与 LRU 链表并将常驻字节数归零。
         public void Clear()
         {
             lock (_gate)
@@ -138,6 +143,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将节点移动到 LRU 链表头部，标记为最近使用。
         private void MoveToHead(Node node)
         {
             if (ReferenceEquals(node, _head))
@@ -146,6 +152,7 @@ namespace TensorSharp.Runtime
             AddToHead(node);
         }
 
+        // 中文：将节点插入 LRU 链表头部并维护头/尾指针。
         private void AddToHead(Node node)
         {
             node.Prev = null;
@@ -157,6 +164,7 @@ namespace TensorSharp.Runtime
                 _tail = node;
         }
 
+        // 中文：从 LRU 双向链表中摘除节点并修正相邻节点及头/尾指针。
         private void RemoveNode(Node node)
         {
             if (node.Prev != null)
@@ -174,6 +182,7 @@ namespace TensorSharp.Runtime
 
         private sealed class Node
         {
+            // 中文：构造 LRU 链表节点，保存块哈希与字节负载。
             public Node(KvBlockHash hash, byte[] payload)
             {
                 Hash = hash;

@@ -25,6 +25,7 @@ namespace TensorSharp.Runtime.Paged
         /// <c>[numBlocks, blockSize, numKvHeads, headDim]</c> as a flat
         /// <c>float[]</c>.
         /// </summary>
+        // 中文：按 [numBlocks, blockSize, numKvHeads, headDim] 分配一层的扁平分页 K 或 V 缓冲。
         public static float[] AllocateLayerBuffer(int numBlocks, int blockSize, int numKvHeads, int headDim)
         {
             return new float[(long)numBlocks * blockSize * numKvHeads * headDim];
@@ -38,6 +39,7 @@ namespace TensorSharp.Runtime.Paged
         /// is always the case for what the model's linear-projection
         /// produces.)
         /// </summary>
+        // 中文：校验缓冲尺寸并直接返回行主序源数组作为注意力所需的扁平视图（已是目标布局，省去拷贝）。
         public static float[] FlattenForAttention(float[] src, int numTokens, int numHeads, int headDim)
         {
             // src is already [numTokens, numHeads * headDim] row-major, which
@@ -54,6 +56,7 @@ namespace TensorSharp.Runtime.Paged
         /// the slots given by <paramref name="slotMapping"/>. K and V come
         /// in as flat row-major <c>[numTokens, numKvHeads * headDim]</c>.
         /// </summary>
+        // 中文：按 slotMapping 把新 token 的 K/V 块拷贝散写到每层分页缓冲的对应槽位。
         public static void ScatterKv(
             float[] k, float[] v,
             float[] kBuffer, float[] vBuffer,
@@ -75,6 +78,7 @@ namespace TensorSharp.Runtime.Paged
         /// Compute slot mappings: <c>slot = blockId * blockSize + offsetInBlock</c>
         /// for each token's absolute position within its sequence.
         /// </summary>
+        // 中文：由每个 token 的位置与所属序列经块表算出物理槽位（slot = 块id*块大小 + 块内偏移）。
         public static int[] ComputeSlotMapping(
             int[] positions, int[] sequenceForToken,
             int[][] blockTables, int blockSize)
@@ -96,6 +100,7 @@ namespace TensorSharp.Runtime.Paged
         /// Build the per-sequence list of seq lengths from a flat
         /// queryStartLoc + per-sequence absolute lengths.
         /// </summary>
+        // 中文：由各序列起始位置加本次调度的 token 数，构建每序列的总上下文长度数组。
         public static int[] BuildSeqLens(int[] startPositions, int[] numScheduledTokens)
         {
             int n = startPositions.Length;
@@ -110,6 +115,7 @@ namespace TensorSharp.Runtime.Paged
         /// <c>[numTokens, hidden]</c> buffer. Result is
         /// <c>[numSeqs, hidden]</c>. Used right before the LM head.
         /// </summary>
+        // 中文：从打包的 [numTokens, hidden] 缓冲中收集每个序列的最后一个 token（LM head 前用）。
         public static float[] GatherLastTokenPerSeq(
             float[] packed, int hidden,
             int[] queryStartLoc, int numSeqs)

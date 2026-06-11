@@ -60,6 +60,7 @@ namespace TensorSharp.Runtime.Scheduling
         private readonly Dictionary<string, SequenceState> _running = new();
         private readonly List<SequenceState> _runningOrder = new();
 
+        // 中文：构造调度器，绑定配置、KV 块池与模型指纹，并记录是否允许跨序列 KV 复用及可复用前缀上限。
         public ContinuousBatchScheduler(
             SchedulerConfig cfg,
             BlockPool pool,
@@ -78,10 +79,12 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>Whether cross-sequence prefix-cache reuse is enabled for this
         /// model. False for models (e.g. Gemma 4 SWA) whose K/V snapshot cannot be
         /// faithfully restored into a different sequence.</summary>
+        // 中文：是否启用跨序列前缀缓存复用（需同时开启配置且模型支持跨序列 KV 复用）。
         private bool PrefixCachingActive => _cfg.EnablePrefixCaching && _crossSeqKvReuse;
 
         /// <summary>Wire the live-cache continuation hooks (see the fields). Called
         /// once by the engine after the executor is constructed.</summary>
+        // 中文：装配「活缓存续接」回调（计算可续接前缀长度与执行续接），由引擎在执行器构建后调用一次。
         public void AttachLiveCacheContinuation(
             Func<SequenceState, int> computeLcp,
             Func<SequenceState, int, bool> adopt)
@@ -98,6 +101,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>Snapshot all requests currently owned by the scheduler.
         /// Used by the engine's failure path when scheduling itself throws and
         /// no per-step <see cref="SchedulerOutput"/> is available.</summary>
+        // 中文：快照当前调度器持有的所有未完成序列（运行集合 + 等待队列、去重），供异常失败路径使用。
         public List<SequenceState> GetInFlightSequencesSnapshot()
         {
             var result = new List<SequenceState>(_runningOrder.Count + _waiting.Count);
@@ -120,6 +124,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         /// <summary>Submit a sequence. It enters the waiting queue; the next
         /// <see cref="Schedule"/> call will try to admit it.</summary>
+        // 中文：提交一个序列入等待队列（拒绝重复提交），下次 Schedule 时尝试准入。
         public void Submit(SequenceState seq)
         {
             if (seq == null) throw new ArgumentNullException(nameof(seq));
@@ -133,6 +138,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         /// <summary>Abort a sequence by id. If running, frees its blocks. If
         /// waiting, just removes it. Idempotent.</summary>
+        // 中文：按请求 id 中止序列（运行中则释放其块、等待中则直接移除），幂等。
         public bool Abort(string requestId)
         {
             if (_waitingIndex.TryGetValue(requestId, out var node))
@@ -149,6 +155,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>
         /// Decide the work for the next forward pass.
         /// </summary>
+        // 中文：核心调度——先推进运行集合（保证 decode 进度），再在令牌预算内准入等待序列（含前缀缓存/活缓存续接与块耗尽抢占），返回本步要算的工作。
         public SchedulerOutput Schedule()
         {
             var output = new SchedulerOutput();
@@ -268,6 +275,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         /// <summary>Called by the executor after the forward pass completes.
         /// Updates accounting and finishes sequences as needed.</summary>
+        // 中文：前向完成后的回调钩子（当前为空，停机由 NotifyStop 单独上报）。
         public void NotifyStepCompleted(SchedulerOutput output)
         {
             // The executor has already populated each scheduled seq's
@@ -279,6 +287,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>Mark a sequence as finished and release its blocks. The
         /// sequence id is added to <paramref name="output"/> so the executor
         /// can drop any per-step buffers.</summary>
+        // 中文：将序列标记为正常结束（EOS/长度上限）并释放其块，把请求 id 记入 output 供执行器清理。
         public void NotifyStop(SequenceState seq, SequenceStatus finalStatus, string reason, SchedulerOutput output)
         {
             if (seq == null) return;
@@ -289,6 +298,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>Mark a sequence as errored and release any scheduler-owned
         /// blocks. Error paths deliberately skip prefix-cache registration
         /// because the model state for the failed step may be partial.</summary>
+        // 中文：将序列标记为出错并释放其块，刻意跳过前缀缓存注册（失败步的模型状态可能不完整）。
         public bool NotifyError(SequenceState seq, Exception error, SchedulerOutput output = null)
         {
             if (seq == null) return false;
@@ -299,6 +309,7 @@ namespace TensorSharp.Runtime.Scheduling
         }
 
         /// <summary>Free a finished sequence's blocks and remove from running.</summary>
+        // 中文：终结序列的公共实现——可选缓存满块、释放所有块、置最终状态/原因/错误，并从等待与运行集合中移除。
         private bool FinishSequence(
             SequenceState seq,
             SequenceStatus finalStatus,
@@ -337,6 +348,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <paramref name="extraTokens"/> more tokens. Allocates new blocks
         /// from the pool as needed. Returns false when the pool can't
         /// satisfy the request.</summary>
+        // 中文：确保序列的块表能容纳新增 extraTokens 个 token，按需从池分配块；池无法满足时返回 false。
         private bool TryEnsureBlocksForStep(SequenceState seq, int extraTokens)
         {
             int needed = seq.NumComputedTokens + extraTokens;
@@ -355,6 +367,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>Preempt the lowest-priority running sequence (other than
         /// <paramref name="needyForBlocks"/>) and free its blocks, then retry
         /// allocation. Returns true if successful.</summary>
+        // 中文：为缺块序列抢占——挑选优先级最低、提交最晚的运行序列释放其块后重试分配，成功返回 true。
         private bool TryPreemptForBlocks(SequenceState needyForBlocks, int extraTokens, SchedulerOutput output)
         {
             // Find the candidate to preempt: highest sn (latest submission) and
@@ -382,6 +395,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// the waiting queue. Full blocks are added to the prefix cache before
         /// freeing so the next admission's hash lookup recovers most of the
         /// work.</summary>
+        // 中文：执行抢占——缓存其满块后收回全部块，从运行集合移除、重置状态，并重新插入等待队列头部以便尽快恢复。
         private void PreemptSequence(SequenceState victim)
         {
             CacheFullBlocksForSequence(victim);
@@ -406,6 +420,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// no cached logits). Updates the sequence's block table, computed-
         /// token counter, and <see cref="SequenceState.PrefixCacheReusedTokens"/>.
         /// </summary>
+        // 中文：在块哈希索引中查找提示前缀并采纳最长命中满块链（受可复用前缀上限及「至少留一个 token 前向」约束），更新块表与已算 token 计数。
         private void AdoptPrefixBlocksCapped(SequenceState seq)
         {
             if (seq.BlockTable.NumBlocks > 0) return;
@@ -441,6 +456,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>After advancing tokens or finishing, check whether the
         /// sequence has any newly-full blocks and (if not already cached)
         /// add them to the block hash index.</summary>
+        // 中文：token 推进后回调——把新变满且尚未缓存的块按内容哈希注册进块哈希索引，供后续序列前缀复用。
         public void OnBlocksCommitted(SequenceState seq, int previousTokens)
         {
             if (!PrefixCachingActive) return;
@@ -459,6 +475,7 @@ namespace TensorSharp.Runtime.Scheduling
             }
         }
 
+        // 中文：序列终结/抢占前，把其所有已成功抽取 K/V（Used==BlockSize）的满块注册进前缀缓存索引，跳过未抽取的块以免污染缓存。
         private void CacheFullBlocksForSequence(SequenceState seq)
         {
             if (!PrefixCachingActive) return;
@@ -487,6 +504,7 @@ namespace TensorSharp.Runtime.Scheduling
             }
         }
 
+        // 中文：拼接序列前 tokens 个（提示+输出）token 并计算逐块哈希，用于块的注册与查找。
         private List<KvBlockHash> ComputeHashesForPrefix(SequenceState seq, int tokens)
         {
             // Concatenate prompt + output into a token list for the first
@@ -505,6 +523,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// never adopt a stale neighbour's blocks. Text-only sequences fall back to
         /// the bare model fingerprint, so their hashes are unchanged.
         /// </summary>
+        // 中文：返回有效指纹——含多模态媒体时在模型指纹后追加媒体指纹盐，使前缀缓存按内容区分，纯文本则回退裸模型指纹。
         private string EffectiveFingerprint(SequenceState seq)
         {
             string media = seq?.MediaFingerprint;

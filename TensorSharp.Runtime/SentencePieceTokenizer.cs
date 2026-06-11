@@ -38,6 +38,7 @@ namespace TensorSharp.Runtime
         public int[] EosTokenIds => _eosTokenIds;
         public int VocabSize => _vocab.Length;
 
+        // 中文：构造函数，保存词表与分数，构建词表查找表并收集控制/用户自定义特殊 token。
         public SentencePieceTokenizer(string[] vocab, int[] tokenTypes, float[] scores,
             int bosTokenId, int[] eosTokenIds, bool addBos, bool addEos)
         {
@@ -65,6 +66,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将文本编码为 token id，先按特殊 token 切分，再把空格替换为 ▁ 并做基于分数的词片切分，最后按需加 BOS/EOS。
         public List<int> Encode(string text, bool addSpecial = true)
         {
             var fragments = new List<(string text, List<int>? ids)>();
@@ -139,6 +141,7 @@ namespace TensorSharp.Runtime
         /// Tokenize a text fragment using score-based merging (SentencePiece unigram-style).
         /// Starts with individual runes, greedily merges pairs with highest vocabulary score.
         /// </summary>
+        // 中文：对单个片段做 unigram 词片切分，从单字符起按词表分数贪心合并相邻对，未知片段走字节回退。
         private List<int> TokenizePiece(string text)
         {
             var runes = new List<string>();
@@ -217,6 +220,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：若 a、b 两节点拼接后存在于词表，则将其按分数作为候选加入优先队列。
         private void TryAddMerge(SortedSet<(float score, int a, int b)> pq,
             MergeNode[] nodes, int a, int b)
         {
@@ -228,6 +232,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：字节回退，将未知词片按 UTF-8 字节映射到 <0xNN> 字节 token id。
         private List<int> ByteFallback(string token)
         {
             var result = new List<int>();
@@ -240,6 +245,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：将单个 token 解码为字节追加到缓冲区，<0xNN> 还原为字节、▁ 还原为空格。
         public void AppendTokenBytes(int tokenId, List<byte> buffer)
         {
             string token = _vocab[tokenId];
@@ -257,6 +263,7 @@ namespace TensorSharp.Runtime
                 buffer.Add(b);
         }
 
+        // 中文：将 token id 列表解码为字符串，先缓冲连续的字节 token 再按 UTF-8 还原，并把 ▁ 转回空格。
         public string Decode(List<int> ids)
         {
             var sb = new StringBuilder();
@@ -289,8 +296,10 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：判断给定 token id 是否为结束符 EOS。
         public bool IsEos(int tokenId) => _eosTokenIds.Contains(tokenId);
 
+        // 中文：按 token 字符串查询其 id，未找到返回 -1。
         public int LookupToken(string tokenStr)
         {
             return _vocabLookup.TryGetValue(tokenStr, out int id) ? id : -1;
@@ -305,6 +314,7 @@ namespace TensorSharp.Runtime
 
         private class MergeCandidateComparer : IComparer<(float score, int a, int b)>
         {
+            // 中文：合并候选比较器，先按分数升序，分数相同时按位置 a、b 降序以保证确定性顺序。
             public int Compare((float score, int a, int b) x, (float score, int a, int b) y)
             {
                 int c = x.score.CompareTo(y.score);

@@ -56,6 +56,7 @@ namespace TensorSharp.Runtime
         /// <see cref="KvCodecElementType.Q8_0"/> the bit count is ignored and
         /// every encode is a passthrough.
         /// </summary>
+        // 中文：构造编解码器，校验位数（仅 4 或 8）并按位宽计算量化值的上下限 _qMin/_qMax。
         public TurboQuantKvCodec(KvCodecElementType elementType, int bits)
         {
             if (bits != 4 && bits != 8)
@@ -70,6 +71,7 @@ namespace TensorSharp.Runtime
         public int BitsPerElement => _bits;
         public KvCodecElementType ElementType => _elementType;
 
+        // 中文：将原始 KV 块按 32 元素分组做有符号 int4/int8 量化（每组一个 fp16 scale）；Q8_0 或形状不整除时原样透传。
         public byte[] Encode(ReadOnlySpan<byte> rawBlock)
         {
             if (rawBlock.IsEmpty)
@@ -156,6 +158,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：校验头部并将编码块解量化回原始字节写入 rawDestination；透传块直接复制，任何不匹配返回 false。
         public bool TryDecode(ReadOnlySpan<byte> encoded, Span<byte> rawDestination)
         {
             if (encoded.Length < HeaderBytes || rawDestination.IsEmpty)
@@ -242,6 +245,7 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：以 bits=0 头部包装原始负载（不量化），用于无法/无需量化时的透传分支。
         private byte[] PackPassthrough(ReadOnlySpan<byte> rawBlock)
         {
             int length = rawBlock.Length;
@@ -254,6 +258,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：写入 16 字节头部（magic、版本、位数、dtype、保留位与元素总数）。
         private static void WriteHeader(Span<byte> destination, int bits, long elementCount, KvCodecElementType dtype)
         {
             BinaryPrimitives.WriteUInt32LittleEndian(destination, Magic);
@@ -264,6 +269,7 @@ namespace TensorSharp.Runtime
             BinaryPrimitives.WriteUInt64LittleEndian(destination[8..], (ulong)elementCount);
         }
 
+        // 中文：从原始字节中按 dtype（F32/F16）解析一组 32 个元素到 float 暂存区，供量化使用。
         private void LoadGroup(ReadOnlySpan<byte> rawBlock, long elementStart, Span<float> destination)
         {
             switch (_elementType)
@@ -290,6 +296,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将一组 32 个反量化后的 float 按 dtype（F32/F16）写回原始字节缓冲。
         private void StoreGroup(ReadOnlySpan<float> source, long elementStart, Span<byte> rawDestination)
         {
             switch (_elementType)
@@ -316,6 +323,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将缩放后的值四舍五入为整数并钳制到 [_qMin, _qMax] 区间。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private int QuantizeOne(float scaled)
         {
@@ -325,6 +333,7 @@ namespace TensorSharp.Runtime
             return q;
         }
 
+        // 中文：返回各 dtype 单个元素占用的字节数（F32=4、F16=2、Q8_0=1，未知为 0）。
         private static int ElementBytes(KvCodecElementType dtype) => dtype switch
         {
             KvCodecElementType.Float32 => 4,
@@ -341,6 +350,7 @@ namespace TensorSharp.Runtime
         /// so the paged manager can call this once at construction and stash
         /// the codec; nothing in the hot path looks at the env var.
         /// </summary>
+        // 中文：读取环境变量 TS_KV_PAGED_QUANT_BITS，按位数为给定 dtype 构造编解码器；未配置/Q8_0/非法位数时返回 null。
         public static IKvBlockCodec FromEnvironment(KvCodecElementType dtype)
         {
             string raw = Environment.GetEnvironmentVariable("TS_KV_PAGED_QUANT_BITS");
@@ -377,6 +387,7 @@ namespace TensorSharp.Runtime
         /// attention models can opt in via TS_KV_PAGED_QUANT_BITS without
         /// silently corrupting hybrid-architecture inference.
         /// </summary>
+        // 中文：感知模型的编解码器选择；对需逐块捕获（含循环状态）的架构强制禁用量化，否则按其 KV dtype 走环境变量配置。
         public static IKvBlockCodec FromEnvironment(IModelArchitecture model)
         {
             if (model == null) return null;

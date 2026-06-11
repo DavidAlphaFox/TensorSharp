@@ -61,8 +61,10 @@ namespace TensorSharp.Runtime.Scheduling
         /// swap at block boundaries.</summary>
         public int DecodeQuantumTokens { get; init; } = 256;
 
+        // 中文：返回一份采用全部默认值的调度器配置。
         public static SchedulerConfig Default => new();
 
+        // 中文：从 TS_SCHED_* 环境变量读取各项配置，缺省时回退到默认值，构造配置实例。
         public static SchedulerConfig FromEnvironment()
         {
             var cfg = new SchedulerConfig
@@ -78,6 +80,7 @@ namespace TensorSharp.Runtime.Scheduling
             return cfg;
         }
 
+        // 中文：读取指定环境变量并解析为正整数，无效或缺失时返回 fallback。
         private static int ReadInt(string name, int fallback)
         {
             string raw = System.Environment.GetEnvironmentVariable(name);
@@ -88,6 +91,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         // Boolean flag reader that accepts "0"/"1" (and "true"/"false"). Unlike
         // ReadInt, this honours an explicit "0" so a flag can actually be disabled.
+        // 中文：读取环境变量并解析为布尔值，接受 "0"/"1" 与 "true"/"false"，缺失时返回 fallback。
         private static bool ReadBool(string name, bool fallback)
         {
             string raw = System.Environment.GetEnvironmentVariable(name);

@@ -35,12 +35,14 @@ namespace TensorSharp.Runtime.Scheduling
         public Task<InferenceCompletion> Completion => _completionTcs.Task;
         public DateTime SubmittedAt => Sequence.SubmittedAt;
 
+        // 中文：构造请求句柄，保存序列状态并注册取消令牌以在取消时中止该请求。
         internal InferenceRequestHandle(SequenceState seq, InferenceEngine engine, CancellationToken ct)
         {
             Sequence = seq;
             _ctReg = ct.Register(() => engine.Abort(seq.RequestId));
         }
 
+        // 中文：将新采样出的 token 写入通道供消费者读取，并递增已发布 token 计数。
         internal void PublishToken(int tokenId)
         {
             // Channel is unbounded; should never fail in practice.
@@ -48,6 +50,7 @@ namespace TensorSharp.Runtime.Scheduling
             Interlocked.Increment(ref _publishedTokens);
         }
 
+        // 中文：正常完成请求：关闭 token 通道并以序列的最终状态与统计信息填充完成 future。
         internal void CompleteFinished()
         {
             _tokens.Writer.TryComplete();
@@ -65,6 +68,7 @@ namespace TensorSharp.Runtime.Scheduling
             _completionTcs.TrySetResult(completion);
         }
 
+        // 中文：以异常终止请求：用错误关闭 token 通道并将完成 future 置为异常。
         internal void CompleteWithError(Exception ex)
         {
             _tokens.Writer.TryComplete(ex);
@@ -72,6 +76,7 @@ namespace TensorSharp.Runtime.Scheduling
             _completionTcs.TrySetException(ex);
         }
 
+        // 中文：因客户端取消而中止请求：关闭通道并以 aborted 状态填充完成 future。
         internal void CompleteAborted()
         {
             _tokens.Writer.TryComplete();

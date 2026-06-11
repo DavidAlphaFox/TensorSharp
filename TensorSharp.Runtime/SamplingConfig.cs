@@ -84,16 +84,19 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Returns true if this config is effectively greedy decoding.
         /// </summary>
+        // 中文：当温度、top-k、top-p、min-p 均关闭时判定为贪婪解码。
         public bool IsGreedy => Temperature <= 0f && TopK <= 0 && TopP >= 1.0f && MinP <= 0f;
 
         /// <summary>
         /// Default config: matches Ollama defaults (temperature=0.8, top_k=40, top_p=0.9).
         /// </summary>
+        // 中文：返回采用 Ollama 默认参数的配置实例。
         public static SamplingConfig Default => new SamplingConfig();
 
         /// <summary>
         /// Greedy (deterministic) decoding: always pick the most probable token.
         /// </summary>
+        // 中文：返回贪婪（确定性）解码配置，始终选择概率最高的 token。
         public static SamplingConfig Greedy => new SamplingConfig
         {
             Temperature = 0f,
@@ -105,6 +108,7 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Sensible creative defaults (temperature=0.7, top_p=0.9, min_p=0.05).
         /// </summary>
+        // 中文：返回偏创意的采样配置（温度 0.7、top-p 0.9、min-p 0.05）。
         public static SamplingConfig Creative => new SamplingConfig
         {
             Temperature = 0.7f,
@@ -119,6 +123,7 @@ namespace TensorSharp.Runtime
         /// The <see cref="StopSequences"/> list is duplicated so adding entries
         /// to the clone does not bleed back into the source config.
         /// </summary>
+        // 中文：返回本配置的深拷贝，StopSequences 列表会被复制以避免与源实例相互影响。
         public SamplingConfig Clone()
         {
             return new SamplingConfig

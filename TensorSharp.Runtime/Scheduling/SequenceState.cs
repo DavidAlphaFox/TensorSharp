@@ -21,6 +21,7 @@ namespace TensorSharp.Runtime.Scheduling
     {
         private static long _counter;
 
+        // 中文：构造单序列推理状态，校验提示词与上限，分配序号、块表、采样配置并置为 Waiting。
         public SequenceState(
             string requestId,
             IReadOnlyList<int> promptTokens,
@@ -129,6 +130,7 @@ namespace TensorSharp.Runtime.Scheduling
 
         /// <summary>Returns the token at logical position <paramref name="pos"/>
         /// (prompt or generated).</summary>
+        // 中文：返回逻辑位置 pos 处的 token，跨越提示词区与生成区，越界则抛异常。
         public int TokenAt(int pos)
         {
             if (pos < PromptTokens.Count) return PromptTokens[pos];
@@ -137,6 +139,7 @@ namespace TensorSharp.Runtime.Scheduling
             throw new ArgumentOutOfRangeException(nameof(pos));
         }
 
+        // 中文：步进已计算 token 计数并同步推进块表的 token 游标。
         public void AdvanceComputedTokens(int n)
         {
             NumComputedTokens += n;
@@ -148,6 +151,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// reused prefix-cache blocks - the blocks are already populated, so
         /// we mark them as committed without going through AdvanceTokens (which
         /// would double-count against the block table).</summary>
+        // 中文：前缀缓存复用准入时直接设定已计算 token 数（块已填充），避免重复计入块表。
         internal void SetComputedTokensForPrefixAdoption(int n)
         {
             NumComputedTokens = n;
@@ -157,6 +161,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>Reset computed-token counter to 0. Called when the
         /// sequence is preempted - its blocks were freed, the next admission
         /// re-prefills from scratch (with the help of the prefix cache).</summary>
+        // 中文：序列被抢占时清零已计算计数与缓存的 logits，并放弃过时的实时缓存续用声明。
         internal void ResetForPreemption()
         {
             NumComputedTokens = 0;
@@ -173,6 +178,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// sequence re-prefills from position 0, but KEEPS the already-allocated
         /// blocks (their token counter is reset) so block-table accounting stays
         /// consistent through the re-prefill.</summary>
+        // 中文：放弃实时缓存续用但保留已分配的块，重置 token 计数从位置 0 重新预填充。
         internal void ClearLiveCacheContinuation()
         {
             UsesLiveCacheContinuation = false;
@@ -182,13 +188,16 @@ namespace TensorSharp.Runtime.Scheduling
             BlockTable.ResetTokensKeepingBlocks();
         }
 
+        // 中文：把新生成的 token 追加到输出 token 列表。
         public void AppendOutputToken(int token)
         {
             OutputTokens.Add(token);
         }
 
+        // 中文：判断输出 token 数是否已达到 MaxNewTokens，从而应因长度上限停止生成。
         public bool ShouldStopForLength() => OutputTokens.Count >= MaxNewTokens;
 
+        // 中文：返回序列状态的可读摘要（请求 ID、序号、状态、提示词/输出/已计算 token 数）。
         public override string ToString()
             => $"Seq({RequestId}, sn={Sn}, status={Status}, prompt={PromptTokens.Count}, out={OutputTokens.Count}, computed={NumComputedTokens})";
     }

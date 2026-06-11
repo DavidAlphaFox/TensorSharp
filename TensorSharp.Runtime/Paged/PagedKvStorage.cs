@@ -26,6 +26,7 @@ namespace TensorSharp.Runtime.Paged
         private readonly int _numBlocks;
         private bool _disposed;
 
+        // 中文：构造分页 KV 字节存储，记录块数与每块字节数，slab 数组延迟分配。
         public PagedKvStorage(int numBlocks, long blockByteSize)
         {
             if (numBlocks <= 0) throw new ArgumentOutOfRangeException(nameof(numBlocks));
@@ -45,6 +46,7 @@ namespace TensorSharp.Runtime.Paged
         /// <summary>Get a writable span for block <paramref name="blockId"/>. Allocates
         /// the slab on first access. The returned span is exactly <see cref="BlockByteSize"/>
         /// long.</summary>
+        // 中文：返回指定块的可写字节 span，首次访问时分配其 slab。
         public Span<byte> GetSpan(int blockId)
         {
             EnsureSlab(blockId);
@@ -52,6 +54,7 @@ namespace TensorSharp.Runtime.Paged
         }
 
         /// <summary>Read-only view of block <paramref name="blockId"/>.</summary>
+        // 中文：返回指定块的只读字节 span，首次访问时分配其 slab。
         public ReadOnlySpan<byte> GetReadOnlySpan(int blockId)
         {
             EnsureSlab(blockId);
@@ -61,12 +64,14 @@ namespace TensorSharp.Runtime.Paged
         /// <summary>Drop the slab for block <paramref name="blockId"/> back to the GC.
         /// Used when the block is being evicted from the cache and the bytes will
         /// not be reused.</summary>
+        // 中文：将指定块的 slab 置空交还 GC（块被驱逐且字节不再复用时调用）。
         public void ReleaseSlab(int blockId)
         {
             if ((uint)blockId >= (uint)_numBlocks) return;
             _slabs[blockId] = null;
         }
 
+        // 中文：校验块 id 范围并在 slab 尚未分配时按块字节数惰性分配。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void EnsureSlab(int blockId)
         {
@@ -76,6 +81,7 @@ namespace TensorSharp.Runtime.Paged
                 _slabs[blockId] = new byte[_blockByteSize];
         }
 
+        // 中文：释放所有 slab 引用以交还 GC，幂等。
         public void Dispose()
         {
             if (_disposed) return;

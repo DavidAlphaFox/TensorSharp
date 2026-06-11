@@ -45,6 +45,7 @@ namespace TensorSharp.Runtime
         public int[] EosTokenIds => _eosTokenIds;
         public int VocabSize => _vocab.Length;
 
+        // 中文：构造函数，构建词表/merge 查找表并根据预分词器类型选择正则模式。
         public BpeTokenizer(string[] vocab, int[] tokenTypes, string[] merges,
             int bosTokenId, int[] eosTokenIds, bool addBos, bool addEos,
             string? preTokenizerType = null)
@@ -81,6 +82,7 @@ namespace TensorSharp.Runtime
             _pretokenizerRegex = new Regex(pattern, RegexOptions.Compiled);
         }
 
+        // 中文：从词表中收集类型为控制(3)或用户自定义(4)的特殊 token。
         private List<string> GetSpecialTokens()
         {
             const int TOKEN_TYPE_CONTROL = 3;
@@ -97,6 +99,7 @@ namespace TensorSharp.Runtime
             return specials;
         }
 
+        // 中文：将文本编码为 token id 列表，先按特殊 token 切分，再预分词并做 BPE 合并，最后按需加 BOS/EOS。
         public List<int> Encode(string text, bool addSpecial = true)
         {
             var specials = GetSpecialTokens();
@@ -173,6 +176,7 @@ namespace TensorSharp.Runtime
             return ids;
         }
 
+        // 中文：将分片的 UTF-8 字节按 GPT 风格的字节到可见字符映射进行规范化。
         private string NormalizeSplit(string split)
         {
             var sb = new StringBuilder();
@@ -190,6 +194,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：核心 BPE 合并，基于优先队列按 merge 规则的最小 rank 反复合并相邻字符对，输出 token id。
         private List<int> BpeMerge(string normalized)
         {
             var runes = normalized.ToCharArray().Select(c => c.ToString()).ToList();
@@ -280,12 +285,14 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：查询左右两片在 merge 规则中的优先级 rank，不存在返回 -1。
         private int GetMergeRank(string left, string right)
         {
             string key = left + " " + right;
             return _mergeLookup.TryGetValue(key, out int rank) ? rank : -1;
         }
 
+        // 中文：将单个 token 按字符到字节的逆映射解码为原始字节追加到缓冲区。
         public void AppendTokenBytes(int tokenId, List<byte> buffer)
         {
             string token = _vocab[tokenId];
@@ -302,6 +309,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将 token id 列表解码回 UTF-8 字符串。
         public string Decode(List<int> ids)
         {
             var bytes = new List<byte>();
@@ -310,11 +318,13 @@ namespace TensorSharp.Runtime
             return Encoding.UTF8.GetString(bytes.ToArray());
         }
 
+        // 中文：判断给定 token id 是否为结束符 EOS。
         public bool IsEos(int tokenId) => _eosTokenIds.Contains(tokenId);
 
         /// <summary>
         /// Look up a token string (e.g. "&lt;|image_pad|&gt;") and return its token ID, or -1 if not found.
         /// </summary>
+        // 中文：按 token 字符串查询其 id，未找到返回 -1。
         public int LookupToken(string tokenStr)
         {
             return _vocabLookup.TryGetValue(tokenStr, out int id) ? id : -1;

@@ -52,6 +52,7 @@ namespace TensorSharp.Runtime.Scheduling
         private long _totalForwardTicks;
         private bool _disposed;
 
+        // 中文：构造引擎——建块池、调度器、批执行器并装配活缓存续接回调，随后启动独占的后台工作线程跑步进循环。
         public InferenceEngine(IModelArchitecture model, SchedulerConfig cfg, ILogger logger = null)
         {
             _model = model ?? throw new ArgumentNullException(nameof(model));
@@ -91,6 +92,7 @@ namespace TensorSharp.Runtime.Scheduling
         /// <summary>Submit a sequence for inference. Returns immediately with a
         /// handle whose <see cref="InferenceRequestHandle.Tokens"/> channel
         /// streams sampled tokens.</summary>
+        // 中文：提交推理请求——创建并登记句柄、向命令通道投递 Submit 命令，立即返回可逐 token 消费输出的句柄。
         public InferenceRequestHandle SubmitRequest(SequenceState seq, CancellationToken ct = default)
         {
             if (seq == null) throw new ArgumentNullException(nameof(seq));
@@ -107,6 +109,7 @@ namespace TensorSharp.Runtime.Scheduling
         }
 
         /// <summary>Cancel a submitted request. Idempotent.</summary>
+        // 中文：向命令通道投递 Abort 命令以取消已提交请求，幂等。
         public void Abort(string requestId)
         {
             _commands.Writer.TryWrite(new EngineCommand
@@ -116,6 +119,7 @@ namespace TensorSharp.Runtime.Scheduling
             });
         }
 
+        // 中文：释放引擎——发取消信号、关闭命令通道并等待工作线程退出（最多 2 秒），幂等。
         public void Dispose()
         {
             if (_disposed) return;
@@ -125,6 +129,7 @@ namespace TensorSharp.Runtime.Scheduling
             try { _worker.Join(2000); } catch { /* best effort */ }
         }
 
+        // 中文：工作线程主循环——排空命令、空闲时阻塞等待命令，否则跑一步调度+执行并计时，处理结果并通知可回收的序列。
         private void WorkerLoop()
         {
             var sw = new System.Diagnostics.Stopwatch();
@@ -191,6 +196,7 @@ namespace TensorSharp.Runtime.Scheduling
             }
         }
 
+        // 中文：从本步输出中收集已完成与被抢占的请求 id，逐个通知模型回收其每请求状态（如混合模型的循环状态槽）。
         private void NotifyReleasedSequences(SchedulerOutput output)
         {
             if (_model is not Runtime.Scheduling.IBatchedPagedModel batched) return;
@@ -207,6 +213,7 @@ namespace TensorSharp.Runtime.Scheduling
             }
         }
 
+        // 中文：某步在调度/执行阶段抛异常时的失败处理——对受影响序列上报错误、完成其句柄并记录，最后统一通知模型释放。
         private void FailStepSequences(Exception ex, SchedulerOutput output, string phase)
         {
             var affected = GetAffectedSequences(output);
@@ -272,6 +279,7 @@ namespace TensorSharp.Runtime.Scheduling
             NotifyReleasedSequences(released);
         }
 
+        // 中文：求失败步受影响的序列——优先取本步已调度工作中的序列（去重），若无则回退到调度器全部在飞序列快照。
         private List<SequenceState> GetAffectedSequences(SchedulerOutput output)
         {
             var affected = new List<SequenceState>();
@@ -294,6 +302,7 @@ namespace TensorSharp.Runtime.Scheduling
             return _scheduler.GetInFlightSequencesSnapshot();
         }
 
+        // 中文：按给定请求 id 集合逐个通知模型回收对应序列的每请求状态（重载，直接接收 id 列表）。
         private void NotifyReleasedSequences(IEnumerable<string> requestIds)
         {
             if (_model is not Runtime.Scheduling.IBatchedPagedModel batched) return;
@@ -302,6 +311,7 @@ namespace TensorSharp.Runtime.Scheduling
                 NotifyReleasedSequence(batched, id, seen);
         }
 
+        // 中文：单个序列的释放通知——去重后调用模型的 OnSequenceReleased 钩子，吞掉并记录其中的异常。
         private void NotifyReleasedSequence(
             Runtime.Scheduling.IBatchedPagedModel batched,
             string requestId,
@@ -320,6 +330,7 @@ namespace TensorSharp.Runtime.Scheduling
             }
         }
 
+        // 中文：在工作线程内派发命令——Submit 交调度器准入（失败则以错误完成句柄），Abort 中止序列并完成句柄、通知模型释放。
         private void ApplyCommand(EngineCommand cmd)
         {
             switch (cmd.Kind)
@@ -343,6 +354,7 @@ namespace TensorSharp.Runtime.Scheduling
             }
         }
 
+        // 中文：处理一步的逐序列结果——出错则上报并以错误完成；遇 EOS 停止且不外发该 token；否则发布 token，达最大新增长度则按长度上限停止。
         private void ApplyResults(List<SequenceStepResult> results, SchedulerOutput output)
         {
             for (int i = 0; i < results.Count; i++)
@@ -391,6 +403,7 @@ namespace TensorSharp.Runtime.Scheduling
             }
         }
 
+        // 中文：计算单个 KV 块的字节大小——模型不支持 KV 快照时返回 0，否则返回模型估算值（下限为 0）。
         private static long ComputeBlockByteSize(IModelArchitecture model, int blockSize)
         {
             if (!model.SupportsKVStateSnapshot) return 0;

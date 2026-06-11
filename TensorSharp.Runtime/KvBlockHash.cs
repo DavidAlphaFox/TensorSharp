@@ -26,6 +26,7 @@ namespace TensorSharp.Runtime
         private readonly ulong _lo;
         private readonly ulong _hi;
 
+        // 中文：从低 64 位与高 64 位构造 128 位块哈希。
         public KvBlockHash(ulong lo, ulong hi)
         {
             _lo = lo;
@@ -34,6 +35,7 @@ namespace TensorSharp.Runtime
 
         public bool IsEmpty => _lo == 0 && _hi == 0;
 
+        // 中文：从至少 16 字节的小端字节序列读取并构造块哈希。
         public static KvBlockHash FromBytes(ReadOnlySpan<byte> bytes)
         {
             if (bytes.Length < 16)
@@ -43,12 +45,14 @@ namespace TensorSharp.Runtime
             return new KvBlockHash(lo, hi);
         }
 
+        // 中文：将 128 位哈希以小端序写入目标 16 字节缓冲区。
         public void WriteTo(Span<byte> destination)
         {
             BinaryPrimitives.WriteUInt64LittleEndian(destination, _lo);
             BinaryPrimitives.WriteUInt64LittleEndian(destination[8..], _hi);
         }
 
+        // 中文：将哈希序列化为 32 字符的十六进制字符串。
         public string ToHexString()
         {
             Span<byte> buf = stackalloc byte[16];
@@ -56,12 +60,18 @@ namespace TensorSharp.Runtime
             return Convert.ToHexString(buf);
         }
 
+        // 中文：按高低 64 位逐位比较两个块哈希是否相等。
         public bool Equals(KvBlockHash other) => _lo == other._lo && _hi == other._hi;
+        // 中文：与任意对象比较，仅当对方为 KvBlockHash 且相等时返回真。
         public override bool Equals(object obj) => obj is KvBlockHash h && Equals(h);
+        // 中文：基于高低 64 位组合出用于字典查找的哈希码。
         public override int GetHashCode() => HashCode.Combine(_lo, _hi);
+        // 中文：返回哈希的十六进制字符串表示。
         public override string ToString() => ToHexString();
 
+        // 中文：相等运算符，等价于 Equals。
         public static bool operator ==(KvBlockHash a, KvBlockHash b) => a.Equals(b);
+        // 中文：不等运算符，等价于 Equals 取反。
         public static bool operator !=(KvBlockHash a, KvBlockHash b) => !a.Equals(b);
     }
 
@@ -80,6 +90,7 @@ namespace TensorSharp.Runtime
         /// specific (model, dtype, layer count) tuple so cache entries cannot leak
         /// across incompatible models loaded into the same store.
         /// </summary>
+        // 中文：对 token 序列逐块计算链式 SHA-256 哈希（融入指纹与父块摘要），返回各满块的 128 位哈希列表。
         public static List<KvBlockHash> ComputeBlockHashes(
             IReadOnlyList<int> tokens,
             int blockSize,
@@ -143,6 +154,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将指定区间的 token 以小端 int32 序列化写入目标缓冲区，供哈希计算使用。
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void SerializeTokens(IReadOnlyList<int> tokens, int start, int count, Span<byte> destination)
         {

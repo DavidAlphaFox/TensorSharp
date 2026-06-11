@@ -39,6 +39,7 @@ namespace TensorSharp.Runtime.Scheduling
 
     public static class SequenceStatusExtensions
     {
+        // 中文：判断状态是否为已完成（停止/达长度上限/中止/错误）之一。
         public static bool IsFinished(this SequenceStatus s)
             => s == SequenceStatus.FinishedStopped
             || s == SequenceStatus.FinishedLengthCapped

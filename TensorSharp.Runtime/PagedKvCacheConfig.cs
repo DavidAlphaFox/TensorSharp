@@ -48,6 +48,7 @@ namespace TensorSharp.Runtime
         ///   TS_KV_CACHE_MAX_SSD_MB=&lt;mb&gt;- SSD tier cap (default 16384)
         /// Any value that fails to parse falls back to the documented default.
         /// </summary>
+        // 中文：从环境变量读取分页 KV 缓存配置，对非法值回退到文档默认值并构造配置对象。
         public static PagedKvCacheConfig FromEnvironment()
         {
             bool enabled = ReadBool("TS_KV_PAGED_CACHE", false);
@@ -75,6 +76,7 @@ namespace TensorSharp.Runtime
             };
         }
 
+        // 中文：读取布尔型环境变量，识别 1/true/yes/on 为真，缺省或空白返回默认值。
         private static bool ReadBool(string name, bool defaultValue)
         {
             string v = Environment.GetEnvironmentVariable(name);
@@ -84,12 +86,14 @@ namespace TensorSharp.Runtime
             return v is "1" or "true" or "yes" or "on";
         }
 
+        // 中文：读取整型环境变量，解析失败时返回默认值。
         private static int ReadInt(string name, int defaultValue)
         {
             string v = Environment.GetEnvironmentVariable(name);
             return int.TryParse(v, out int parsed) ? parsed : defaultValue;
         }
 
+        // 中文：读取长整型环境变量，解析失败时返回默认值。
         private static long ReadLong(string name, long defaultValue)
         {
             string v = Environment.GetEnvironmentVariable(name);
