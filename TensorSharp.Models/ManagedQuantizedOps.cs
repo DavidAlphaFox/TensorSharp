@@ -1,4 +1,4 @@
-﻿// Copyright (c) Zhongkai Fu. All rights reserved.
+// Copyright (c) Zhongkai Fu. All rights reserved.
 // https://github.com/zhongkaifu/TensorSharp
 //
 // This file is part of TensorSharp.
@@ -58,6 +58,7 @@ namespace TensorSharp.Models
             0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12,
         };
 
+        // 中文：判断指定 GGML 张量类型是否可在 CPU 上以量化格式（不先解压到 FP32）直接存储和计算
         public static bool SupportsCpuQuantizedStorage(GgmlTensorType type)
         {
             return type switch
@@ -79,6 +80,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：判断指定 GGML 张量类型是否支持反量化到 FP32（包含整数类型和浮点类型）
         public static bool SupportsDequantization(GgmlTensorType type)
         {
             return type switch
@@ -95,6 +97,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：计算给定量化类型一行（ne 个元素）所需的字节数，要求行长度对齐到块大小
         public static long RowSize(int ggmlType, long ne)
         {
             var type = (GgmlTensorType)ggmlType;
@@ -108,6 +111,7 @@ namespace TensorSharp.Models
             return (ne / blockSize) * GgufFile.GetTypeSize(type);
         }
 
+        // 中文：将托管字节数组中的量化数据反量化为 FP32，写入目标 float 数组（托管重载）
         public static unsafe void DequantizeToFloat32(int ggmlType, byte[] src, int srcOffset, float[] dst, int dstOffset, long numElements)
         {
             var type = (GgmlTensorType)ggmlType;
@@ -121,6 +125,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将非托管指针指向的量化数据反量化为 FP32，写入目标托管 float 数组（IntPtr 源重载）
         public static unsafe void DequantizeToFloat32(int ggmlType, IntPtr src, float[] dst, int dstOffset, long numElements)
         {
             var type = (GgmlTensorType)ggmlType;
@@ -133,6 +138,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将非托管指针指向的量化数据反量化为 FP32，输出写入非托管目标内存（全指针重载，适合 P/Invoke 场景）
         public static unsafe void DequantizeToFloat32Native(int ggmlType, IntPtr src, IntPtr dst, long numElements)
         {
             var type = (GgmlTensorType)ggmlType;
@@ -142,6 +148,7 @@ namespace TensorSharp.Models
             DequantizeToFloat32(type, (byte*)src.ToPointer(), (float*)dst.ToPointer(), numElements);
         }
 
+        // 中文：将非托管指针指向的量化行数据反量化为 FP32，直接写入裸 float 指针（供内部快速路径调用）
         public static unsafe void DequantizeRowToFloat32(int ggmlType, IntPtr src, float* dst, long numElements)
         {
             var type = (GgmlTensorType)ggmlType;
@@ -151,6 +158,7 @@ namespace TensorSharp.Models
             DequantizeToFloat32(type, (byte*)src.ToPointer(), dst, numElements);
         }
 
+        // 中文：对量化权重行与多行 FP32 激活向量做批量点积，结果累加到 outputs 数组（托管数组重载）
         public static unsafe void DotRowBatchToFloat32(int ggmlType, byte[] src, int srcOffset,
             float[] inputs, int inputOffset, int inputRowStride, int rowCount, long numElements,
             float[] outputs, int outputOffset)
@@ -174,6 +182,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：对量化权重行与多行 FP32 激活向量做批量点积，核心实现：先按块反量化到栈上暂存区，再调用 TensorPrimitives.Dot 累加
         public static unsafe void DotRowBatchToFloat32(int ggmlType, IntPtr src, float* inputs,
             int inputRowStride, int rowCount, long numElements, float* outputs)
         {
@@ -220,6 +229,10 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：尝试直接对量化权重矩阵（非托管指针）做 addmm 矩阵乘并累加到 FP32 输出，激活先量化为匹配格式再做整数点积；
+        //       算法原理：将 FP32 激活动态量化为 Q8_0/Q8_1/Q8_K，与权重逐块做整数内积后乘以联合缩放因子，
+        //       避免全量反量化为 FP32，显著降低内存带宽；支持 Parallel.For 列并行加速（outDim >= 128 时启用）。
+        //       参考 GGUF 规范及 k-quantization：https://github.com/ggerganov/llama.cpp/pull/1684
         public static unsafe bool TryAddmmQuantizedToFloat32(
             int ggmlType,
             IntPtr weights,
@@ -306,6 +319,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：TryAddmmQuantizedToFloat32 的托管数组重载，将数组偏移转换为裸指针后委托给指针版本
         public static unsafe bool TryAddmmQuantizedToFloat32(
             int ggmlType,
             byte[] weights,
@@ -351,6 +365,7 @@ namespace TensorSharp.Models
             Q8_K,
         }
 
+        // 中文：根据权重量化类型选择对应的激活量化策略（Q8_0/Q8_1/Q8_K），并计算量化后每行的字节数
         private static bool TryGetDirectMatMulPlan(
             GgmlTensorType type,
             int elementCount,
@@ -394,6 +409,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 FP32 激活向量按指定量化策略（Q8_0/Q8_1/Q8_K）量化写入目标字节缓冲区
         private static unsafe void QuantizeActivation(float* src, byte* dst, int elementCount, ActivationQuantKind kind)
         {
             switch (kind)
@@ -412,6 +428,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：根据权重量化类型分派到对应的整数向量点积函数（VecDotXxx），返回单行点积结果
         private static unsafe float DotQuantized(GgmlTensorType type, byte* weightRow, byte* activationRow, int elementCount)
         {
             return type switch
@@ -429,6 +446,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：统一入口：按张量类型将量化字节流反量化为 FP32 数组，分派到各格式专用实现
         private static unsafe void DequantizeToFloat32(GgmlTensorType type, byte* src, float* dst, long numElements)
         {
             switch (type)
@@ -495,12 +513,14 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 IEEE 754 FP16（半精度）字节流逐元素转换为 FP32
         private static unsafe void DequantizeF16(byte* src, float* dst, long numElements)
         {
             for (long i = 0; i < numElements; i++)
                 dst[i] = HalfToSingle(ReadUInt16(src + i * 2));
         }
 
+        // 中文：将 BF16（脑浮点）字节流逐元素转换为 FP32，原理：BF16 低 16 位为 0，高位与 FP32 对齐，直接左移 16 位即得 FP32 位模式
         private static unsafe void DequantizeBf16(byte* src, float* dst, long numElements)
         {
             for (long i = 0; i < numElements; i++)
@@ -510,36 +530,44 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将有符号 8 位整数（I8）字节流逐元素转换为 FP32
         private static unsafe void DequantizeI8(byte* src, float* dst, long numElements)
         {
             for (long i = 0; i < numElements; i++)
                 dst[i] = ((sbyte*)src)[i];
         }
 
+        // 中文：将有符号 16 位整数（I16）字节流逐元素转换为 FP32
         private static unsafe void DequantizeI16(byte* src, float* dst, long numElements)
         {
             for (long i = 0; i < numElements; i++)
                 dst[i] = (short)ReadUInt16(src + i * 2);
         }
 
+        // 中文：将有符号 32 位整数（I32）字节流逐元素转换为 FP32
         private static unsafe void DequantizeI32(byte* src, float* dst, long numElements)
         {
             for (long i = 0; i < numElements; i++)
                 dst[i] = ReadInt32(src + i * 4);
         }
 
+        // 中文：将有符号 64 位整数（I64）字节流逐元素转换为 FP32
         private static unsafe void DequantizeI64(byte* src, float* dst, long numElements)
         {
             for (long i = 0; i < numElements; i++)
                 dst[i] = ReadInt64(src + i * 8);
         }
 
+        // 中文：将 FP64（双精度）字节流逐元素截断转换为 FP32
         private static unsafe void DequantizeF64(byte* src, float* dst, long numElements)
         {
             for (long i = 0; i < numElements; i++)
                 dst[i] = (float)ReadDouble(src + i * 8);
         }
 
+        // 中文：Q4_0 格式反量化：每块 32 个元素，格式为 [scale(FP16) | 16字节nibbles]，
+        //       每个 nibble 值域 [0,15]，减去 8 得到有符号值 [-8,7]，再乘以缩放因子 d。
+        //       参考 GGUF 规范（对称零点量化）：https://github.com/ggerganov/ggml/blob/master/docs/gguf.md
         private static unsafe void DequantizeQ40(byte* src, float* dst, long numElements)
         {
             if (numElements % QK4_0 != 0)
@@ -562,6 +590,9 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q4_1 格式反量化：每块 32 个元素，格式为 [scale(FP16) | min(FP16) | 16字节nibbles]，
+        //       nibble 值域 [0,15]（无符号），公式：x = q * d + m，存在非零偏移 m（最小值补偿）。
+        //       参考 GGUF 规范（非对称量化）：https://github.com/ggerganov/ggml/blob/master/docs/gguf.md
         private static unsafe void DequantizeQ41(byte* src, float* dst, long numElements)
         {
             if (numElements % QK4_1 != 0)
@@ -585,6 +616,9 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q5_0 格式反量化：在 Q4_0 基础上每个元素额外存储 1 位高位（qh），
+        //       每块格式为 [scale(FP16) | qh(4字节) | 16字节nibbles]，有效值域 [-16,15]（对称），公式：x = q5 * d。
+        //       参考 GGUF 规范：https://github.com/ggerganov/ggml/blob/master/docs/gguf.md
         private static unsafe void DequantizeQ50(byte* src, float* dst, long numElements)
         {
             if (numElements % QK5_0 != 0)
@@ -611,6 +645,9 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q5_1 格式反量化：在 Q4_1 基础上每个元素额外存储 1 位高位（qh），
+        //       格式为 [scale(FP16) | min(FP16) | qh(4字节) | 16字节nibbles]，非对称，公式：x = q5 * d + m。
+        //       参考 GGUF 规范：https://github.com/ggerganov/ggml/blob/master/docs/gguf.md
         private static unsafe void DequantizeQ51(byte* src, float* dst, long numElements)
         {
             if (numElements % QK5_1 != 0)
@@ -638,6 +675,8 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q8_0 格式反量化（对称 8 位量化）：每块 32 个有符号字节，格式为 [scale(FP16) | 32字节 int8]，
+        //       公式：x = q * d；d = max(|x|) / 127，参考 GGUF 规范对称量化定义。
         private static unsafe void DequantizeQ80(byte* src, float* dst, long numElements)
         {
             if (numElements % QK8_0 != 0)
@@ -656,6 +695,8 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q8_1 格式反量化：在 Q8_0 基础上额外存储整数和 s（用于与 Q4_1 做快速点积），
+        //       格式为 [scale(FP16) | sum(FP16) | 32字节 int8]，公式：x = q * d。
         private static unsafe void DequantizeQ81(byte* src, float* dst, long numElements)
         {
             if (numElements % QK8_1 != 0)
@@ -674,6 +715,10 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q4_K 格式反量化（k-quantization 4 位，超级块 256 元素）：
+        //       每个超级块含全局缩放因子 d/min（FP16）、12 字节紧凑 6 位尺度表（8组 scale/min 各 6 位）、
+        //       128 字节 nibbles；公式：x = d * sc * q4 - min * mn，实现 GGUF k-quant 规范。
+        //       参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         private static unsafe void DequantizeQ4K(byte* src, float* dst, long numElements)
         {
             if (numElements % QK_K != 0)
@@ -708,6 +753,10 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q5_K 格式反量化（k-quantization 5 位，超级块 256 元素）：
+        //       在 Q4_K 基础上每元素额外存储 1 位高位（qh，32字节）；
+        //       公式：x = d * sc * (lo4 | hi1<<4) - min * mn，实现 5 位精度的 k-quant。
+        //       参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         private static unsafe void DequantizeQ5K(byte* src, float* dst, long numElements)
         {
             if (numElements % QK_K != 0)
@@ -747,6 +796,10 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：Q6_K 格式反量化（k-quantization 6 位，超级块 256 元素）：
+        //       低 4 位存于 ql（128字节），高 2 位存于 qh（64字节），16 个有符号 int8 子块 scale；
+        //       公式：q6 = (lo4 | hi2<<4) - 32，x = d * scale[sub] * q6，实现 6 位精度 k-quant。
+        //       参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         private static unsafe void DequantizeQ6K(byte* src, float* dst, long numElements)
         {
             if (numElements % QK_K != 0)
@@ -785,6 +838,10 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：IQ4_NL 格式反量化（非线性 4 位量化）：
+        //       16 个量化值由非均匀查找表 Iq4NlValues 给出（值域 [-127,113]，非等间距），
+        //       公式：x = d * table[q4]；非线性量化点分布更接近正态分布，减小均方误差。
+        //       参考 I-quant 系列 PR：https://github.com/ggerganov/llama.cpp/pull/4773
         private static unsafe void DequantizeIq4Nl(byte* src, float* dst, long numElements)
         {
             if (numElements % QK4_NL != 0)
@@ -806,6 +863,11 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：MXFP4 格式反量化（MX Microscaling 4 位浮点量化）：
+        //       每块 32 元素，1 字节 E8M0 共享指数（无尾数的 8 位指数格式）作为缩放因子，
+        //       16 个 4 位有符号浮点值由 Mxfp4Values 查找表映射；
+        //       E8M0 转 FP32：scale = 2^(exp-1)；公式：x = scale * table[q4]。
+        //       参考 MX Microscaling 规范：https://arxiv.org/abs/2310.10537
         private static unsafe void DequantizeMxfp4(byte* src, float* dst, long numElements)
         {
             if (numElements % QK_MXFP4 != 0)
@@ -827,6 +889,9 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 FP32 激活向量量化为 Q8_0 格式（对称 8 位量化）：
+        //       每块 32 元素，scale = max(|x|) / 127，量化公式：q = clamp(round(x / scale), -127, 127)；
+        //       参考 GGUF Q8_0 对称量化规范。
         private static unsafe void QuantizeF32ToQ8_0(float* src, byte* dst, int elementCount)
         {
             int blockCount = elementCount / QK8_0;
@@ -851,6 +916,8 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 FP32 激活向量量化为 Q8_1 格式（非对称 8 位量化，额外存储量化整数和 s = scale * sum(q)）：
+        //       s 用于与 Q4_1 权重做快速点积时加速计算偏置项 m4 * s8，避免逐元素乘法。
         private static unsafe void QuantizeF32ToQ8_1(float* src, byte* dst, int elementCount)
         {
             int blockCount = elementCount / QK8_1;
@@ -883,6 +950,10 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 FP32 激活向量量化为 Q8_K 格式（k-quant 用激活量化，超级块 256 元素）：
+        //       scale 以 FP32 存储（而非 FP16），每 16 元素一组记录子块整数和 bsums（short），
+        //       供 Q4_K/Q5_K/Q6_K 的点积函数利用 bsums 快速计算偏置项，节省乘法运算。
+        //       参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         private static unsafe void QuantizeF32ToQ8_K(float* src, byte* dst, int elementCount)
         {
             int blockCount = elementCount / QK_K;
@@ -920,12 +991,14 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将 float 值以 FP16（半精度）格式写入非对齐字节指针
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void WriteHalf(byte* dst, float value)
         {
             Unsafe.WriteUnaligned(dst, BitConverter.HalfToUInt16Bits((System.Half)value));
         }
 
+        // 中文：将浮点值四舍五入并钳位到 [-127, 127] 范围的有符号 8 位整数（量化截断辅助函数）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static sbyte ClampToInt8(float value)
         {
@@ -935,6 +1008,8 @@ namespace TensorSharp.Models
             return (sbyte)rounded;
         }
 
+        // 中文：计算浮点数组中绝对值的最大值，优先使用 AVX-512 向量化（16 路并行），
+        //       次选 System.Numerics.Vector<float> 自适应 SIMD，兜底标量循环
         private static unsafe float MaxAbs(float* src, int length)
         {
             if (Avx512F.IsSupported && length >= 16)
@@ -973,6 +1048,9 @@ namespace TensorSharp.Models
             return maxAbs;
         }
 
+        // 中文：Q4_0 × Q8_0 整数向量点积（对称 4 位权重 × 对称 8 位激活）：
+        //       逐块计算 sum(q4_signed * q8)，再乘以联合缩放因子 d4 * d8，
+        //       q4 有符号值 = nibble - 8 ∈ [-8, 7]；参考 GGUF 规范对称量化内积。
         private static unsafe float VecDotQ4_0Q8_0(byte* q4, byte* q8, int blockCount)
         {
             float sum = 0.0f;
@@ -999,6 +1077,9 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q4_1 × Q8_1 整数向量点积（非对称 4 位权重 × 非对称 8 位激活）：
+        //       公式：dot = d4*d8*sum(q4*q8) + m4*s8，其中 s8 = d8*sum(q8) 预存于 Q8_1 块头，
+        //       利用 s8 避免逐元素计算偏置项，降低乘法开销。
         private static unsafe float VecDotQ4_1Q8_1(byte* q4, byte* q8, int blockCount)
         {
             float sum = 0.0f;
@@ -1023,6 +1104,9 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q5_0 × Q8_0 整数向量点积（对称 5 位权重 × 对称 8 位激活）：
+        //       q5 = (lo4 | hi1<<4) - 16 ∈ [-16, 15]，高位 qh 以位掩码方式嵌入；
+        //       公式：dot = d5 * d8 * sum(q5 * q8)。
         private static unsafe float VecDotQ5_0Q8_0(byte* q5, byte* q8, int blockCount)
         {
             float sum = 0.0f;
@@ -1052,6 +1136,8 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q5_1 × Q8_1 整数向量点积（非对称 5 位权重 × 非对称 8 位激活）：
+        //       公式：dot = d5*d8*sum(q5*q8) + m5*s8，q5 = (lo4 | hi1<<4) ∈ [0, 31]（无符号）。
         private static unsafe float VecDotQ5_1Q8_1(byte* q5, byte* q8, int blockCount)
         {
             float sum = 0.0f;
@@ -1083,6 +1169,7 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q8_0 × Q8_0 对称 8 位向量点积，自动分派到 AVX-512 / AVX2 / 标量三条路径
         private static unsafe float VecDotQ8_0Q8_0(byte* q8w, byte* q8x, int blockCount)
         {
             if (Avx512F.IsSupported && Avx512BW.IsSupported)
@@ -1109,6 +1196,7 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q8_1 × Q8_0 向量点积（Q8_1 权重跳过其存储的 sum 字段，直接与 Q8_0 激活做整数内积）
         private static unsafe float VecDotQ8_1Q8_0(byte* q8w, byte* q8x, int blockCount)
         {
             float sum = 0.0f;
@@ -1130,6 +1218,9 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q8_0 × Q8_0 AVX-512 加速向量点积：
+        //       每块一次性将 32 个 int8 扩展为 int16（512位），两两相乘后水平累加到 int32，
+        //       再转 FP32 使用 FMA 累加，充分利用 AVX-512BW 的 vpmaddwd 指令。
         private static unsafe float VecDotQ8_0Q8_0Avx512(byte* q8w, byte* q8x, int blockCount)
         {
             Vector512<float> acc = Vector512<float>.Zero;
@@ -1155,6 +1246,9 @@ namespace TensorSharp.Models
             return HorizontalSum(acc);
         }
 
+        // 中文：Q8_0 × Q8_0 AVX2 加速向量点积：
+        //       使用 vpsignb 将权重符号应用到激活（等效于 |w| * sign(w)*x），再用 vpmaddubsw + vpmaddwd
+        //       完成 uint8×int8 乘加，最终 FMA 累加到 float256 寄存器。
         private static unsafe float VecDotQ8_0Q8_0Avx2(byte* q8w, byte* q8x, int blockCount)
         {
             Vector256<float> acc = Vector256<float>.Zero;
@@ -1181,6 +1275,10 @@ namespace TensorSharp.Models
             return HorizontalSum(acc);
         }
 
+        // 中文：Q4_K × Q8_K 超级块向量点积（k-quantization 4 位权重 × k-quant 8 位激活）：
+        //       公式：dot = sum_j{ d8 * (d4 * sc[j] * sum(q4*q8) - dmin * mn[j] * bsum[j]) }，
+        //       利用 Q8_K 预存的 bsums（每 16 元素整数和）快速计算偏置项，避免逐元素乘法。
+        //       参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         private static unsafe float VecDotQ4_KQ8_K(byte* q4k, byte* q8k, int superBlockCount)
         {
             float sum = 0.0f;
@@ -1221,6 +1319,9 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q5_K × Q8_K 超级块向量点积（k-quantization 5 位权重 × k-quant 8 位激活）：
+        //       在 Q4_K 点积基础上，每元素额外从 qh 中取第 5 位（lo4 | bit5<<4），提升精度；
+        //       公式同 Q4_K，参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         private static unsafe float VecDotQ5_KQ8_K(byte* q5k, byte* q8k, int superBlockCount)
         {
             float sum = 0.0f;
@@ -1263,6 +1364,10 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：Q6_K × Q8_K 超级块向量点积（k-quantization 6 位权重 × k-quant 8 位激活）：
+        //       q6 = (lo4 | hi2<<4) - 32 ∈ [-32, 31]，16 个子块各有独立 scale；
+        //       公式：dot = sum_{sub}{ d6 * d8 * scales[sub] * sum(q6 * q8) }；
+        //       参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         private static unsafe float VecDotQ6_KQ8_K(byte* q6k, byte* q8k, int superBlockCount)
         {
             float sum = 0.0f;
@@ -1307,12 +1412,14 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：将 K-quant 紧凑 12 字节 scales/mins 字节流解包为 8 个独立的 scale 和 min 值
         private static unsafe void UnpackQ4Q5Scales(byte* packed, byte* scales, byte* mins)
         {
             for (int i = 0; i < 8; i++)
                 GetScaleMinK4(i, packed, out scales[i], out mins[i]);
         }
 
+        // 中文：根据量化类型计算每次点积分块处理的元素数量（以 QK_K 或单块大小为上限）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetDotChunkSize(GgmlTensorType type, long remaining)
         {
@@ -1325,6 +1432,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：根据量化类型和分块元素数计算该分块的字节大小（用于推进源指针）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GetDotChunkBytes(GgmlTensorType type, int chunkElements)
         {
@@ -1340,9 +1448,11 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：从非对齐指针加载一个 System.Numerics.Vector<float>（平台自适应 SIMD 宽度）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe Vector<float> LoadVec(float* ptr) => Unsafe.ReadUnaligned<Vector<float>>(ref *(byte*)ptr);
 
+        // 中文：调用 TensorPrimitives.Dot 计算两个 FP32 向量的内积（硬件加速路径由运行时选择）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe float DotFloat(float* lhs, float* rhs, int length)
         {
@@ -1351,27 +1461,35 @@ namespace TensorSharp.Models
                 new ReadOnlySpan<float>(rhs, length));
         }
 
+        // 中文：从非对齐字节指针读取 UInt16（小端序）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe ushort ReadUInt16(byte* p) => Unsafe.ReadUnaligned<ushort>(ref *p);
 
+        // 中文：从非对齐字节指针读取 UInt32（小端序）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe uint ReadUInt32(byte* p) => Unsafe.ReadUnaligned<uint>(ref *p);
 
+        // 中文：从非对齐字节指针读取 Int32（小端序）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe int ReadInt32(byte* p) => Unsafe.ReadUnaligned<int>(ref *p);
 
+        // 中文：从非对齐字节指针读取 Int64（小端序）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe long ReadInt64(byte* p) => Unsafe.ReadUnaligned<long>(ref *p);
 
+        // 中文：从非对齐字节指针读取 Double（小端序）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe double ReadDouble(byte* p) => Unsafe.ReadUnaligned<double>(ref *p);
 
+        // 中文：从非对齐字节指针读取 Single（float，小端序）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe float ReadSingle(byte* p) => Unsafe.ReadUnaligned<float>(ref *p);
 
+        // 中文：将 IEEE 754 FP16 位模式（UInt16）转换为 FP32（System.Half 中间转换）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float HalfToSingle(ushort value) => (float)BitConverter.UInt16BitsToHalf(value);
 
+        // 中文：对 AVX2 Vector256<float> 做水平求和，将 8 个 lane 的值累加为标量
         private static unsafe float HorizontalSum(Vector256<float> v)
         {
             float* tmp = stackalloc float[8];
@@ -1382,6 +1500,7 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：对 AVX-512 Vector512<float> 做水平求和，将 16 个 lane 的值累加为标量
         private static unsafe float HorizontalSum(Vector512<float> v)
         {
             float* tmp = stackalloc float[16];
@@ -1392,6 +1511,7 @@ namespace TensorSharp.Models
             return sum;
         }
 
+        // 中文：对 AVX-512 Vector512<float> 做水平最大值归约，返回 16 个 lane 中的最大值
         private static unsafe float HorizontalMax(Vector512<float> v)
         {
             float* tmp = stackalloc float[16];
@@ -1402,6 +1522,9 @@ namespace TensorSharp.Models
             return max;
         }
 
+        // 中文：将 MXFP4 格式的 E8M0 共享指数字节转换为 FP32 缩放因子：
+        //       E8M0 为纯指数格式（无尾数、无符号位），scale = 2^(value-1)；
+        //       特殊处理 value<2 的小值以避免下溢；参考 MX 规范：https://arxiv.org/abs/2310.10537
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float E8M0ToFp32Half(byte value)
         {
@@ -1409,6 +1532,9 @@ namespace TensorSharp.Models
             return BitConverter.Int32BitsToSingle((int)bits);
         }
 
+        // 中文：从 K-quant 紧凑 12 字节尺度数组中解包第 j 个 scale（d）和 min（m）值（各 6 位）：
+        //       前 4 组（j<4）：低 6 位存于 q[j] 和 q[j+4]；后 4 组：高 2 位借用前一字节高位拼接。
+        //       参考 k-quantization PR：https://github.com/ggerganov/llama.cpp/pull/1684
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void GetScaleMinK4(int j, byte* q, out byte d, out byte m)
         {
@@ -1424,4 +1550,3 @@ namespace TensorSharp.Models
         }
     }
 }
-
