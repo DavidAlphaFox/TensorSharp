@@ -7,6 +7,19 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：KvCacheStorage.cs
+// 用途：定义 KV 缓存（Key/Value Cache）的数据类型枚举 KvCacheDtype（F32/F16/Q8_0），
+//       提供各数据类型对应的字节大小、GGML 类型 ID 查询、以及进程级别配置管理类 KvCacheDtypeConfig。
+// 主要类型：
+//   - KvCacheDtype         : KV 缓存精度枚举，支持 F32（全精度）、F16（半精度）、Q8_0（对称 8 位量化）
+//   - KvCacheDtypeExtensions : KvCacheDtype 的扩展方法集合
+//   - KvCacheDtypeConfig   : 进程级 KV 缓存类型配置，支持环境变量 KV_CACHE_DTYPE 或命令行参数设置
+// Q8_0 量化原理：每 32 个元素为一个 block，每个元素用 1 个 int8 存储，外加 1 个 F16 缩放因子（scale），
+//   共 34 字节/block，约 1.0625 字节/元素。符合 GGUF 规范中的对称量化格式。
+// ────────────────────────
+
 using System;
 using System.Buffers;
 using TensorSharp;
@@ -52,6 +65,7 @@ namespace TensorSharp.Models
         private const int GGML_TYPE_F16  = 1;
         private const int GGML_TYPE_Q8_0 = 8;
 
+        // 中文：返回指定 KV 缓存数据类型每个元素占用的字节数（Q8_0 取下界 1，实际按 32 元素 block 对齐）
         public static int ElementBytes(this KvCacheDtype dtype) => dtype switch
         {
             KvCacheDtype.F32 => 4,
@@ -66,6 +80,7 @@ namespace TensorSharp.Models
         /// Bytes consumed by a contiguous Q8_0 cache of the given length (32-element
         /// blocks of 34 bytes each). For F32/F16 this is just elementCount*Size.
         /// </summary>
+        // 中文：计算给定元素数量下指定数据类型所需的字节总量；Q8_0 按每 32 元素 34 字节对齐（GGUF 对称量化规范）
         public static long ByteLengthFor(this KvCacheDtype dtype, long elementCount) => dtype switch
         {
             KvCacheDtype.F32 => elementCount * 4,
@@ -74,6 +89,7 @@ namespace TensorSharp.Models
             _ => throw new ArgumentOutOfRangeException(nameof(dtype)),
         };
 
+        // 中文：将 KvCacheDtype 枚举值转换为框架内部通用的 DType 枚举
         public static DType ToDType(this KvCacheDtype dtype) => dtype switch
         {
             KvCacheDtype.F32 => DType.Float32,
@@ -82,6 +98,7 @@ namespace TensorSharp.Models
             _ => throw new ArgumentOutOfRangeException(nameof(dtype)),
         };
 
+        // 中文：返回数据类型的短字符串表示（如 "f32"/"f16"/"q8_0"），用于日志输出或命令行显示
         public static string ToShortString(this KvCacheDtype dtype) => dtype switch
         {
             KvCacheDtype.F32 => "f32",
@@ -90,6 +107,7 @@ namespace TensorSharp.Models
             _ => throw new ArgumentOutOfRangeException(nameof(dtype)),
         };
 
+        // 中文：返回与 GGML 原生库对应的类型 ID（须与 ggml.h 中的枚举值保持一致）
         public static int GgmlType(this KvCacheDtype dtype) => dtype switch
         {
             KvCacheDtype.F32 => GGML_TYPE_F32,
@@ -104,6 +122,7 @@ namespace TensorSharp.Models
         /// walk the cache directly (e.g. for SWA prev-window gather) must reject
         /// these dtypes during initialization.
         /// </summary>
+        // 中文：判断该数据类型是否为块量化格式（如 Q8_0），块量化类型无法被 C# 托管代码逐元素直读，需先反量化
         public static bool IsBlockQuantized(this KvCacheDtype dtype) => dtype switch
         {
             KvCacheDtype.Q8_0 => true,
@@ -125,6 +144,7 @@ namespace TensorSharp.Models
         public static KvCacheDtype Current => _current;
         public static bool IsExplicitlySet => _explicitlySet;
 
+        // 中文：显式设置进程级 KV 缓存数据类型，并标记为用户主动配置（后续自动推断将跳过）
         public static void Set(KvCacheDtype dtype)
         {
             _current = dtype;
@@ -141,6 +161,7 @@ namespace TensorSharp.Models
         /// Callers can opt in to the more aggressive Q8_0 cache via
         /// <c>--kv-cache-dtype q8_0</c>.
         /// </summary>
+        // 中文：根据模型权重的主导 GGML 类型自动推断 KV 缓存默认精度：非 F32 模型默认使用 F16 缓存以节省内存
         public static void ApplyModelDtypeDefault(int dominantGgmlType)
         {
             if (_explicitlySet) return;
@@ -151,6 +172,7 @@ namespace TensorSharp.Models
                 _current = KvCacheDtype.F16;
         }
 
+        // 中文：将字符串（如 "f32"/"f16"/"q8_0" 及常见别名）解析为 KvCacheDtype 枚举值，解析失败返回 false
         public static bool TryParse(string value, out KvCacheDtype dtype)
         {
             dtype = KvCacheDtype.F32;
@@ -182,6 +204,7 @@ namespace TensorSharp.Models
         /// Read the <c>KV_CACHE_DTYPE</c> environment variable (if any) and apply
         /// it as the process-wide default. Unrecognized values are ignored.
         /// </summary>
+        // 中文：读取环境变量 KV_CACHE_DTYPE 并将其解析后应用为进程级 KV 缓存类型，无效值静默忽略
         public static void ConfigureFromEnvironment()
         {
             string value = Environment.GetEnvironmentVariable("KV_CACHE_DTYPE");

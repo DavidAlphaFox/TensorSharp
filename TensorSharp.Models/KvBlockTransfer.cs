@@ -7,6 +7,17 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：KvBlockTransfer.cs
+// 用途：为分页 KV 缓存（Paged KV Cache）提供跨后端的字节级块提取与注入操作。
+//       支持 F32、F16、Q8_0（GGUF 对称量化）等多种存储格式，
+//       通过直接操作主机内存指针并逐行 memcpy 实现高效的 token 范围迁移。
+// 主要类型：KvBlockTransfer（internal static class）
+// 参考：分页注意力机制 (Paged Attention): https://arxiv.org/abs/2309.06180
+//       Q8_0 对称量化格式: 参考 GGUF 规范
+// ────────────────────────
+
 using System;
 using System.Collections.Generic;
 using TensorSharp;
@@ -38,6 +49,7 @@ namespace TensorSharp.Models
         /// Gemma 4's donor/alias map) are counted exactly once - that's what makes
         /// it safe to extract/inject without double-writing the same bytes.
         /// </summary>
+        // 中文：计算指定 token 数量对应的 KV 缓存块所需总字节数，共享存储只计一次
         public static long ComputeBlockByteSize(Tensor[] kCache, Tensor[] vCache, int tokenCount)
         {
             if (kCache == null || vCache == null || kCache.Length != vCache.Length || tokenCount <= 0)
@@ -49,6 +61,7 @@ namespace TensorSharp.Models
             return total;
         }
 
+        // 中文：将指定 token 范围内的 KV 缓存数据提取（序列化）到目标字节缓冲区
         public static bool Extract(
             IAllocator allocator,
             Tensor[] kCache,
@@ -76,6 +89,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：将字节缓冲区中的 KV 缓存数据注入（反序列化）到指定目标 token 位置，仅允许顺序追加
         public static bool Inject(
             IAllocator allocator,
             Tensor[] kCache,
@@ -114,6 +128,7 @@ namespace TensorSharp.Models
         /// blob is laid out in the same order the enumerator visits tensors; flipping
         /// the order would silently corrupt restoration.
         /// </summary>
+        // 中文：按 K[0],V[0],K[1],V[1]... 顺序遍历所有层，去重后逐一返回唯一 Storage 对应的张量
         private static IEnumerable<Tensor> EnumerateUniqueStorageTensors(Tensor[] kCache, Tensor[] vCache)
         {
             var seen = new HashSet<Storage>(ReferenceEqualityComparer.Instance);
@@ -128,6 +143,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：验证 KV 缓存张量数组的合法性，包括非空、维度、偏移量及跨层数据类型一致性检查
         private static bool ValidateArgs(Tensor[] kCache, Tensor[] vCache, int tokenCount)
         {
             if (kCache == null || vCache == null || kCache.Length == 0)
@@ -161,6 +177,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：计算单个张量在指定 tokenCount 下的块字节数，适配 Q8_0 等非标准量化格式的行步长
         private static long PerLayerBlockBytes(Tensor tensor, int tokenCount)
         {
             // Use the actual on-storage row stride - this gracefully handles Q8_0
@@ -168,6 +185,7 @@ namespace TensorSharp.Models
             return RowBytes(tensor) * tensor.Sizes[0] * tokenCount;
         }
 
+        // 中文：从存储总字节数和张量尺寸推导每个 (head, position) 行的字节数，兼容 F32/F16/Q8_0
         private static long RowBytes(Tensor tensor)
         {
             // Bytes per (head, position) row, derived from the storage byte length
@@ -178,6 +196,7 @@ namespace TensorSharp.Models
             return tensor.Storage.ByteLength / (numKVHeads * capacity);
         }
 
+        // 中文：将单个缓存张量中指定 token 范围的数据按头逐行 memcpy 拷贝到目标缓冲区（提取方向）
         private static bool CopyOneOut(Tensor cacheTensor, int startToken, int tokenCount, Span<byte> destination, out int bytesWritten)
         {
             cacheTensor.Storage.EnsureHostReadable();
@@ -222,6 +241,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：将源缓冲区中的数据按头逐行 memcpy 写入单个缓存张量的指定目标 token 位置（注入方向）
         private static bool CopyOneIn(Tensor cacheTensor, int destToken, int tokenCount, ReadOnlySpan<byte> source, out int bytesRead)
         {
             cacheTensor.Storage.EnsureHostReadable();
