@@ -7,6 +7,16 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：KVCachePromptRenderer.cs
+// 用途：将聊天历史渲染为与逐轮 KV 缓存复用兼容的 Token 序列。
+//       核心思路：对已有原始输出 Token 的 assistant 消息，用占位符替换其文本内容，
+//       渲染后再将占位符 Token 区间替换回原始 Token，从而保证新序列前缀与 KV 缓存中
+//       已缓存的 Token 完全一致，最大化缓存命中率。
+// 主要类型：KVCachePromptRenderer（sealed class）
+// ────────────────────────
+
 using System;
 using System.Collections.Generic;
 
@@ -59,10 +69,11 @@ namespace TensorSharp.Runtime
         // assistant message gets a numbered placeholder so we can locate raw tokens in
         // order even if the chat template duplicates content (it doesn't today, but
         // numbering is cheap and defensive).
-        internal const char PlaceholderSentinel = '\uE000';
+        internal const char PlaceholderSentinel = '';
 
         private readonly IPromptRenderer _innerRenderer;
 
+        // 中文：构造函数，接受内部提示渲染器实例，用于将聊天消息列表渲染为文本
         public KVCachePromptRenderer(IPromptRenderer innerRenderer)
         {
             _innerRenderer = innerRenderer ?? throw new ArgumentNullException(nameof(innerRenderer));
@@ -82,6 +93,7 @@ namespace TensorSharp.Runtime
         /// Returns an empty string for architectures whose chat templates already emit
         /// the suffix as part of the standard assistant-message framing.
         /// </summary>
+        // 中文：根据模型架构和思考模式，返回聊天模板在 assistant 角色标记之后、生成内容之前需要插入的后缀字符串，用于保证 KV 缓存前缀一致性
         internal static string GetAssistantGenerationSuffix(string architecture, bool enableThinking)
         {
             if (string.IsNullOrEmpty(architecture))
@@ -116,6 +128,7 @@ namespace TensorSharp.Runtime
             return string.Empty;
         }
 
+        // 中文：判断给定架构名是否属于 Qwen 3.5 系列（包括 qwen35、qwen35moe、qwen3next、qwen3vl、qwen3vlmoe）
         private static bool IsQwen35FamilyArch(string architecture)
         {
             return architecture == "qwen35"
@@ -136,6 +149,7 @@ namespace TensorSharp.Runtime
         /// <param name="addGenerationPrompt">Whether to append a generation-prompt suffix (e.g. <c>&lt;|im_start|&gt;assistant</c>).</param>
         /// <param name="tools">Optional tool list for tool-calling templates.</param>
         /// <param name="enableThinking">Whether to enable the model's thinking / reasoning channel.</param>
+        // 中文：将聊天历史通过模板渲染为 Token 列表，对有原始输出 Token 的 assistant 消息采用占位符拼接策略以保证与 KV 缓存前缀完全匹配
         public List<int> RenderToTokens(
             ITokenizer tokenizer,
             string chatTemplate,
@@ -239,6 +253,7 @@ namespace TensorSharp.Runtime
             return TokenizeAndReplacePlaceholderSpans(tokenizer, text, rawTokensByPlaceholderIndex!);
         }
 
+        // 中文：遍历渲染文本，去除每个占位符标记前的尾部空白字符，以镜像渲染器对整体文本所做的 TrimEnd 操作，确保 Token 前缀与 KV 缓存一致
         private static string TrimWhitespaceBeforeEachPlaceholder(string text)
         {
             var sb = new System.Text.StringBuilder(text.Length);
@@ -267,6 +282,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：在渲染文本中每个占位符标记之前插入架构特定的生成后缀字符串，用于修正模板未为历史 assistant 消息重新生成该后缀的问题
         private static string InjectSuffixBeforePlaceholders(string text, string suffix)
         {
             var sb = new System.Text.StringBuilder(text.Length + suffix.Length * 4);
@@ -291,6 +307,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：根据索引生成唯一的占位符字符串（格式为 PUA哨兵 + "R" + 四位序号 + PUA哨兵），确保在 BPE 分词时不会与周围 Token 合并
         internal static string MakePlaceholder(int index)
         {
             // Encoded as PUA-sentinel + DigitsBase32 + PUA-sentinel.
@@ -314,6 +331,7 @@ namespace TensorSharp.Runtime
         /// tokenization is locally-stable: the BPE pretokenizer regex always isolates
         /// these characters into their own chunks regardless of surrounding context.
         /// </summary>
+        // 中文：将整段渲染文本一次性编码为 Token 列表，然后从后向前逐一定位并替换各占位符对应的 Token 区间为原始 assistant 输出 Token，保证 BPE 合并决策的上下文一致性
         private static List<int> TokenizeAndReplacePlaceholderSpans(
             ITokenizer tokenizer,
             string text,
@@ -345,6 +363,7 @@ namespace TensorSharp.Runtime
             return tokens;
         }
 
+        // 中文：在 haystack Token 列表中查找 needle 子序列的起始位置，若未找到则返回 -1（朴素线性扫描算法）
         private static int FindSubsequence(List<int> haystack, List<int> needle)
         {
             if (needle.Count == 0 || haystack.Count < needle.Count)

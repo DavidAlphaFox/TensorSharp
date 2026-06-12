@@ -1,4 +1,4 @@
-﻿// Copyright (c) Zhongkai Fu. All rights reserved.
+// Copyright (c) Zhongkai Fu. All rights reserved.
 // https://github.com/zhongkaifu/TensorSharp
 //
 // This file is part of TensorSharp.
@@ -7,6 +7,14 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：ChatTemplate.cs
+// 用途：定义多轮对话消息结构（ChatMessage）及各主流 LLM 架构的聊天提示词渲染器（ChatTemplate）。
+//       支持 Qwen3/Qwen3.5、Gemma3/Gemma4、Mistral3、Nemotron、Harmony(GPT-OSS) 等多种模板格式，
+//       并提供 Jinja2 渲染回退、多模态 token 注入（图像/音频/视频）、工具调用序列化等功能。
+// ────────────────────────
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,6 +23,7 @@ using System.Text.Json;
 
 namespace TensorSharp.Runtime
 {
+    // 中文：表示对话中单条消息的数据模型，包含角色、内容及多模态附件信息。
     public class ChatMessage
     {
         public string Role { get; set; } = string.Empty;
@@ -61,8 +70,10 @@ namespace TensorSharp.Runtime
         public List<int>? RawOutputTokens { get; set; }
     }
 
+    // 中文：静态工具类，提供针对不同 LLM 架构的对话提示词渲染方法及 token 扩展工具。
     public static class ChatTemplate
     {
+        // 中文：将消息列表按 Qwen3 格式（<|im_start|>/<|im_end|>）渲染为提示词字符串，支持工具调用与思维链。
         public static string RenderQwen3(List<ChatMessage> messages, bool addGenerationPrompt = true,
             List<ToolFunction>? tools = null, bool enableThinking = false)
         {
@@ -97,6 +108,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：将单个工具调用对象序列化为紧凑 JSON 字符串（含 name 与 arguments 字段）。
         private static string SerializeToolCall(ToolCall tc)
         {
             var obj = new Dictionary<string, object?> { ["name"] = tc.Name, ["arguments"] = tc.Arguments };
@@ -113,6 +125,7 @@ namespace TensorSharp.Runtime
         ///   - Generation prompt: "&lt;|im_start|&gt;assistant\n&lt;think&gt;\n" when thinking is on,
         ///     otherwise "&lt;|im_start|&gt;assistant\n&lt;think&gt;&lt;/think&gt;".
         /// </summary>
+        // 中文：按 NVIDIA Nemotron 3 Nano Omni 模型的 GGUF Jinja 模板格式渲染对话提示词，支持多模态与工具调用。
         public static string RenderNemotron(List<ChatMessage> messages, bool addGenerationPrompt = true,
             List<ToolFunction>? tools = null, bool enableThinking = false)
         {
@@ -193,6 +206,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：向 StringBuilder 追加 Nemotron 格式的用户消息内容，按图像/音频数量插入相应占位标记。
         private static void AppendNemotronUserContent(StringBuilder sb, ChatMessage msg)
         {
             int imgCount = msg.ImagePaths?.Count ?? 0;
@@ -220,6 +234,7 @@ namespace TensorSharp.Runtime
             sb.Append(SanitizeNemotronContent(textContent.TrimStart('\n')));
         }
 
+        // 中文：对 Nemotron 消息内容做净化处理：移除 /think、/no_think 指令，同时保留合法的 <think></think> 标签。
         private static string SanitizeNemotronContent(string content)
         {
             // Mirror the jinja sanitization: strip /think and /no_think directives but
@@ -232,6 +247,7 @@ namespace TensorSharp.Runtime
                 .Trim();
         }
 
+        // 中文：构建 Nemotron 格式的工具声明前置文本，按 XML 函数块格式列出所有可用工具及其参数说明。
         private static string BuildNemotronToolsPreamble(List<ToolFunction> tools)
         {
             var sb = new StringBuilder();
@@ -268,6 +284,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：向 StringBuilder 追加 Nemotron 格式的单个工具调用块（<tool_call>...<function=...>...</function>...</tool_call>）。
         private static void AppendNemotronToolCall(StringBuilder sb, ToolCall tc)
         {
             sb.Append("<tool_call>\n<function=").Append(tc.Name).Append(">\n");
@@ -289,6 +306,7 @@ namespace TensorSharp.Runtime
         /// inserts <|vision_start|><|image_pad|><|vision_end|> markers.
         /// The single <|image_pad|> token is later expanded to N tokens based on image dimensions.
         /// </summary>
+        // 中文：按 Qwen3.5/Qwen3.5-VL 格式渲染对话提示词，支持图像视觉标记、思维链与工具调用。
         public static string RenderQwen35(List<ChatMessage> messages, bool addGenerationPrompt = true,
             bool enableThinking = false, List<ToolFunction>? tools = null)
         {
@@ -425,6 +443,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：从 Qwen3.5 助手消息中分离思维链内容（<think>...</think>）与实际回复内容，返回二元组。
         private static (string reasoningContent, string content) SplitQwen35AssistantContent(ChatMessage msg)
         {
             string content = msg?.Content ?? "";
@@ -447,6 +466,7 @@ namespace TensorSharp.Runtime
             return (reasoningContent, content);
         }
 
+        // 中文：将 ToolFunction 的参数定义转换为符合 JSON Schema 规范的字典，用于工具声明序列化。
         private static Dictionary<string, object> BuildToolParamsDict(ToolFunction tool)
         {
             var props = new Dictionary<string, object>();
@@ -472,6 +492,7 @@ namespace TensorSharp.Runtime
             return paramsDict;
         }
 
+        // 中文：将 Qwen3.5 工具调用的单个参数值格式化为字符串，对复杂类型（字典/列表）使用 JSON 序列化。
         private static string FormatQwen35ToolCallArg(object value)
         {
             if (value is string s) return s;
@@ -486,6 +507,7 @@ namespace TensorSharp.Runtime
         /// Uses &lt;start_of_turn&gt;/&lt;end_of_turn&gt; markers. Images use &lt;start_of_image&gt;.
         /// BOS token is prepended by the tokenizer (add_bos_token=true).
         /// </summary>
+        // 中文：按 Gemma3 对话模板格式渲染提示词，使用 <start_of_turn>/<end_of_turn> 标记，图像用 <start_of_image> 占位。
         public static string RenderGemma3(List<ChatMessage> messages, bool addGenerationPrompt = true)
         {
             var sb = new StringBuilder();
@@ -514,6 +536,7 @@ namespace TensorSharp.Runtime
         /// Multimodal tokens (image/audio/video) are injected into message content
         /// before rendering so both Jinja2 and hardcoded paths produce correct output.
         /// </summary>
+        // 中文：优先使用模型内嵌的 GGUF Jinja2 模板渲染提示词，渲染失败或内容缺失时自动回退到各架构的硬编码渲染器。
         public static string RenderFromGgufTemplate(string template, List<ChatMessage> messages,
             bool addGenerationPrompt = true, string? architecture = null,
             List<ToolFunction>? tools = null, bool enableThinking = false)
@@ -589,6 +612,7 @@ namespace TensorSharp.Runtime
         /// Returns true (i.e. "looks fine") when there is no user text to verify
         /// (e.g. an image-only turn).
         /// </summary>
+        // 中文：校验渲染后的提示词是否包含最新一条用户消息的文本内容，用于检测 Jinja2 引擎静默丢弃消息的异常情况。
         private static bool RenderedContainsLastUserText(string rendered, List<ChatMessage> messages)
         {
             if (messages == null)
@@ -611,6 +635,7 @@ namespace TensorSharp.Runtime
             return NormalizeNewlines(rendered).Contains(needle, StringComparison.Ordinal);
         }
 
+        // 中文：统一将字符串中的 \r\n 和 \r 换行符归一化为 \n，以保证跨平台字符串比较的一致性。
         private static string NormalizeNewlines(string? s)
         {
             if (string.IsNullOrEmpty(s))
@@ -618,6 +643,7 @@ namespace TensorSharp.Runtime
             return s.Replace("\r\n", "\n").Replace('\r', '\n');
         }
 
+        // 中文：根据架构名称将消息列表分发到对应的硬编码模板渲染方法，未匹配时默认使用 Qwen3 格式。
         private static string RenderHardcoded(List<ChatMessage> messages,
             bool addGenerationPrompt, string? architecture,
             List<ToolFunction>? tools = null, bool enableThinking = false)
@@ -646,6 +672,7 @@ namespace TensorSharp.Runtime
             return RenderQwen3(messages, addGenerationPrompt, tools, enableThinking);
         }
 
+        // 中文：判断给定架构名称是否属于 Qwen3.5 系列（包括 MoE、VL 等变体）。
         private static bool IsQwen35Family(string? architecture)
         {
             return architecture == "qwen35" ||
@@ -655,6 +682,7 @@ namespace TensorSharp.Runtime
                    architecture == "qwen3vlmoe";
         }
 
+        // 中文：将 ChatMessage 列表及工具定义转换为 Jinja2 模板引擎所需的上下文字典，以便模板变量绑定。
         private static Dictionary<string, object> BuildJinja2Context(
             List<ChatMessage> messages, bool addGenerationPrompt,
             List<ToolFunction>? tools = null, bool enableThinking = false)
@@ -750,6 +778,7 @@ namespace TensorSharp.Runtime
         /// Pre-process messages to inject multimodal placeholder tokens into the content string
         /// so the Jinja2 template's {{ message['content'] }} renders them correctly.
         /// </summary>
+        // 中文：预处理消息列表，将图像/音频/视频占位 token 按架构规范注入到消息内容字符串前缀，供 Jinja2 模板正确渲染。
         private static List<ChatMessage> InjectMultimodalTokens(List<ChatMessage> messages, string? architecture)
         {
             var result = new List<ChatMessage>(messages.Count);
@@ -811,6 +840,7 @@ namespace TensorSharp.Runtime
         /// Uses [SYSTEM_PROMPT]...[/SYSTEM_PROMPT] for system messages
         /// and [INST]...[/INST] for user messages.
         /// </summary>
+        // 中文：按 Mistral 3 格式渲染对话提示词，系统消息用 [SYSTEM_PROMPT] 标记，用户消息用 [INST] 标记包裹。
         public static string RenderMistral3(List<ChatMessage> messages, bool addGenerationPrompt = true)
         {
             var sb = new StringBuilder();
@@ -848,6 +878,7 @@ namespace TensorSharp.Runtime
         /// user/assistant messages with &lt;|start|&gt;role&lt;|message|&gt;content&lt;|end|&gt; framing,
         /// and a generation prompt of just &lt;|start|&gt;assistant (model generates channel tags).
         /// </summary>
+        // 中文：按 GPT-OSS / Harmony 模型格式渲染对话提示词，支持多频道（analysis/commentary/final）与工具调用命名空间。
         public static string RenderHarmony(List<ChatMessage> messages, bool addGenerationPrompt = true,
             List<ToolFunction>? tools = null, bool enableThinking = false)
         {
@@ -962,6 +993,7 @@ namespace TensorSharp.Runtime
         /// <code>## functions\n\nnamespace functions {\n\n// desc\ntype name = (_: {\nparam: string,\n}) => any;\n\n} // namespace functions</code>
         /// Matches the official gpt-oss chat template's TypeScript-style declarations.
         /// </summary>
+        // 中文：将工具函数列表以 TypeScript 命名空间风格渲染为 Harmony 格式的工具声明文本。
         private static void RenderHarmonyToolNamespace(StringBuilder sb, string ns, List<ToolFunction> tools)
         {
             sb.Append("## ").Append(ns).Append("\n\n");
@@ -998,6 +1030,7 @@ namespace TensorSharp.Runtime
         }
 
         /// <summary>Map a tool parameter to its Harmony TypeScript type.</summary>
+        // 中文：将工具参数的类型描述映射为 Harmony TypeScript 声明中对应的类型字符串（含枚举联合类型支持）。
         private static string RenderHarmonyTsType(ToolParameter p)
         {
             string type = (p.Type ?? "").ToLowerInvariant();
@@ -1023,6 +1056,7 @@ namespace TensorSharp.Runtime
         }
 
         /// <summary>Serialize tool-call arguments to compact JSON for the Harmony commentary message.</summary>
+        // 中文：将工具调用参数字典序列化为紧凑 JSON 字符串，用于 Harmony commentary 频道消息体。
         private static string SerializeToolArguments(Dictionary<string, object>? arguments)
         {
             if (arguments == null || arguments.Count == 0)
@@ -1042,6 +1076,7 @@ namespace TensorSharp.Runtime
         /// GGUF Jinja2 path (which renders an empty bos_token). Emitting a literal
         /// &lt;bos&gt; here too would double the BOS token in the prompt.
         /// </summary>
+        // 中文：按 Gemma4 格式渲染对话提示词，使用 <|turn>/<turn|> 标记，支持图像/音频/视频多模态及工具调用声明。
         public static string RenderGemma4(List<ChatMessage> messages, bool addGenerationPrompt = true,
             List<ToolFunction>? tools = null, bool enableThinking = false)
         {
@@ -1117,6 +1152,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：将单个 ToolFunction 渲染为 Gemma4 格式的工具声明字符串（<|tool>declaration:...{...}<tool|>），参数按字典序排列。
         private static string RenderGemma4ToolDeclaration(ToolFunction tool)
         {
             const string q = "<|\"|>";
@@ -1192,6 +1228,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：将单个工具调用渲染为 Gemma4 格式的 <|tool_call>call:...{...}<tool_call|> 字符串，参数按字典序排列。
         private static string FormatGemma4ToolCall(ToolCall tc)
         {
             var sb = new StringBuilder();
@@ -1213,6 +1250,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：将工具调用的单个参数值递归格式化为 Gemma4 模板特定的字面量表示（字符串用 <|"|> 引号包裹，复杂类型递归展开）。
         private static string FormatGemma4ArgValue(object value)
         {
             const string q = "<|\"|>";
@@ -1262,6 +1300,7 @@ namespace TensorSharp.Runtime
         /// is disabled. The GGUF Jinja2 template may not produce it, but the model
         /// expects it to skip the thinking phase and generate content directly.
         /// </summary>
+        // 中文：当关闭思维链时，确保 Gemma4 提示词末尾附加空思考块（<|channel>thought\n<channel|>），避免模型进入思考阶段。
         private static string EnsureGemma4ThinkingBlock(string result)
         {
             const string emptyThinkBlock = "<|channel>thought\n<channel|>";
@@ -1274,6 +1313,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：从 Gemma4 助手消息文本中移除所有 <|channel>...<channel|> 思考频道块，仅保留最终回复内容。
         private static string StripGemma4Thinking(string text)
         {
             var result = new StringBuilder();
@@ -1298,6 +1338,7 @@ namespace TensorSharp.Runtime
         /// Expand image pad tokens in a token sequence.
         /// Replaces each single imagePadTokenId with tokenCounts[i] copies.
         /// </summary>
+        // 中文：将 token 序列中的图像占位 token 按各图像实际所需数量展开，用于视觉语言模型的 token 序列构建。
         public static List<int> ExpandImageTokens(List<int> tokens, int imagePadTokenId, int[] tokenCounts)
         {
             var result = new List<int>(tokens.Count + 1024);
@@ -1322,6 +1363,7 @@ namespace TensorSharp.Runtime
         /// Expand Gemma3 image tokens: replace each &lt;start_of_image&gt; token with
         /// \n\n &lt;start_of_image&gt; [pad_tokens...] &lt;end_of_image&gt; \n\n
         /// </summary>
+        // 中文：将 Gemma3 token 序列中的每个 <start_of_image> 替换为完整的图像 token 块（含换行、填充 token 及结束标记）。
         public static List<int> ExpandGemma3ImageTokens(List<int> tokens, int startOfImageId,
             int endOfImageId, int newlineNewlineId, int padTokenId, int tokensPerImage)
         {
@@ -1346,4 +1388,3 @@ namespace TensorSharp.Runtime
         }
     }
 }
-

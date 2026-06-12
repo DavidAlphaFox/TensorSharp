@@ -1,4 +1,4 @@
-﻿// Copyright (c) Zhongkai Fu. All rights reserved.
+// Copyright (c) Zhongkai Fu. All rights reserved.
 // https://github.com/zhongkaifu/TensorSharp
 //
 // This file is part of TensorSharp.
@@ -7,6 +7,16 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────────────────────────────────────────────────────────────
+// 文件：Jinja2Template.cs
+// 用途：为从 GGUF 文件加载的 LLM 聊天模板提供轻量级 Jinja2 模板渲染引擎。
+// 主要类型：
+//   Jinja2Template  —— 公开类，负责模板的词法分析（Tokenize）、语法解析（Parse）
+//                       以及运行时渲染（Render），支持 for/if/set/macro、过滤器、
+//                       循环变量、切片、三元表达式等常用 Jinja2 特性。
+// ────────────────────────────────────────────────────────────────────────────────
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -37,6 +47,7 @@ namespace TensorSharp.Runtime
             public readonly bool TrimBefore;
             public readonly bool TrimAfter;
 
+            // 中文：构造一个模板片段，记录其类型、内容及前后空白裁剪标志
             public Seg(SegKind kind, string body, bool trimBefore, bool trimAfter)
             {
                 Kind = kind;
@@ -79,11 +90,13 @@ namespace TensorSharp.Runtime
 
         private readonly List<Node> _nodes;
 
+        // 中文：构造函数，接收 Jinja2 模板字符串并完成词法分析与语法解析，生成 AST 节点列表
         public Jinja2Template(string template)
         {
             _nodes = Parse(Tokenize(template));
         }
 
+        // 中文：使用给定的上下文字典渲染模板，返回最终的字符串结果
         public string Render(Dictionary<string, object> context)
         {
             var sb = new StringBuilder();
@@ -93,6 +106,7 @@ namespace TensorSharp.Runtime
 
         #region Tokenizer
 
+        // 中文：词法分析器，将模板字符串拆分为文本、输出（{{ }}）和控制块（{% %}）等片段列表，并处理注释与空白裁剪标志
         private static List<Seg> Tokenize(string tmpl)
         {
             var segs = new List<Seg>();
@@ -143,6 +157,7 @@ namespace TensorSharp.Runtime
             return segs;
         }
 
+        // 中文：从指定位置向后查找下一个 Jinja2 标签起始字符（{%、{{、{#），未找到返回 -1
         private static int FindTag(string s, int from)
         {
             for (int i = from; i < s.Length - 1; i++)
@@ -153,6 +168,7 @@ namespace TensorSharp.Runtime
             return -1;
         }
 
+        // 中文：根据相邻非文本片段的 TrimBefore/TrimAfter 标志，对文本片段进行首尾空白裁剪
         private static void ApplyTrimming(List<Seg> segs)
         {
             for (int i = 0; i < segs.Count; i++)
@@ -173,12 +189,14 @@ namespace TensorSharp.Runtime
 
         #region Parser
 
+        // 中文：语法解析入口，将片段列表转换为 AST 节点树
         private static List<Node> Parse(List<Seg> segs)
         {
             int pos = 0;
             return ParseNodes(segs, ref pos, null);
         }
 
+        // 中文：递归解析节点列表，遇到指定结束标签时返回已解析的节点列表
         private static List<Node> ParseNodes(List<Seg> segs, ref int pos, string? endTag)
         {
             var nodes = new List<Node>();
@@ -254,6 +272,7 @@ namespace TensorSharp.Runtime
             return nodes;
         }
 
+        // 中文：判断给定的块体内容是否与预期的结束标签（如 endfor、endif）匹配
         private static bool MatchesEndTag(string body, string tag)
         {
             return body == tag || (tag == "endif" && (body == "elif" || body.StartsWith("elif ") || body == "else"))
@@ -262,6 +281,7 @@ namespace TensorSharp.Runtime
                 || (tag == "endset" && body == "endset");
         }
 
+        // 中文：解析 for 循环头部（支持单变量和键值对解包），递归解析循环体直到 endfor
         private static ForNode ParseFor(string header, List<Seg> segs, ref int pos)
         {
             // "for x in expr" or "for k, v in expr"
@@ -287,6 +307,7 @@ namespace TensorSharp.Runtime
             return new ForNode { VarName = var1, VarName2 = var2, IterExpr = iterExpr, Body = body };
         }
 
+        // 中文：解析 macro 宏定义头部（提取宏名与参数列表），递归解析宏体直到 endmacro
         private static MacroNode ParseMacro(string header, List<Seg> segs, ref int pos)
         {
             // "macro name(args)"
@@ -306,6 +327,7 @@ namespace TensorSharp.Runtime
             return new MacroNode { Name = name, Args = args, Body = body };
         }
 
+        // 中文：在字符串中查找顶层关键字（不在引号内）的位置，未找到返回 -1
         private static int FindKeyword(string s, string kw)
         {
             int idx = 0;
@@ -319,6 +341,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：判断字符串中给定位置是否处于单引号或双引号包裹的字符串字面量内部
         private static bool InsideQuotes(string s, int pos)
         {
             bool inSingle = false, inDouble = false;
@@ -330,6 +353,7 @@ namespace TensorSharp.Runtime
             return inSingle || inDouble;
         }
 
+        // 中文：解析 if/elif/else/endif 条件分支结构，返回包含所有分支（条件+节点体）的 IfNode
         private static IfNode ParseIf(string header, List<Seg> segs, ref int pos)
         {
             string cond = header.Length > 3 ? header.Substring(3).Trim() : "true";
@@ -366,6 +390,7 @@ namespace TensorSharp.Runtime
             return new IfNode { Branches = branches };
         }
 
+        // 中文：解析内联 set 赋值语句（{% set var = expr %}），提取变量名与值表达式
         private static SetNode ParseSet(string body)
         {
             // "set var = expr"
@@ -384,6 +409,7 @@ namespace TensorSharp.Runtime
         /// body into a variable) from the inline form "{% set var = expr %}". The inline
         /// form has a single '=' assignment operator right after the (dotted) target name.
         /// </summary>
+        // 中文：区分块级 set（{% set var %}...{% endset %}）与内联 set（{% set var = expr %}），返回 true 表示块级形式
         private static bool IsBlockSet(string body)
         {
             string rest = body.Substring(4); // strip "set "
@@ -398,6 +424,7 @@ namespace TensorSharp.Runtime
             return !inlineAssign;
         }
 
+        // 中文：解析块级 set 语句头部（提取变量名和可选过滤器），递归解析块体直到 endset
         private static SetBlockNode ParseSetBlock(string header, List<Seg> segs, ref int pos)
         {
             // "set <target>" optionally followed by "| filter | filter2"
@@ -425,17 +452,22 @@ namespace TensorSharp.Runtime
         {
             private readonly List<Dictionary<string, object>> _scopes = new();
 
+            // 中文：构造渲染上下文，以全局变量字典作为初始作用域
             public Context(Dictionary<string, object> global)
             {
                 _scopes.Add(global);
             }
 
+            // 中文：压入新的作用域（用于 for 循环、宏调用等需要局部变量隔离的场景）
             public void Push() => _scopes.Add(new Dictionary<string, object>());
+            // 中文：弹出最近一个作用域
             public void Pop() => _scopes.RemoveAt(_scopes.Count - 1);
 
+            // 中文：在当前（最内层）作用域中设置变量值
             public void Set(string name, object value) =>
                 _scopes[_scopes.Count - 1][name] = value;
 
+            // 中文：从内向外依次查找变量，找到则通过 out 参数返回值并返回 true
             public bool TryGet(string name, [MaybeNullWhen(false)] out object value)
             {
                 for (int i = _scopes.Count - 1; i >= 0; i--)
@@ -450,9 +482,11 @@ namespace TensorSharp.Runtime
                 return false;
             }
 
+            // 中文：从内向外查找变量，未找到时返回 null
             public object? Get(string name) =>
                 TryGet(name, out var v) ? v : null;
 
+            // 中文：判断变量是否在任意作用域中已定义
             public bool IsDefined(string name)
             {
                 for (int i = _scopes.Count - 1; i >= 0; i--)
@@ -461,6 +495,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：遍历 AST 节点列表并将渲染结果追加到 StringBuilder，处理文本输出、表达式求值、变量赋值、循环、条件及宏定义
         private static void RenderNodes(List<Node> nodes, Context ctx, StringBuilder sb)
         {
             foreach (var node in nodes)
@@ -510,6 +545,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将值赋给变量，支持点号访问的命名空间赋值（如 ns.attr = value）
         private static void AssignVar(string varName, object? value, Context ctx)
         {
             int dotIdx = varName.IndexOf('.');
@@ -526,6 +562,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：执行 for 循环渲染，设置循环变量及 loop.index/loop.first/loop.last 等内置循环对象属性
         private static void RenderFor(ForNode fn, Context ctx, StringBuilder sb)
         {
             var iterable = EvalExpr(fn.IterExpr, ctx);
@@ -571,6 +608,7 @@ namespace TensorSharp.Runtime
             ctx.Pop();
         }
 
+        // 中文：渲染 if/elif/else 条件结构，从上到下依次求值各分支条件，渲染第一个成立的分支
         private static void RenderIf(IfNode ifn, Context ctx, StringBuilder sb)
         {
             foreach (var (cond, body) in ifn.Branches)
@@ -586,6 +624,7 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Invoke a Jinja2 macro: parse parameter declarations, bind arguments, render body.
         /// </summary>
+        // 中文：调用 Jinja2 宏：解析形参声明、绑定实参（支持位置参数与命名参数），在新作用域中渲染宏体并返回结果字符串
         private static string CallMacro(MacroNode macro, string callArgsStr, Context ctx)
         {
             // Parse macro parameter declarations: "param1, param2=default_value, ..."
@@ -660,6 +699,7 @@ namespace TensorSharp.Runtime
 
         #region Expression Evaluator
 
+        // 中文：表达式求值入口，优先处理三元表达式（value if cond else fallback），再委托给逻辑或运算
         private static object? EvalExpr(string expr, Context ctx)
         {
             expr = expr.Trim();
@@ -691,6 +731,7 @@ namespace TensorSharp.Runtime
             return EvalOr(expr, ctx);
         }
 
+        // 中文：求值逻辑或（or）表达式，短路求值：任一子表达式为真则立即返回 true
         private static object? EvalOr(string expr, Context ctx)
         {
             var parts = SplitTopLevel(expr, " or ");
@@ -700,6 +741,7 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：求值逻辑与（and）表达式，短路求值：任一子表达式为假则立即返回 false
         private static object? EvalAnd(string expr, Context ctx)
         {
             var parts = SplitTopLevel(expr, " and ");
@@ -709,6 +751,7 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：求值逻辑非（not）表达式，支持递归否定
         private static object? EvalNot(string expr, Context ctx)
         {
             expr = expr.Trim();
@@ -717,6 +760,7 @@ namespace TensorSharp.Runtime
             return EvalComparison(expr, ctx);
         }
 
+        // 中文：求值比较表达式，依次处理 is 类型测试、in/not in 成员检测、关系运算符（==、!=、>=、<=、>、<）以及字符串拼接运算符（~、+、-）
         private static object? EvalComparison(string expr, Context ctx)
         {
             // Handle 'is' type tests: defined, mapping, string, boolean, sequence, none, etc.
@@ -795,6 +839,7 @@ namespace TensorSharp.Runtime
             return EvalPrimary(expr, ctx);
         }
 
+        // 中文：求值原子表达式，依次处理括号分组、过滤器管道、字符串/整数/浮点/布尔/None 字面量、列表/字典字面量、namespace 构造器、range/strftime_now 内置函数，以及变量访问链
         private static object? EvalPrimary(string expr, Context ctx)
         {
             expr = expr.Trim();
@@ -924,6 +969,7 @@ namespace TensorSharp.Runtime
             return EvalAccessChain(expr, ctx);
         }
 
+        // 中文：解析并求值变量访问链，支持属性访问（.attr）、下标访问（[key]）、切片（[start:end]）以及方法调用（.method(args)）和宏调用
         private static object? EvalAccessChain(string expr, Context ctx)
         {
             // Parse the root variable name
@@ -1002,6 +1048,7 @@ namespace TensorSharp.Runtime
 
         #region Helpers
 
+        // 中文：执行 Jinja2 的 is 类型测试（defined、undefined、none、mapping、string、boolean、sequence、number、iterable 等），返回布尔结果
         private static bool EvalIsTest(string lhsExpr, string testName, Context ctx)
         {
             switch (testName)
@@ -1057,6 +1104,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将任意对象转换为字符串，null 返回空串，bool 按 Python 风格返回 "True"/"False"
         private static string Stringify(object? val)
         {
             if (val == null) return "";
@@ -1065,6 +1113,7 @@ namespace TensorSharp.Runtime
             return Convert.ToString(val, CultureInfo.InvariantCulture) ?? "";
         }
 
+        // 中文：将对象递归序列化为 JSON 字符串（用于 tojson 过滤器），支持 null、bool、string、int、double、列表和字典
         private static string ToJson(object? val)
         {
             if (val == null) return "null";
@@ -1101,6 +1150,7 @@ namespace TensorSharp.Runtime
             return System.Text.Json.JsonSerializer.Serialize(val.ToString());
         }
 
+        // 中文：按 Jinja2 语义判断值的真假：null/false/空字符串/0/空集合 均为假，其余为真
         private static bool Truthy(object? val)
         {
             if (val == null) return false;
@@ -1113,6 +1163,7 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：将对象转换为 double 数值，支持 int、double 及可解析的字符串，无法转换时返回 0
         private static double ToNumber(object? val)
         {
             if (val is int i) return i;
@@ -1122,6 +1173,7 @@ namespace TensorSharp.Runtime
             return 0;
         }
 
+        // 中文：根据运算符（==、!=、<、>、<=、>=）比较两个对象，数值比较使用 ToNumber 转换
         private static bool Compare(object? lhs, object? rhs, string op)
         {
             if (op == "==") return Equals(lhs, rhs);
@@ -1137,6 +1189,7 @@ namespace TensorSharp.Runtime
             };
         }
 
+        // 中文：值相等判断，按类型匹配（string、int、bool），回退到 ToString 比较
         private static new bool Equals(object? a, object? b)
         {
             if (a == null && b == null) return true;
@@ -1147,6 +1200,7 @@ namespace TensorSharp.Runtime
             return a.ToString() == b.ToString();
         }
 
+        // 中文：判断集合（字符串、列表、字典）中是否包含指定元素
         private static bool ContainsValue(object? collection, object? needle)
         {
             if (collection is string s && needle is string sub)
@@ -1162,6 +1216,7 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：从字典对象中按属性名获取值，非字典对象返回 null
         private static object? GetAttr(object? obj, string attr)
         {
             if (obj is IDictionary<string, object> dict)
@@ -1169,6 +1224,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：按键（字符串键用于字典，整数索引用于列表/字符串）从集合中取值，支持负索引
         private static object? GetItem(object? obj, object? key)
         {
             if (obj is IDictionary<string, object> dict && key is string sk)
@@ -1186,6 +1242,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：对列表或字符串执行 Python 风格的切片操作，支持 [start:end] 和 [::-1] 反转语法
         private static object? SliceCollection(object? obj, string sliceExpr, Context ctx)
         {
             // Handle step-based slicing like [::-1]
@@ -1237,6 +1294,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：调用对象的内置方法（get、items、strip、split、upper、lower、startswith、endswith、append），模拟 Python 字典/字符串/列表常用方法
         private static object? CallMethod(object? obj, string method, string argsStr, Context ctx)
         {
             switch (method)
@@ -1309,6 +1367,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：应用 Jinja2 过滤器（trim、length、upper、lower、first、last、default、list、int、string、join、tojson、dictsort、safe、map 等）并返回过滤后的值
         private static object? ApplyFilter(object? val, string filter, Context ctx)
         {
             // filter might have args: default('value')
@@ -1402,6 +1461,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将任意对象转换为 List<object>，字典转换为 KV 对列表，字符串转换为单字符列表
         private static List<object> ToList(object? val)
         {
             if (val is IList<object> list) return new List<object>(list);
@@ -1421,6 +1481,7 @@ namespace TensorSharp.Runtime
             return new List<object>();
         }
 
+        // 中文：从表达式字符串中提取根变量名（点号或方括号之前的标识符部分）
         private static string ExtractRootVar(string expr)
         {
             int dot = expr.IndexOf('.');
@@ -1431,6 +1492,7 @@ namespace TensorSharp.Runtime
             return expr.Substring(0, end).Trim();
         }
 
+        // 中文：将 strftime 格式字符串（%Y、%m、%d 等）转换为当前时间对应的格式化字符串
         private static string ConvertStrftime(string fmt)
         {
             var now = DateTime.Now;
@@ -1467,6 +1529,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：处理字符串字面量中的转义序列（\n、\r、\t、\\、\'、\"），返回解转义后的字符串
         private static string Unescape(string s)
         {
             if (!s.Contains('\\')) return s;
@@ -1495,6 +1558,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：从给定开括号位置向后查找对应的闭括号位置，忽略引号内的括号，支持嵌套
         private static int FindClosing(string s, int openPos, char open, char close)
         {
             int depth = 1;
@@ -1513,6 +1577,7 @@ namespace TensorSharp.Runtime
             return s.Length - 1;
         }
 
+        // 中文：在字符串顶层（不在引号或括号内）查找指定关键字的起始位置，未找到返回 -1
         private static int FindTopLevelKeyword(string s, string kw)
         {
             int depth = 0;
@@ -1531,6 +1596,7 @@ namespace TensorSharp.Runtime
             return -1;
         }
 
+        // 中文：在字符串顶层（不在引号或括号内）查找指定运算符的起始位置，未找到返回 -1
         private static int FindTopLevelOp(string s, string op)
         {
             int depth = 0;
@@ -1550,6 +1616,7 @@ namespace TensorSharp.Runtime
             return -1;
         }
 
+        // 中文：按顶层分隔符将字符串拆分为多个子表达式（忽略引号和括号内的分隔符），用于 or/and 等逻辑运算符
         private static List<string> SplitTopLevel(string s, string sep)
         {
             var result = new List<string>();
@@ -1568,6 +1635,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：按顶层逗号分割参数列表（忽略引号内和括号内的逗号），用于函数调用参数解析
         private static List<string> SplitArgs(string s)
         {
             var result = new List<string>();
@@ -1600,4 +1668,3 @@ namespace TensorSharp.Runtime
         #endregion
     }
 }
-
