@@ -1,4 +1,4 @@
-﻿// Copyright (c) Zhongkai Fu. All rights reserved.
+// Copyright (c) Zhongkai Fu. All rights reserved.
 // https://github.com/zhongkaifu/TensorSharp
 //
 // This file is part of TensorSharp.
@@ -7,6 +7,15 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：MediaHelper.cs
+// 用途：提供视频帧提取与 PNG 图像编码的辅助工具，用于将视频内容转换为
+//       多模态 LLM 推理所需的图像帧序列。支持基于时间的均匀采样策略，
+//       并内置零依赖的纯托管 PNG 编码器（含 zlib/Deflate 压缩与 CRC32 校验）。
+// 主要类型：MediaHelper（静态工具类）
+// ────────────────────────
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -33,6 +42,7 @@ namespace TensorSharp.Models
         /// </summary>
         public const int DefaultVideoMaxFrames = 0;
 
+        // 中文：从环境变量 VIDEO_SAMPLE_FPS 读取视频帧采样率（帧/秒），无效时回退到默认值
         /// <summary>
         /// Resolves the sampling rate (frames per second of video) from the
         /// <c>VIDEO_SAMPLE_FPS</c> environment variable, falling back to
@@ -51,6 +61,7 @@ namespace TensorSharp.Models
             return fallback > 0 ? fallback : DefaultVideoSampleFps;
         }
 
+        // 中文：从环境变量 VIDEO_MAX_FRAMES 读取最大提取帧数上限，返回 0 表示不限制
         /// <summary>
         /// Resolves the optional upper bound on extracted frames from the
         /// <c>VIDEO_MAX_FRAMES</c> environment variable. Returns <c>0</c> (no cap)
@@ -69,6 +80,8 @@ namespace TensorSharp.Models
             return fallback > 0 ? fallback : 0;
         }
 
+        // 中文：基于时间均匀采样从视频文件中提取帧，将每帧保存为临时 PNG 文件并返回路径列表；
+        //       当设置了最大帧数上限时，对候选帧做二次均匀降采样以防止超长视频撑爆上下文窗口
         /// <summary>
         /// Extracts frames from a video using time-based sampling: one frame every
         /// <c>1 / fps</c> seconds (default 1 fps), so the frame count scales with the
@@ -146,6 +159,7 @@ namespace TensorSharp.Models
             return frames;
         }
 
+        // 中文：在 [0, count) 范围内均匀选取 maxCount 个索引，用于对候选帧列表做二次降采样
         public static List<int> SelectEvenlySpacedIndices(int count, int maxCount)
         {
             var indices = new List<int>();
@@ -182,6 +196,9 @@ namespace TensorSharp.Models
             return indices;
         }
 
+        // 中文：将 OpenCV Mat 帧（BGR/BGRA）转换为符合 PNG 规范的 RGBA 图像并写入磁盘；
+        //       使用纯托管代码手工构造 PNG 文件结构（IHDR/IDAT/IEND），
+        //       图像数据经 zlib（Deflate + Adler-32）压缩后写入 IDAT 块
         private static void SaveMatAsPng(Mat mat, string path)
         {
             int width = mat.Cols;
@@ -241,6 +258,7 @@ namespace TensorSharp.Models
             WritePngChunk(fs, "IEND", Array.Empty<byte>());
         }
 
+        // 中文：构造 PNG IHDR 块的 13 字节负载，指定图像宽高、位深（8 位）及颜色类型（RGBA=6）
         private static byte[] BuildIHDR(int width, int height)
         {
             byte[] ihdr = new byte[13];
@@ -253,6 +271,7 @@ namespace TensorSharp.Models
             return ihdr;
         }
 
+        // 中文：向流写入一个完整的 PNG 数据块（长度 + 类型 + 数据 + CRC32 校验值）
         private static void WritePngChunk(Stream s, string type, byte[] data)
         {
             byte[] lenBuf = { (byte)(data.Length >> 24), (byte)(data.Length >> 16),
@@ -269,6 +288,8 @@ namespace TensorSharp.Models
         }
 
         private static readonly uint[] Crc32Table = BuildCrc32Table();
+
+        // 中文：预计算 CRC32 查表（IEEE 802.3 多项式 0xEDB88320 反转形式），用于加速 PNG 块校验
         private static uint[] BuildCrc32Table()
         {
             var t = new uint[256];
@@ -282,6 +303,7 @@ namespace TensorSharp.Models
             return t;
         }
 
+        // 中文：使用查表法计算 PNG 数据块（类型字段 + 数据字段）的 CRC32 校验值
         private static uint Crc32Png(byte[] type, byte[] data)
         {
             uint crc = 0xFFFFFFFF;
@@ -293,4 +315,3 @@ namespace TensorSharp.Models
         }
     }
 }
-

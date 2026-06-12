@@ -7,6 +7,15 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：ModelMultimodalInjector.cs
+// 用途：多模态嵌入注入器，负责将图像/音频输入经由各模型专属视觉/音频编码器编码后，
+//       以嵌入张量形式注入到 LLM 提示词 token 序列中，支持并发请求隔离（per-requestId bucket）
+//       以及 Qwen3.5 多轴旋转位置编码（MRoPE）位置表的构建与切片下发。
+//       支持的模型系列：Gemma4、Gemma3、Qwen3.5、Mistral3、Nemotron。
+// ────────────────────────
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -53,6 +62,7 @@ namespace TensorSharp.Models
 
         private sealed class CachedEmbedding : IDisposable
         {
+            // 中文：构造缓存嵌入条目，记录文件路径、大小、修改时间戳及编码后的嵌入张量
             public CachedEmbedding(
                 string fullPath,
                 long fileSize,
@@ -79,9 +89,11 @@ namespace TensorSharp.Models
             public int Extra0 { get; }
             public int Extra1 { get; }
 
+            // 中文：通过文件大小和最后修改时间戳判断缓存是否仍然有效
             public bool Matches(long fileSize, long lastWriteUtcTicks) =>
                 FileSize == fileSize && LastWriteUtcTicks == lastWriteUtcTicks;
 
+            // 中文：释放持有的嵌入张量资源
             public void Dispose()
             {
                 Embeddings?.Dispose();
@@ -90,6 +102,7 @@ namespace TensorSharp.Models
 
         private sealed class PreparedEmbeddingSpan
         {
+            // 中文：构造已准备好的嵌入区间，记录缓存条目、插入位置及对应的提示词 token 范围
             public PreparedEmbeddingSpan(
                 CachedEmbedding cacheEntry,
                 int insertPosition,
@@ -109,6 +122,7 @@ namespace TensorSharp.Models
             public int EndPosition => InsertPosition + CacheEntry.TokenCount;
         }
 
+        // 中文：构造注入器，初始化默认请求桶（空字符串 key）的视觉与音频嵌入列表
         public ModelMultimodalInjector(ModelBase model)
         {
             _model = model;
@@ -116,8 +130,10 @@ namespace TensorSharp.Models
             _preparedAudioEmbeddings = GetOrCreateBucket(_audioByRequest, "");
         }
 
+        // 中文：将 null requestId 规范化为空字符串，用于 dictionary 键统一查找
         private static string NormalizeRequestId(string requestId) => requestId ?? "";
 
+        // 中文：线程安全地获取或创建指定 requestId 对应的嵌入区间列表桶
         private List<PreparedEmbeddingSpan> GetOrCreateBucket(
             Dictionary<string, List<PreparedEmbeddingSpan>> buckets, string requestId)
         {
@@ -132,6 +148,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：根据模型类型加载对应的视觉编码器（和音频编码器）投影权重文件
         public void LoadProjectors(string mmProjPath)
         {
             if (string.IsNullOrWhiteSpace(mmProjPath))
@@ -158,6 +175,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：处理对话历史中的多模态输入，将图像/音频占位符 token 展开并准备对应嵌入区间
         public List<int> ProcessPromptTokens(List<ChatMessage> history, List<int> inputTokens, string requestId = null)
         {
             string key = NormalizeRequestId(requestId);
@@ -185,6 +203,7 @@ namespace TensorSharp.Models
             return inputTokens;
         }
 
+        // 中文：将可复用前缀长度向前截断，确保不切断任何图像/音频嵌入区间
         public int ClampReusablePrefix(int reusablePrefixTokenCount, string requestId = null)
         {
             string key = NormalizeRequestId(requestId);
@@ -195,6 +214,7 @@ namespace TensorSharp.Models
             return clamped;
         }
 
+        // 中文：将起始裁剪长度向后扩展，确保不在嵌入区间中途裁断
         public int ClampTrimStart(int trimStartTokenCount, string requestId = null)
         {
             string key = NormalizeRequestId(requestId);
@@ -205,6 +225,7 @@ namespace TensorSharp.Models
             return clamped;
         }
 
+        // 中文：对指定请求的已准备嵌入区间执行起始裁剪，并更新各区间的偏移量
         public void TrimPreparedPrompt(int trimStartTokenCount, string requestId = null)
         {
             string key = NormalizeRequestId(requestId);
@@ -212,6 +233,7 @@ namespace TensorSharp.Models
             TrimPreparedPrompt(GetOrCreateBucket(_audioByRequest, key), trimStartTokenCount);
         }
 
+        // 中文：将当前请求的全部视觉和音频嵌入推送到模型（跳过已被可复用前缀覆盖的区间）
         public bool QueuePromptEmbeddings(int reusablePrefixTokenCount, string requestId = null)
         {
             string key = NormalizeRequestId(requestId);
@@ -222,6 +244,7 @@ namespace TensorSharp.Models
             return queued;
         }
 
+        // 中文：将与指定 token 切片范围重叠的嵌入行推送到模型，同时下发 MRoPE 位置切片（用于 Qwen3.5 分页推理）
         public bool QueuePromptEmbeddingsForSlice(int promptStartToken, int tokenCount, string requestId = null)
         {
             if (tokenCount <= 0)
@@ -254,6 +277,7 @@ namespace TensorSharp.Models
 
         /// <summary>Store the flat (T,H,W) position table for a request. Length
         /// must equal 3 * promptTokenCount. Pass null to clear.</summary>
+        // 中文：存储或清除指定请求的多轴旋转位置编码（MRoPE）位置表，长度须为 3 * promptTokenCount
         internal void SetMRoPEPositions(string requestId, int[] flatThw)
         {
             string key = NormalizeRequestId(requestId);
@@ -267,6 +291,7 @@ namespace TensorSharp.Models
         /// <summary>Slice the request's MRoPE position table for the prompt range
         /// [promptStartToken, promptStartToken + tokenCount). Returns null if the
         /// request has no MRoPE positions (text-only request).</summary>
+        // 中文：从请求的 MRoPE 全量位置表中切取指定 token 范围的子数组，纯文本请求返回 null
         internal int[] TryGetMRoPEPositionsForSlice(string requestId, int promptStartToken, int tokenCount)
         {
             if (tokenCount <= 0) return null;
@@ -287,6 +312,7 @@ namespace TensorSharp.Models
             return slice;
         }
 
+        // 中文：检查指定请求是否仍有未消费的视觉或音频嵌入等待推送
         public bool HasPendingEmbeddings(string requestId)
         {
             string key = NormalizeRequestId(requestId);
@@ -300,6 +326,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：清除指定请求的所有已准备嵌入状态及 MRoPE 位置表，并释放非默认请求的桶条目
         public void ClearPreparedPromptState(string requestId)
         {
             string key = NormalizeRequestId(requestId);
@@ -320,6 +347,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：处理 Gemma4 模型的对话历史，展开图像/音频占位符并准备对应嵌入区间
         private List<int> ProcessGemma4History(Gemma4Model model, List<ChatMessage> history, List<int> inputTokens)
         {
             int imageStartId = _model.Tokenizer.LookupToken("<|image>");
@@ -387,6 +415,7 @@ namespace TensorSharp.Models
             return inputTokens;
         }
 
+        // 中文：处理 Gemma3 模型的对话历史，将图像 token 序列展开为 SigLIP patch token 并准备嵌入区间
         private List<int> ProcessGemma3History(Gemma3Model model, List<ChatMessage> history, List<int> inputTokens)
         {
             if (model.VisionEncoder == null)
@@ -431,6 +460,10 @@ namespace TensorSharp.Models
             return inputTokens;
         }
 
+        // 中文：处理 Qwen3.5 模型的对话历史，展开图像 pad token 并构建多轴旋转位置编码（MRoPE）位置表
+        // 算法说明：MRoPE 为图像 token 分配三维位置 (T, H, W)，文本 token 三轴相同（标量位置），
+        //           图像 token 按 patch 网格坐标分配 H/W 轴，T 轴固定为图像起始文本位置，
+        //           图像结束后文本标量跳至 max(H, W) + imgBase，避免位置重叠。
         private List<int> ProcessQwen35History(Qwen35Model model, List<ChatMessage> history, List<int> inputTokens)
         {
             if (model.VisionEncoder == null)
@@ -546,6 +579,7 @@ namespace TensorSharp.Models
             return inputTokens;
         }
 
+        // 中文：处理 Mistral3 模型的对话历史，将图像展开为行列格式的 patch token 网格并准备嵌入区间
         private List<int> ProcessMistral3History(Mistral3Model model, List<ChatMessage> history, List<int> inputTokens)
         {
             if (model.VisionEncoder == null)
@@ -600,6 +634,7 @@ namespace TensorSharp.Models
             return inputTokens;
         }
 
+        // 中文：处理 Nemotron 模型的对话历史，将图像占位符展开为分块 tile 拼接嵌入并准备区间
         private List<int> ProcessNemotronHistory(NemotronModel model, List<ChatMessage> history, List<int> inputTokens)
         {
             if (model.VisionEncoder == null)
@@ -650,6 +685,7 @@ namespace TensorSharp.Models
             return inputTokens;
         }
 
+        // 中文：获取或创建 Nemotron 模型的视觉嵌入缓存，对图像分块编码后拼接为单一张量
         private CachedEmbedding GetOrCreateNemotronVisionEmbedding(NemotronModel model, string imagePath)
         {
             return GetOrCreateCachedEmbedding(_visionCache, imagePath, fullPath =>
@@ -694,6 +730,7 @@ namespace TensorSharp.Models
             });
         }
 
+        // 中文：获取或创建 Gemma4 模型的视觉嵌入缓存（支持统一嵌入器和 SigLIP 两条路径）
         private CachedEmbedding GetOrCreateGemma4VisionEmbedding(
             Gemma4Model model,
             Gemma4ImageProcessor processor,
@@ -707,6 +744,7 @@ namespace TensorSharp.Models
             });
         }
 
+        // 中文：获取或创建 Gemma4 模型的音频嵌入缓存，支持无编码器直接投影和 mel 频谱两种路径
         private CachedEmbedding GetOrCreateGemma4AudioEmbedding(Gemma4Model model, string audioPath)
         {
             return GetOrCreateCachedEmbedding(_audioCache, audioPath, fullPath =>
@@ -738,6 +776,7 @@ namespace TensorSharp.Models
             });
         }
 
+        // 中文：获取或创建 Gemma3 模型的视觉嵌入缓存，使用 SigLIP 视觉编码器对图像进行编码
         private CachedEmbedding GetOrCreateGemma3VisionEmbedding(
             Gemma3Model model,
             Gemma3ImageProcessor processor,
@@ -751,6 +790,7 @@ namespace TensorSharp.Models
             });
         }
 
+        // 中文：获取或创建 Qwen3.5 模型的视觉嵌入缓存，记录合并后的网格尺寸（mergedH, mergedW）用于 MRoPE
         private CachedEmbedding GetOrCreateQwen35VisionEmbedding(
             Qwen35Model model,
             Qwen35ImageProcessor processor,
@@ -766,6 +806,7 @@ namespace TensorSharp.Models
             });
         }
 
+        // 中文：获取或创建 Mistral3 模型的视觉嵌入缓存，记录 patch 网格行列数用于 token 展开
         private CachedEmbedding GetOrCreateMistral3VisionEmbedding(
             Mistral3Model model,
             Mistral3ImageProcessor processor,
@@ -781,6 +822,7 @@ namespace TensorSharp.Models
             });
         }
 
+        // 中文：通用缓存获取/创建逻辑，基于文件大小和修改时间判断缓存有效性，过期则重新编码
         private CachedEmbedding GetOrCreateCachedEmbedding(
             Dictionary<string, CachedEmbedding> cache,
             string path,
@@ -798,6 +840,7 @@ namespace TensorSharp.Models
             return fresh;
         }
 
+        // 中文：创建 CachedEmbedding 对象，从文件系统读取版本信息并封装嵌入张量
         private static CachedEmbedding CreateCachedEmbedding(string fullPath, Tensor embeddings, int extra0 = 0, int extra1 = 0)
         {
             GetMediaVersion(fullPath, out long fileSize, out long lastWriteUtcTicks);
@@ -811,6 +854,7 @@ namespace TensorSharp.Models
                 extra1);
         }
 
+        // 中文：将已准备的视觉嵌入推送到模型，跳过完全在可复用前缀范围内的嵌入区间
         private bool QueuePreparedVisionEmbeddings(List<PreparedEmbeddingSpan> bucket, int reusablePrefixTokenCount)
         {
             if (bucket.Count == 0)
@@ -875,6 +919,7 @@ namespace TensorSharp.Models
             return queued;
         }
 
+        // 中文：将已准备的音频嵌入推送到 Gemma4 模型，跳过完全在可复用前缀范围内的嵌入区间
         private bool QueuePreparedAudioEmbeddings(List<PreparedEmbeddingSpan> bucket, int reusablePrefixTokenCount)
         {
             if (bucket.Count == 0 || _model is not Gemma4Model g4)
@@ -893,6 +938,7 @@ namespace TensorSharp.Models
             return queued;
         }
 
+        // 中文：将与指定 token 切片范围重叠的视觉嵌入行推送到模型（用于分块 prefill 场景）
         private bool QueuePreparedVisionEmbeddingsForSlice(List<PreparedEmbeddingSpan> bucket, int promptStartToken, int promptEndToken)
         {
             if (bucket.Count == 0)
@@ -962,6 +1008,7 @@ namespace TensorSharp.Models
             return queued;
         }
 
+        // 中文：将与指定 token 切片范围重叠的音频嵌入行推送到 Gemma4 模型（用于分块 prefill 场景）
         private bool QueuePreparedAudioEmbeddingsForSlice(List<PreparedEmbeddingSpan> bucket, int promptStartToken, int promptEndToken)
         {
             if (bucket.Count == 0 || _model is not Gemma4Model g4)
@@ -981,6 +1028,7 @@ namespace TensorSharp.Models
             return queued;
         }
 
+        // 中文：将可复用前缀长度截断至不切断任何嵌入区间的最大安全值（内部静态重载）
         private static int ClampReusablePrefix(int prefixTokenCount, List<PreparedEmbeddingSpan> spans)
         {
             if (prefixTokenCount <= 0 || spans.Count == 0)
@@ -996,6 +1044,7 @@ namespace TensorSharp.Models
             return clamped;
         }
 
+        // 中文：将起始裁剪长度扩展至不在嵌入区间中途截断的最小安全值（内部静态重载）
         private static int ClampTrimStart(int trimStartTokenCount, List<PreparedEmbeddingSpan> spans)
         {
             if (trimStartTokenCount <= 0 || spans.Count == 0)
@@ -1011,6 +1060,7 @@ namespace TensorSharp.Models
             return clamped;
         }
 
+        // 中文：从已准备的嵌入区间列表中移除完全在裁剪范围内的区间，并更新剩余区间的偏移量
         private static void TrimPreparedPrompt(List<PreparedEmbeddingSpan> spans, int trimStartTokenCount)
         {
             if (trimStartTokenCount <= 0 || spans.Count == 0)
@@ -1031,6 +1081,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：清空所有请求的视觉和音频嵌入桶（不释放缓存张量，仅清空列表）
         private void ClearAllPreparedPromptState()
         {
             lock (_bucketLock)
@@ -1040,6 +1091,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：读取媒体文件的版本信息（文件大小与最后修改时间），文件不存在时返回哨兵值
         private static void GetMediaVersion(string fullPath, out long fileSize, out long lastWriteUtcTicks)
         {
             if (File.Exists(fullPath))
@@ -1054,6 +1106,7 @@ namespace TensorSharp.Models
             lastWriteUtcTicks = 0;
         }
 
+        // 中文：将输入路径规范化为绝对路径，空白路径返回空字符串
         private static string NormalizePath(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
@@ -1062,6 +1115,7 @@ namespace TensorSharp.Models
             return Path.GetFullPath(path);
         }
 
+        // 中文：深拷贝张量，在相同设备/分配器上创建新张量并复制数据
         private static Tensor CloneTensor(Tensor source)
         {
             var clone = new Tensor(source.Allocator, source.ElementType, source.Sizes);
@@ -1069,6 +1123,7 @@ namespace TensorSharp.Models
             return clone;
         }
 
+        // 中文：计算嵌入区间与 prompt 切片的重叠部分，克隆重叠行并返回切片内的插入位置
         private static bool TryCloneOverlappingEmbeddingRows(
             PreparedEmbeddingSpan span,
             int promptStartToken,
@@ -1091,6 +1146,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：克隆张量的指定行范围，若覆盖全部行则直接调用 CloneTensor 避免额外切片开销
         private static Tensor CloneTensorRows(Tensor source, int startRow, int rowCount)
         {
             if (startRow == 0 && rowCount == source.Sizes[0])
@@ -1102,6 +1158,7 @@ namespace TensorSharp.Models
             return clone;
         }
 
+        // 中文：按对话顺序收集所有消息中的图像路径列表，过滤空路径
         private static List<string> GetImagePathsInPromptOrder(List<ChatMessage> history)
         {
             var imagePaths = new List<string>();
@@ -1123,6 +1180,7 @@ namespace TensorSharp.Models
             return imagePaths;
         }
 
+        // 中文：将单个占位符 token 展开为 [startToken, 0*N, endToken] 形式的 token 序列
         private static List<int> ExpandSingleTokenPlaceholder(
             List<int> inputTokens, int tokenPosition, int startTokenId, int expandedTokenCount, int endTokenId)
         {
@@ -1138,6 +1196,7 @@ namespace TensorSharp.Models
             return expanded;
         }
 
+        // 中文：从指定起始位置线性扫描 token 列表，返回目标 token 的首个匹配位置，未找到返回 -1
         private static int FindTokenPosition(List<int> tokens, int tokenId, int searchFrom)
         {
             for (int i = Math.Max(0, searchFrom); i < tokens.Count; i++)
@@ -1149,6 +1208,7 @@ namespace TensorSharp.Models
             return -1;
         }
 
+        // 中文：查找 Gemma3 图像的嵌入插入位置（紧跟 startToken 后的第一个 padToken 位置）
         private static int FindGemma3ImageInsertPosition(List<int> tokens, int startTokenId, int padTokenId, int searchFrom)
         {
             for (int i = Math.Max(0, searchFrom); i + 1 < tokens.Count; i++)
@@ -1160,6 +1220,7 @@ namespace TensorSharp.Models
             return -1;
         }
 
+        // 中文：释放所有已缓存的视觉和音频嵌入张量，并清空缓存字典
         public void Dispose()
         {
             ClearAllPreparedPromptState();
