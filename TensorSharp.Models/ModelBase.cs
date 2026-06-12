@@ -47,6 +47,7 @@ namespace TensorSharp.Models
         public bool HasHostData => _data != IntPtr.Zero;
         public bool HasExternalHostView => _data != IntPtr.Zero && !_ownsBuffer && _ownerToken != null;
 
+        // 中文：从托管字节数组构造量化权重，分配 64 字节对齐的原生缓冲区并复制数据
         public QuantizedWeight(byte[] raw, int ggmlType, long ne0, long ne1)
         {
             GgmlType = ggmlType;
@@ -59,11 +60,13 @@ namespace TensorSharp.Models
             Marshal.Copy(raw, 0, _data, raw.Length);
         }
 
+        // 中文：从已有原生指针构造量化权重，默认拥有该缓冲区的所有权
         public QuantizedWeight(IntPtr data, long rawBytes, int ggmlType, long ne0, long ne1)
             : this(data, rawBytes, ggmlType, ne0, ne1, true, null)
         {
         }
 
+        // 中文：完整内部构造函数，控制所有权标志与外部视图 ownerToken
         private QuantizedWeight(IntPtr data, long rawBytes, int ggmlType, long ne0, long ne1, bool ownsBuffer, object ownerToken)
         {
             _data = data;
@@ -76,6 +79,7 @@ namespace TensorSharp.Models
             _ownerToken = ownerToken;
         }
 
+        // 中文：释放宿主内存与 GCHandle 缓存键，实现 IDisposable 接口
         public void Dispose()
         {
             ReleaseHostData();
@@ -88,6 +92,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：创建指向外部（mmap 或 ownerToken 持有）内存的零拷贝量化权重视图，不拥有缓冲区所有权
         public static QuantizedWeight CreateExternalView(IntPtr data, long rawBytes, int ggmlType, long ne0, long ne1, object ownerToken)
         {
             if (data == IntPtr.Zero)
@@ -98,6 +103,7 @@ namespace TensorSharp.Models
             return new QuantizedWeight(data, rawBytes, ggmlType, ne0, ne1, false, ownerToken);
         }
 
+        // 中文：尝试将多个在同一连续内存块中的外部视图合并为单一视图，无需内存拷贝；若不连续则返回 false
         public static bool TryCreateConcatenatedView(out QuantizedWeight fused, params QuantizedWeight[] weights)
         {
             fused = null;
@@ -134,6 +140,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：优先零拷贝视图合并多个量化权重；若无法合并则分配新缓冲区并执行 memcpy 拼接
         public static unsafe QuantizedWeight ConcatOrCreateCopy(params QuantizedWeight[] weights)
         {
             if (weights == null || weights.Length == 0 || weights[0] == null)
@@ -167,6 +174,7 @@ namespace TensorSharp.Models
             return new QuantizedWeight(fusedPtr, totalBytes, first.GgmlType, first.Ne0, totalNe1);
         }
 
+        // 中文：为此权重分配稳定的 GCHandle 缓存键（供 CUDA/MLX 设备端查找），若已分配则直接返回
         public IntPtr EnsureDeviceCacheKey()
         {
             if (_ownsCacheKeyHandle)
@@ -178,6 +186,7 @@ namespace TensorSharp.Models
             return CacheKey;
         }
 
+        // 中文：释放宿主端内存（自有缓冲区调用 AlignedFree，外部视图调用 madvise DONTNEED），清零指针
         public void ReleaseHostData()
         {
             if (_data == IntPtr.Zero)
@@ -198,6 +207,7 @@ namespace TensorSharp.Models
             _ownerToken = null;
         }
 
+        // 中文：分配 64 字节对齐的原生堆内存，用于存放量化权重原始字节
         public static unsafe IntPtr AllocateBuffer(long size)
         {
             void* ptr = NativeMemory.AlignedAlloc((nuint)size, 64);
@@ -206,12 +216,14 @@ namespace TensorSharp.Models
             return (IntPtr)ptr;
         }
 
+        // 中文：释放由 AllocateBuffer 分配的 64 字节对齐原生内存
         public static unsafe void FreeBuffer(IntPtr ptr)
         {
             if (ptr != IntPtr.Zero)
                 NativeMemory.AlignedFree(ptr.ToPointer());
         }
 
+        // 中文：对外部视图内存页调用 madvise(MADV_DONTNEED)，提示内核可回收这些页，降低 RSS 占用
         private static unsafe void AdviseExternalViewCanBePagedOut(IntPtr data, long byteCount)
         {
             if (data == IntPtr.Zero || byteCount <= 0)
@@ -281,6 +293,7 @@ namespace TensorSharp.Models
         // doesn't leak when ModelBase exits.
         public IntPtr OwnedBuffer { get; }
 
+        // 中文：构造堆叠专家权重视图，记录数据指针、类型、形状及所有权信息
         public StackedExpertWeights(
             IntPtr data,
             int ggmlType,
@@ -408,6 +421,7 @@ namespace TensorSharp.Models
         protected int _forwardCount;
         protected Stopwatch _forwardSw = new Stopwatch();
 
+        // 中文：基类构造函数，根据后端类型初始化对应的分配器（CUDA/MLX/GGML-CPU/Metal）并打开 GGUF 文件
         protected ModelBase(string ggufPath, BackendType backend)
         {
             _backend = backend;
@@ -447,6 +461,7 @@ namespace TensorSharp.Models
 
         protected bool IsGgmlBackend => ExecutionPlan.UsesGgmlBackend;
 
+        // 中文：确保 GGML 量化后端（CPU/Metal/CUDA）已初始化，对非 GGML 后端为空操作
         protected void EnsureQuantBackendAvailable()
         {
             if (_quantBackendReady || !IsGgmlBackend)
@@ -464,6 +479,7 @@ namespace TensorSharp.Models
             _quantBackendReady = true;
         }
 
+        // 中文：从 GGUF 元数据解析层数、隐藏维度、头数、RoPE 参数、聊天模板等基础配置字段
         protected void ParseBaseConfig()
         {
             string arch = Config.Architecture;
@@ -481,6 +497,7 @@ namespace TensorSharp.Models
             Config.IntermediateSize = (int)_gguf.GetUint32($"{arch}.feed_forward_length", 0);
         }
 
+        // 中文：从 GGUF 元数据或环境变量 MAX_CONTEXT 解析最大上下文长度，并打印来源信息
         protected int ResolveConfiguredContextLength(int fallback = 4096)
         {
             int? explicitOverride = null;
@@ -506,11 +523,13 @@ namespace TensorSharp.Models
             return resolved;
         }
 
+        // 中文：将初始 KV 缓存分配长度限制到 GPU 安全上限（避免大上下文预分配耗尽显存），CPU 后端直接返回请求长度
         protected int ResolveInitialCacheAllocationLength(int requestedContextLength, int gpuDefault = 8192)
         {
             return ResolveInitialCacheAllocationLength(_backend, requestedContextLength, gpuDefault);
         }
 
+        // 中文：静态版本，供测试或跨模型调用；GPU 后端在无 MAX_CONTEXT 覆盖时将初始分配上限到 gpuDefault
         internal static int ResolveInitialCacheAllocationLength(BackendType backend, int requestedContextLength, int gpuDefault = 8192)
         {
             // GPU backends can be sensitive to allocating a multi-gigabyte KV
@@ -546,12 +565,14 @@ namespace TensorSharp.Models
         protected bool ShouldZeroFillCacheTensors =>
             _backend != BackendType.GgmlCuda && _backend != BackendType.Mlx;
 
+        // 中文：在需要零填充的后端（非 GgmlCuda/MLX）将新建的 KV 缓存张量清零初始化
         protected void InitializeCacheTensor(Tensor tensor)
         {
             if (tensor != null && ShouldZeroFillCacheTensors)
                 Ops.Fill(tensor, 0f);
         }
 
+        // 中文：重置 KV 缓存张量（清零 + 使设备缓存失效），用于 ResetKVCache 流程
         protected void ResetCacheTensor(Tensor tensor)
         {
             if (tensor == null)
@@ -563,6 +584,7 @@ namespace TensorSharp.Models
             InvalidateTensorDeviceCache(tensor);
         }
 
+        // 中文：内部静态实现，按优先级依次检查显式覆盖值、多个元数据键、fallback，返回最终上下文长度及来源名称
         internal static int ResolveConfiguredContextLength(
             string architecture,
             IReadOnlyDictionary<string, object> metadata,
@@ -589,6 +611,7 @@ namespace TensorSharp.Models
             return fallback;
         }
 
+        // 中文：枚举所有可能携带上下文长度的 GGUF 元数据键，先架构前缀后通用名，按优先级排列
         private static IEnumerable<string> GetContextLengthMetadataKeys(string architecture)
         {
             if (!string.IsNullOrWhiteSpace(architecture))
@@ -611,6 +634,7 @@ namespace TensorSharp.Models
             yield return "n_ctx";
         }
 
+        // 中文：从元数据字典安全读取正整数值，处理 int/uint/long/ulong 及其数组形式
         private static bool TryGetPositiveInt(IReadOnlyDictionary<string, object> metadata, string key, out int value)
         {
             value = 0;
@@ -674,6 +698,7 @@ namespace TensorSharp.Models
         /// one, let the tokenizer own it so the prompt still begins with exactly one BOS
         /// (the empty-rendered <c>bos_token</c> guarantees we never double it).
         /// </summary>
+        // 中文：决定分词器是否应自动添加 BOS token；当模板含 bos_token 占位符而元数据未启用 addBos 时，由分词器补充，避免双 BOS 或缺 BOS
         public static bool ResolveAddBosToken(bool addBosFromMetadata, int bosTokenId, string? chatTemplate)
         {
             if (addBosFromMetadata)
@@ -684,6 +709,7 @@ namespace TensorSharp.Models
                 && chatTemplate.Contains("bos_token", StringComparison.Ordinal);
         }
 
+        // 中文：从 GGUF 元数据加载词表、token 类型、BOS/EOS 配置并构造 SentencePiece 或 BPE 分词器
         protected void ParseTokenizer()
         {
             var vocabTokens = _gguf.GetStringArray("tokenizer.ggml.tokens");
@@ -742,11 +768,13 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：判断给定张量是否应以量化格式存储（由执行计划决定），子类可覆盖以自定义策略
         protected virtual bool IsQuantizedLinearWeight(GgufTensorInfo info)
         {
             return ExecutionPlan.ShouldStoreWeightQuantized(info);
         }
 
+        // 中文：静态判断：F32 权重不量化存储；各后端按其支持的量化类型白名单过滤；3D 张量仅 _exps. MoE 专家张量量化
         internal static bool ShouldStoreWeightQuantized(BackendType backend, GgufTensorInfo info)
         {
             if (info.Type == GgmlTensorType.F32)
@@ -767,6 +795,10 @@ namespace TensorSharp.Models
             return info.Shape.Length == 3 && info.Name.Contains("_exps.");
         }
 
+        // 中文：列举 CUDA 直接量化矩阵乘内核支持的量化类型白名单（含 k-quant、I-quant、MXFP4 等）
+        // 算法参考：Q4_K/Q5_K/Q6_K https://github.com/ggerganov/llama.cpp/pull/1684；
+        //           IQ2_XXS/IQ2_XS/IQ3_XXS https://github.com/ggerganov/llama.cpp/pull/4773；
+        //           MXFP4 MX Microscaling https://arxiv.org/abs/2310.10537
         private static bool CanStoreDirectCudaCompressedWeight(GgmlTensorType type)
         {
             return type switch
@@ -822,6 +854,7 @@ namespace TensorSharp.Models
             || _backend == BackendType.GgmlMetal
             || _backend == BackendType.GgmlCpu;
 
+        // 中文：从 GGUF 文件加载所有权重：量化权重尽可能通过 mmap 零拷贝外部视图，MoE 3D 张量拆分为 per-expert 视图并建立堆叠视图；F32/非量化权重反量化为 float32 张量
         protected void LoadWeights()
         {
             Console.Write("Loading model weights...");
@@ -962,6 +995,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：将量化权重上传至推理设备（CUDA 显存 / MLX 设备 / Metal），并在支持时释放宿主拷贝以节省 RAM
         protected void PrepareCudaQuantizedWeightsForInference()
         {
             if (_backend == BackendType.Mlx)
@@ -1028,6 +1062,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  CUDA resident quantized weights: {preloadedBytes / 1024 / 1024} MB across {preloadedCount} tensors");
         }
 
+        // 中文：MLX 后端专用量化权重预载：可重打包类型上传至 MLX 分配器并释放宿主页；零拷贝类型保留 mmap 指针；MoE 专家权重按 LRU 策略延迟上传以限制显存峰值
         private void PrepareMlxQuantizedWeightsForInference()
         {
             if (_mlxQuantWeightsPrepared || _quantWeights.Count == 0)
@@ -1259,6 +1294,7 @@ namespace TensorSharp.Models
         // TS_MLX_EXPERT_OFFLOAD_MB is set, we register expert host pointers
         // with the native cache so it LRU-bounds their MTLBuffer wrappers
         // and frees the oldest ones when the budget is exceeded.
+        // 中文：GGML Metal 后端专用：当 MoE 专家卸载启用时，将专家权重指针注册到原生 LRU 缓存以限制 MTLBuffer 驻留量
         private void PrepareGgmlMetalQuantizedWeightsForInference()
         {
             if (_quantWeights.Count == 0)
@@ -1301,6 +1337,7 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：直接 CUDA 后端量化权重预载：将权重上传至 GPU 显存，释放宿主端拷贝，无 GGML 层中转
         private void PrepareDirectCudaQuantizedWeightsForInference()
         {
             if (_cudaQuantWeightsPrepared || _quantWeights.Count == 0)
@@ -1349,12 +1386,14 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Direct CUDA resident quantized weights: {preloadedBytes / 1024 / 1024} MB across {preloadedCount} tensors (host copies released)");
         }
 
+        // 中文：判断 CUDA 后端是否保留宿主端量化权重副本（embedding 等需要 CPU 侧访问的权重须保留）
         private static bool ShouldRetainCudaHostQuantWeight(string weightName)
         {
             return string.Equals(weightName, "token_embd.weight", StringComparison.Ordinal) ||
                 string.Equals(weightName, "per_layer_token_embd.weight", StringComparison.Ordinal);
         }
 
+        // 中文：判断当前后端/类型组合是否可使用 GGML 的 get_rows 量化查表核（CUDA 仅支持部分旧式量化类型）
         protected bool CanUseGgmlQuantizedGetRows(int ggmlType)
         {
             if (!IsGgmlBackend)
@@ -1380,6 +1419,7 @@ namespace TensorSharp.Models
             };
         }
 
+        // 中文：尝试零拷贝合并多个量化权重（mmap 连续时）；不满足条件时退回到内存拷贝合并
         protected bool TryCreateFusedQuantizedWeight(out QuantizedWeight fused, params QuantizedWeight[] weights)
         {
             if (CanUseFileMappedQuantizedWeights && QuantizedWeight.TryCreateConcatenatedView(out fused, weights))
@@ -1389,6 +1429,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：检查 MLX 后端是否存在不支持原生预载的量化类型（需宿主端反量化 fallback）
         protected bool HasMlxHostFallbackQuantizedWeights()
         {
             if (_backend != BackendType.Mlx)
@@ -1403,6 +1444,7 @@ namespace TensorSharp.Models
             return false;
         }
 
+        // 中文：统计 MLX 后端中无法原生预载（走宿主端 fallback）的量化权重总字节数
         protected long MlxHostFallbackQuantizedBytes()
         {
             if (_backend != BackendType.Mlx)
@@ -1418,6 +1460,7 @@ namespace TensorSharp.Models
             return bytes;
         }
 
+        // 中文：统计 MLX 后端中支持原生预载（可上传至设备）的量化权重总字节数
         protected long MlxNativePreloadableQuantizedBytes()
         {
             if (_backend != BackendType.Mlx)
@@ -1433,6 +1476,8 @@ namespace TensorSharp.Models
             return bytes;
         }
 
+        // 中文：从量化权重宿主内存按行索引反量化到 float32 结果张量（用于不支持设备端 get_rows 的量化类型）
+        // 算法：对每行调用 NativeDequant 逐行反量化，参考 GGUF 规范对应类型的反量化公式
         protected unsafe void PopulateQuantizedRows(Tensor result, QuantizedWeight weight, int[] rowIndices)
         {
             if (result == null)
@@ -1467,6 +1512,7 @@ namespace TensorSharp.Models
             InvalidateTensorDeviceCache(result);
         }
 
+        // 中文：将每层 FFN 的 gate 权重与 up 权重在行维度拼接为 gate_up 融合张量，以减少矩阵乘内核调用次数
         protected unsafe void FuseGateUpWeights()
         {
             int fused = 0;
@@ -1511,6 +1557,7 @@ namespace TensorSharp.Models
                 Console.WriteLine($"  Fused projections: {fused} Gate+Up");
         }
 
+        // 中文：根据 float 数组和形状创建 Float32 张量并写入数据
         protected Tensor CreateFloatTensor(float[] data, params long[] sizes)
         {
             var tensor = new Tensor(_allocator, DType.Float32, sizes);
@@ -1518,6 +1565,7 @@ namespace TensorSharp.Models
             return tensor;
         }
 
+        // 中文：根据 int 数组和形状创建 Int32 张量并写入数据（常用于 token 索引）
         protected Tensor CreateIntTensor(int[] data, params long[] sizes)
         {
             var tensor = new Tensor(_allocator, DType.Int32, sizes);
@@ -1525,6 +1573,7 @@ namespace TensorSharp.Models
             return tensor;
         }
 
+        // 中文：将张量内容读取为 float 数组；非连续张量先复制为连续后读取
         protected float[] TensorToFloatArray(Tensor t)
         {
             if (t.IsContiguous())
@@ -1533,6 +1582,7 @@ namespace TensorSharp.Models
             return contiguous.GetElementsAsFloat((int)contiguous.ElementCount());
         }
 
+        // 中文：将 token id 序列映射为嵌入向量；量化 embedding 权重优先走设备端 get_rows，退回宿主端反量化
         protected unsafe Tensor Embedding(int[] tokens)
         {
             int dim = Config.HiddenSize;
@@ -1582,6 +1632,7 @@ namespace TensorSharp.Models
             return Ops.IndexSelect(null, embWeight, indices);
         }
 
+        // 中文：线性投影前向计算（矩阵乘）：量化权重走 GGML/CUDA/MLX 专用量化矩阵乘，F32 权重走标准 Addmm
         protected Tensor LinearForward(Tensor input, string weightName)
         {
             long t0 = Stopwatch.GetTimestamp();
@@ -1614,6 +1665,7 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：Managed 路径的量化 embedding 查表：依次尝试 CUDA/MLX 设备端 get_rows，均不支持则退回宿主端逐行反量化
         private unsafe Tensor EmbeddingManagedQuantized(int[] tokens, QuantizedWeight weight)
         {
             int dim = (int)weight.Ne0;
@@ -1678,6 +1730,8 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：Managed 量化矩阵乘（output = input × weight^T）：优先 CUDA/MLX 设备端内核，退回宿主端分块并行计算
+        // 宿主端路径：对每列（output 行）反量化权重行后与 input 做向量点积，outDim ≥ 128 时使用 Parallel.For 多核并行
         protected unsafe void AddmmQuantManaged(Tensor result, Tensor input, QuantizedWeight weight)
         {
             if (!input.IsContiguous() || !result.IsContiguous())
@@ -1830,26 +1884,32 @@ namespace TensorSharp.Models
 
         #region SIMD Helpers
 
+        // 中文：从 float 指针加载一个 SIMD 向量（System.Numerics.Vector<float>），用于后续向量化计算
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe Vector<float> LdVec(float* p) =>
             TensorComputePrimitives.LoadVector(p);
 
+        // 中文：将 SIMD 向量写回 float 指针所指的内存位置
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static unsafe void StVec(float* p, Vector<float> v) =>
             TensorComputePrimitives.StoreVector(p, v);
 
+        // 中文：计算两个 float 数组的点积（长度 n），使用 SIMD 向量化加速
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static unsafe float VecDot(float* a, float* b, int n) =>
             TensorComputePrimitives.Dot(a, b, n);
 
+        // 中文：计算 float 数组各元素的平方和（用于 RMSNorm 分母计算）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static unsafe float VecSumSq(float* a, int n) =>
             TensorComputePrimitives.SumSquares(a, n);
 
+        // 中文：将 float 数组各元素原位乘以标量 scale（用于 softmax 归一化、RMSNorm 缩放等）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static unsafe void VecScale(float* data, float scale, int n) =>
             TensorComputePrimitives.Scale(data, scale, n);
 
+        // 中文：dst[i] += src[i] * w，原位加权累加（用于注意力输出的 V 聚合）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static unsafe void VecScaleAdd(float* dst, float* src, float w, int n) =>
             TensorComputePrimitives.ScaleAdd(dst, src, w, n);
@@ -1878,16 +1938,20 @@ namespace TensorSharp.Models
             float* src, float w0, float w1, float w2, float w3, int n) =>
             TensorComputePrimitives.ScaleAdd4(d0, d1, d2, d3, src, w0, w1, w2, w3, n);
 
+        // 中文：dst[i] = (a[i] - b[i]) * scale，原位差向量缩放（用于 Mamba2 / SSM 差分更新）
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static unsafe void VecSubScale(float* dst, float* a, float* b, float scale, int n) =>
             TensorComputePrimitives.SubScale(dst, a, b, scale, n);
 
+        // 中文：将 float 数组清零（n 个元素），用于初始化部分结果缓冲区
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected static unsafe void VecZero(float* data, int n) =>
             TensorComputePrimitives.Zero(data, n);
 
         #endregion
 
+        // 中文：RMSNorm 归一化操作：按权重名从字典取 alpha，调用 Ops.RMSNorm 完成归一化，计时归入 _normTicks
+        // 算法：RMSNorm(x) = x / sqrt(mean(x^2) + eps) * alpha，参见 Zhang & Sennrich 2019
         protected Tensor RMSNormOp(Tensor input, string weightName)
         {
             long t0 = Stopwatch.GetTimestamp();
@@ -1906,6 +1970,8 @@ namespace TensorSharp.Models
             return result;
         }
 
+        // 中文：SwiGLU FFN 前向：LinearForward(gate_up) → 拆分 gate/up → SiLU(gate)*up → LinearForward(down)
+        // 算法：SwiGLU(x) = SiLU(gate(x)) * up(x)，参见 Shazeer 2020 (GLU Variants Improve Transformer)
         protected Tensor FFN(Tensor input, string gateUpWeightName, string downWeightName, int seqLen)
         {
             int intermSize = Config.IntermediateSize;
@@ -1936,6 +2002,7 @@ namespace TensorSharp.Models
         }
 
 
+        // 中文：原地 RMSNorm：将数据 reshape 为 (numHeads, headDim) 后调用 Ops.RMSNorm 归一化，适用于 QK-Norm
         protected void RMSNormInPlace(Tensor data, Tensor alpha, int numHeads, int headDim, float eps)
         {
             using var reshaped = data.View(numHeads, headDim);
@@ -2034,6 +2101,7 @@ namespace TensorSharp.Models
             InvalidateTensorDeviceCache(output);
         }
 
+        // 中文：将 (seqLen, numHeads*headDim) 张量转换为 head-first 布局 (numHeads, seqLen, headDim)，供多头注意力使用
         protected Tensor ReshapeToHeads(Tensor data, int numHeads, int seqLen, int headDim)
         {
             if (seqLen == 1)
@@ -2051,6 +2119,7 @@ namespace TensorSharp.Models
             return Ops.NewContiguous(transposed);
         }
 
+        // 中文：将 head-first 布局 (numHeads, seqLen, headDim) 张量转换回 (seqLen, numHeads*headDim) 序列布局
         protected Tensor ReshapeFromHeads(Tensor data, int numHeads, int seqLen, int headDim)
         {
             if (seqLen == 1)
@@ -2061,6 +2130,8 @@ namespace TensorSharp.Models
             return contiguous.View(seqLen, numHeads * headDim);
         }
 
+        // 中文：将 src 中 seqLen 个 token 的 K 或 V 写入 KV 缓存的 startPos 位置，支持 F16 缓存的类型转换
+        // 调度顺序：MLX fused slice_update → CUDA fused write → F16 转换写入 → 标准 Narrow+Copy
         protected void CopyToCache(Tensor cache, Tensor src, int startPos, int seqLen)
         {
             if (TryCopyHeadFirstToCacheMlx(cache, src, startPos, seqLen))
@@ -2111,6 +2182,8 @@ namespace TensorSharp.Models
         /// For Float16 caches the active region is dequantized into a freshly-allocated
         /// F32 tensor before broadcasting; for Float32 caches the existing fast path is used.
         /// </summary>
+        // 中文：取 KV 缓存活跃区域并按 GQA groupSize 扩展头数（RepeatInterleave），F16 缓存先反量化后广播
+        // 算法：GQA（Grouped-Query Attention）参见 Ainslie et al. 2023 https://arxiv.org/abs/2305.13245
         protected unsafe Tensor ExpandKVHeads(Tensor cache, int groupSize, int totalSeqLen)
         {
             if (cache.ElementType == DType.Float16)
@@ -2122,6 +2195,7 @@ namespace TensorSharp.Models
             return Ops.RepeatInterleave(null, active, groupSize, 0);
         }
 
+        // 中文：F16 KV 缓存的 GQA 扩展：逐头从 F16 缓存反量化为 F32，并按 groupSize 广播输出
         private unsafe Tensor ExpandKVHeadsF16(Tensor cache, int groupSize, int totalSeqLen)
         {
             int numKVHeads = (int)cache.Sizes[0];
@@ -2147,6 +2221,7 @@ namespace TensorSharp.Models
             return f32;
         }
 
+        // 中文：decode 步骤的 KV 缓存写入：针对单 token（startPos）将 K/V 写入对应头和位置，支持 MLX/CUDA 融合路径及 F16 缓存
         protected unsafe void CopyToCacheDecode(Tensor kCache, Tensor kTensor,
             Tensor vCache, Tensor vTensor, int numKVHeads, int headDim, int startPos)
         {
@@ -2192,6 +2267,7 @@ namespace TensorSharp.Models
             InvalidateTensorDeviceCache(vCache);
         }
 
+        // 中文：MLX 后端 KV 缓存写入：优先使用 fused slice_update 批量写入，退回逐头 Narrow+Copy；circular 模式支持环形缓存
         protected bool TryCopyHeadFirstToCacheMlx(Tensor cache, Tensor src, int startPos, int seqLen, bool circular = false)
         {
             if (string.Equals(Environment.GetEnvironmentVariable("TS_MLX_DEVICE_KV_COPY"), "0", StringComparison.Ordinal))
@@ -2239,6 +2315,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：MLX 环形 KV 缓存写入：将写入位置对 cacheSize 取模，拆分跨边界写入为最多两段
         private bool TryCopyHeadFirstToCacheCircularMlx(Tensor cache, Tensor src, int startPos, int seqLen)
         {
             if (_backend != BackendType.Mlx
@@ -2284,6 +2361,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：MLX 缓存范围写入：对指定 src/dst 偏移和长度执行 slice_update，失败则逐头 Narrow+Copy
         private bool TryCopyHeadFirstRangeToCacheMlx(Tensor cache, Tensor src, int srcOffset, int dstOffset, int length)
         {
             // Fast path: single multi-dim slice_update for the full
@@ -2309,6 +2387,7 @@ namespace TensorSharp.Models
             return true;
         }
 
+        // 中文：decode 步骤 F16 KV 缓存写入：将 F32 K/V 向量逐头转换为 F16 并写入缓存对应位置
         private unsafe void CopyToCacheDecodeF16(Tensor kCache, Tensor kTensor,
             Tensor vCache, Tensor vTensor, int numKVHeads, int headDim, int startPos)
         {
@@ -2330,6 +2409,8 @@ namespace TensorSharp.Models
             InvalidateTensorDeviceCache(vCache);
         }
 
+        // 中文：纯 C# GQA decode 注意力：按 KV 头分组计算 Q·K^T softmax·V，支持 kSplit 沿序列维度并行化以充分利用多核
+        // 算法：Scaled Dot-Product Attention with GQA，分页注意力原理参见 https://arxiv.org/abs/2309.06180
         protected unsafe void AttentionDecodePureCS(Tensor q, Tensor kCache, Tensor vCache,
             Tensor result, int numHeads, int numKVHeads, int headDim, int totalSeqLen, float scale)
         {
@@ -2796,6 +2877,8 @@ namespace TensorSharp.Models
         /// (<c>TransformerLayerDecode</c> / <c>TransformerModelDecode</c>) handles
         /// F16 K/V directly via <c>ggml_flash_attn_ext</c>, which is much faster.
         /// </summary>
+        // 中文：单 token GQA 解码注意力（F16 KV 缓存版本），将 K/V 的 ushort 值在点积/累加热循环内即时转换为 F32；
+        //       numKVHeads>1 且序列足够长时并行执行，每个 KV 头独立计算 softmax+V 聚合。
         protected unsafe void AttentionDecodePureCSF16(Tensor q, Tensor kCache, Tensor vCache,
             Tensor result, int numHeads, int numKVHeads, int headDim, int totalSeqLen, float scale)
         {
@@ -2845,6 +2928,9 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：单个 KV 头的 GQA 解码注意力计算（F16 K/V 缓存版本）；
+        //       将 groupSize 个 query 头与同一 KV 头做点积 softmax，结果写入 rPtr；
+        //       groupSize==4 时通过 VecDot4/VecScaleAdd4 批量加载 K，减少带宽。
         private static unsafe void AttentionDecodeKVHeadGroupedF16(int kvHead,
             float* qPtr, ushort* kPtr, ushort* vPtr, float* rPtr, float* scores,
             int headDim, int maxSeqLen, int groupSize, int totalSeqLen, float scale)
@@ -2977,15 +3063,19 @@ namespace TensorSharp.Models
             }
         }
 
+        // 中文：获取张量底层存储的 float* 原生指针，供 unsafe SIMD 操作直接寻址
         protected static unsafe float* GetFloatPtr(Tensor t) =>
             TensorComputePrimitives.GetFloatPointer(t);
 
+        // 中文：获取张量当前数据偏移处的原生存储指针（包含 storageOffset）
         private static IntPtr GetStoragePtr(Tensor t) =>
             TensorComputePrimitives.GetStoragePointer(t);
 
+        // 中文：获取张量底层存储基地址（不含 storageOffset），用于 GGML 宿主缓冲区同步
         private static IntPtr GetStorageBasePtr(Tensor t) =>
             TensorComputePrimitives.GetStorageBasePointer(t);
 
+        // 中文：通知 GGML 后端宿主端内存已被 C# 修改，需使设备端缓存失效（Metal/CUDA 同步）
         protected void InvalidateTensorDeviceCache(Tensor tensor)
         {
             if (!IsGgmlBackend || tensor == null)
@@ -2994,6 +3084,7 @@ namespace TensorSharp.Models
             GgmlBasicOps.InvalidateHostBuffer(GetStoragePtr(tensor));
         }
 
+        // 中文：将 GGML 设备端（Metal/CUDA）已完成的计算结果同步回宿主内存，以便后续 C# 侧读取
         protected void SyncTensorHostCache(Tensor tensor)
         {
             if (!IsGgmlBackend || tensor == null)
@@ -3002,8 +3093,11 @@ namespace TensorSharp.Models
             GgmlBasicOps.SyncHostBuffer(GetStorageBasePtr(tensor), tensor.Storage.ByteLength);
         }
 
+        // 中文：对给定 token id 序列执行一次前向推理（解码步），返回 vocab 维度 logits（子类必须实现）
         public abstract float[] Forward(int[] tokens);
+        // 中文：预填充/refill 前向推理入口，默认转发到 Forward；支持预填充优化的子类可覆盖以使用分块 prefill 路径
         public virtual float[] ForwardRefill(int[] tokens) => Forward(tokens);
+        // 中文：重置模型内部 KV 缓存至初始空状态（子类必须实现，通常同时清零 _cacheSeqLen）
         public abstract void ResetKVCache();
 
         // Pipelined greedy decode (overridden by models that support it,
@@ -3015,11 +3109,13 @@ namespace TensorSharp.Models
         // current one — overlapping the LM-head sync wait with the next
         // forward's first kernels.
         public virtual bool SupportsPipelinedGreedy => false;
+        // 中文：提交一步流水线贪心解码；在 GPU 异步执行，返回包含预测 token id 的设备张量（通过 GetElementsAsInt 读取）
         public virtual Tensor SubmitGreedyDecodeStep(int? firstTokenForBegin)
         {
             throw new NotSupportedException(
                 $"{GetType().Name} does not implement SubmitGreedyDecodeStep.");
         }
+        // 中文：重置流水线贪心解码的中间状态（子类覆盖时应清除已排队但尚未同步的 GPU 张量）
         public virtual void ResetPipelinedGreedyState() { }
 
         /// <summary>
@@ -3070,10 +3166,12 @@ namespace TensorSharp.Models
             ResetForwardTiming();
         }
 
+        // 中文：预热多模态（视觉/音频）编码器内核；子类覆盖以触发视觉投影层的 Metal/CUDA JIT 编译
         public virtual void WarmUpMultimodalKernels()
         {
         }
 
+        // 中文：检查环境变量 TS_MLX_KERNEL_WARMUP=1 是否启用 MLX 内核预热（默认跳过以避免额外内存开销）
         private static bool IsMlxKernelWarmupEnabled()
         {
             return string.Equals(Environment.GetEnvironmentVariable("TS_MLX_KERNEL_WARMUP"), "1", StringComparison.Ordinal);
@@ -3156,6 +3254,8 @@ namespace TensorSharp.Models
         /// the engine has no work pending, the yield is a cheap no-op
         /// (Monitor.Exit, Sleep(0), Monitor.Enter).
         /// </summary>
+        // 中文：短暂释放 GpuComputeLock 并重新获取，让推理引擎工作线程在视觉/音频编码器的块间隙中插入一步解码，
+        //       避免长时间持锁导致所有解码请求冻结（可通过 TS_ENCODER_YIELD=0 禁用）
         public void YieldGpuComputeLock()
         {
             // Allow disabling via env var for A/B testing or troubleshooting.
@@ -3244,6 +3344,7 @@ namespace TensorSharp.Models
             return false;
         }
 
+        // 中文：打印前向推理各阶段（矩阵乘、注意力、归一化、其他）的累计耗时及占比
         public virtual void PrintTimingStats()
         {
             if (_forwardCount == 0) return;
@@ -3266,6 +3367,7 @@ namespace TensorSharp.Models
             Console.WriteLine($"  Other:           {otherMs:F0} ms ({100 * otherMs / totalMs:F1}%)");
         }
 
+        // 中文：贪心采样：线性扫描 logits 数组返回最大值对应的 token id
         public int SampleGreedy(float[] logits)
         {
             int maxIdx = 0;
@@ -3294,6 +3396,7 @@ namespace TensorSharp.Models
             return sampler.Sample(logits, generatedTokenIds);
         }
 
+        // 中文：释放所有张量、量化权重、堆叠专家权重、GGUF 文件及分配器等托管与原生资源
         public virtual void Dispose()
         {
             if (MultimodalInjector is IDisposable multimodalInjector)
@@ -3346,6 +3449,7 @@ namespace TensorSharp.Models
                 allocatorDisposable.Dispose();
         }
 
+        // 中文：工厂方法：读取 GGUF general.architecture 字段并实例化对应的具体模型类（Qwen3/Gemma/GptOss 等）
         public static ModelBase Create(string ggufPath, BackendType backend)
         {
             using var probe = new GgufFile(ggufPath);

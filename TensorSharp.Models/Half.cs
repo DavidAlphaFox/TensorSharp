@@ -10,6 +10,10 @@
 using System;
 using System.Runtime.InteropServices;
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】IEEE 754 半精度浮点（F16）软件转换辅助结构体。
+// 【主要类型】half：16 位浮点封装，提供与 float 的隐式互转，用于不支持硬件 F16 指令的路径。
+// ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Models
 {
     [StructLayout(LayoutKind.Sequential)]
@@ -19,21 +23,25 @@ namespace TensorSharp.Models
     {
         public ushort x;
 
+        // 中文：从 F32 构造 half 值，调用 FloatToHalf 软件转换
         public half(float value)
         {
             x = FloatToHalf(value);
         }
 
+        // 中文：half → float 隐式转换操作符，通过 HalfToFloat 还原 F32 值
         public static implicit operator float(half h)
         {
             return HalfToFloat(h.x);
         }
 
+        // 中文：float → half 隐式转换操作符
         public static implicit operator half(float f)
         {
             return new half(f);
         }
 
+        // 中文：F32 → F16 软件编码：提取符号/指数/尾数，截断指数范围后拼装 16 位表示
         private static ushort FloatToHalf(float value)
         {
             int bits = System.BitConverter.SingleToInt32Bits(value);
@@ -49,6 +57,7 @@ namespace TensorSharp.Models
             return (ushort)(sign | (exponent << 10) | (mantissa >> 13));
         }
 
+        // 中文：F16 → F32 软件解码：分别处理次正规数、无穷/NaN 和正规数三种情形
         private static float HalfToFloat(ushort value)
         {
             int sign = (value >> 15) & 1;
