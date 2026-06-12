@@ -7,18 +7,32 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】运行时核心接口契约定义。
+// 【主要类型】IModelArchitecture：模型架构统一接口，定义前向推理、KV 缓存截断/快照/注入、
+//             多模态注入器等全套协议，是调度器与模型解耦的关键边界；
+//             IPromptRenderer：提示词渲染接口（Jinja2 模板驱动）；
+//             IOutputProtocolParser：输出协议解析器（思链 / 工具调用）；
+//             IMultimodalInjector：多模态嵌入注入器；
+//             IBackendExecutionPlan：后端执行计划（权重量化策略等）。
+// ───────────────────────────────────────────────────────────────────────────
 using System;
 using System.Collections.Generic;
 
 namespace TensorSharp.Runtime
 {
+    // 中文：模型架构统一接口——所有具体架构（Gemma/Qwen/GptOss/Nemotron/Mistral）均实现此接口，
+    //       调度器与服务器层仅依赖此接口，实现架构与推理引擎的完全解耦。
     public interface IModelArchitecture : IDisposable
     {
         ModelConfig Config { get; }
         ITokenizer Tokenizer { get; }
         IMultimodalInjector MultimodalInjector { get; }
         IBackendExecutionPlan ExecutionPlan { get; }
+        // 中文：对给定 token id 序列执行一次前向推理，返回 vocab 维度的 logits（用于采样下一个 token）。
         float[] Forward(int[] tokens);
+        // 中文：重置模型内部 KV 缓存至初始空状态（清空所有层的 K/V 张量并归零缓存序列长度）。
         void ResetKVCache();
 
         /// <summary>
@@ -125,8 +139,10 @@ namespace TensorSharp.Runtime
         bool TryInjectKVBlock(int destToken, int tokenCount, ReadOnlySpan<byte> source) => false;
     }
 
+    // 中文：提示词渲染器接口——将 Jinja2 聊天模板与消息历史渲染为模型输入字符串。
     public interface IPromptRenderer
     {
+        // 中文：使用给定模板渲染消息列表；addGenerationPrompt 控制是否追加生成前缀，tools 为可选工具列表。
         string Render(
             string template,
             List<ChatMessage> messages,
@@ -136,9 +152,12 @@ namespace TensorSharp.Runtime
             bool enableThinking = false);
     }
 
+    // 中文：输出协议解析器接口——流式解析模型输出，识别思链（<think>）和工具调用标记。
     public interface IOutputProtocolParser
     {
+        // 中文：初始化解析器状态，绑定是否启用思链模式和工具列表。
         void Init(bool enableThinking, List<ToolFunction> tools);
+        // 中文：追加新生成的文本片段，done=true 表示生成结束；返回当前已解析的结构化输出。
         ParsedOutput Add(string text, bool done);
         bool HasThinkingSupport { get; }
         bool HasToolSupport { get; }
@@ -198,10 +217,12 @@ namespace TensorSharp.Runtime
         void ClearPreparedPromptState(string requestId);
     }
 
+    // 中文：后端执行计划接口——决定权重是否应以量化格式存储，是模型加载策略的核心判断点。
     public interface IBackendExecutionPlan
     {
         BackendType BackendType { get; }
         bool UsesGgmlBackend { get; }
+        // 中文：判断给定张量信息是否应以量化格式存储（而非解量化为 FP32），驱动 LoadWeights 的存储路径选择。
         bool ShouldStoreWeightQuantized(GgufTensorInfo info);
     }
 }

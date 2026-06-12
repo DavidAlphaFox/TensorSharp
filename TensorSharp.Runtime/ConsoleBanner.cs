@@ -8,6 +8,12 @@
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
 
+// ───────────────────────────────────────────────────────────────────────────
+// 【文件说明】控制台启动横幅渲染器。
+// 【主要类型】ConsoleBanner：利用 24-bit ANSI 真彩转义序列在终端输出半块像素画吉祥物与
+//             彩色渐变 TensorSharp 徽标；支持 --xzf 彩蛋动画模式（逐行揭露 + 调色板轮转
+//             + 彩虹渐变扫描）；在重定向或 NO_COLOR 环境下自动降级为纯文本。
+// ───────────────────────────────────────────────────────────────────────────
 using System;
 using System.Text;
 using System.Threading;
@@ -112,6 +118,7 @@ namespace TensorSharp.Runtime
             ("\u25C7",  59, 130, 246),
         };
 
+        // 中文：打印启动横幅；showSarah=true 时在支持 ANSI 的终端触发动画模式，否则输出静态彩色或纯文本横幅。
         public static void Print(bool showSarah = false)
         {
             bool color = !Console.IsOutputRedirected
@@ -152,6 +159,7 @@ namespace TensorSharp.Runtime
         /// the final frame in-place, so when the animation ends the visible
         /// banner is identical to the static version.
         /// </summary>
+        // 中文：动画模式渲染：逐行显示吉祥物（阶段1）→调色板轮转宝石行（阶段2）→彩虹渐变扫描徽标（阶段3），最终帧与静态版本完全一致。
         private static void PrintAnimated(int logoWidth)
         {
             const string Reset = "\x1b[0m";
@@ -238,6 +246,7 @@ namespace TensorSharp.Runtime
             Console.WriteLine();
         }
 
+        // 中文：构建彩色静态横幅字符串（可选吉祥物 + 宝石行 + 渐变徽标 + 居中说明文字）。
         private static void BuildColor(StringBuilder sb, int logoWidth, bool showSarah)
         {
             const string Reset = "\x1b[0m";
@@ -296,6 +305,7 @@ namespace TensorSharp.Runtime
             CenterColored(sb, Url, logoWidth, 100, 116, 139);
         }
 
+        // 中文：构建纯文本横幅（无 ANSI 颜色，用于重定向输出或 NO_COLOR 终端）。
         private static void BuildPlain(StringBuilder sb, int logoWidth)
         {
             foreach (var line in LogoLines)
@@ -308,6 +318,7 @@ namespace TensorSharp.Runtime
             CenterPlain(sb, Url, logoWidth);
         }
 
+        // 中文：向 sb 追加居中的 ANSI 彩色文本行（给定 24-bit RGB 前景色）。
         private static void CenterColored(StringBuilder sb, string text, int width,
             int r, int g, int b)
         {
@@ -317,6 +328,7 @@ namespace TensorSharp.Runtime
             sb.AppendLine();
         }
 
+        // 中文：向 sb 追加居中的纯文本行（无颜色）。
         private static void CenterPlain(StringBuilder sb, string text, int width)
         {
             int pad = Math.Max(0, (width - text.Length) / 2 + 2);
@@ -324,6 +336,7 @@ namespace TensorSharp.Runtime
             sb.AppendLine(text);
         }
 
+        // 中文：在 Gradient 调色板中按参数 t∈[0,1] 线性插值，返回 RGB 整数三元组（用于渐变着色）。
         private static (int R, int G, int B) Lerp(float t)
         {
             t = Math.Max(0f, Math.Min(1f, t));
@@ -338,6 +351,7 @@ namespace TensorSharp.Runtime
                 (int)(a.B + (b.B - a.B) * frac));
         }
 
+        // 中文：将整数 v 截断到 [0, 255] 区间（用于 ANSI 颜色分量的合法化）。
         private static int Clamp(int v) => v < 0 ? 0 : v > 255 ? 255 : v;
     }
 }

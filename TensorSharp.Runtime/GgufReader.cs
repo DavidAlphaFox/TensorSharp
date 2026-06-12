@@ -1,4 +1,4 @@
-﻿// Copyright (c) Zhongkai Fu. All rights reserved.
+// Copyright (c) Zhongkai Fu. All rights reserved.
 // https://github.com/zhongkaifu/TensorSharp
 //
 // This file is part of TensorSharp.
@@ -22,6 +22,7 @@ using System.Text;
 // ───────────────────────────────────────────────────────────────────────────
 namespace TensorSharp.Runtime
 {
+    // 中文：GGUF 元数据键值对的值类型枚举，对应 GGUF 规范中定义的所有标量与聚合类型
     public enum GgufValueType : uint
     {
         Uint8 = 0, Int8 = 1, Uint16 = 2, Int16 = 3,
@@ -29,6 +30,10 @@ namespace TensorSharp.Runtime
         String = 8, Array = 9, Uint64 = 10, Int64 = 11, Float64 = 12
     }
 
+    // 中文：GGML 张量量化格式枚举；各格式的块大小与字节布局由 GetBlockSize/GetTypeSize 给出。
+    //       Q4_K/Q5_K/Q6_K 采用 k-量化方案（超级块 + 子块缩放），参考：https://github.com/ggerganov/llama.cpp/pull/1684
+    //       IQ2_XXS/IQ2_XS/IQ3_XXS 采用重要性量化（importance-quant），参考：https://github.com/ggerganov/llama.cpp/pull/4773
+    //       MXFP4 采用 MX Microscaling 浮点格式，参考：https://arxiv.org/abs/2310.10537
     public enum GgmlTensorType : uint
     {
         F32 = 0, F16 = 1, Q4_0 = 2, Q4_1 = 3,
@@ -42,6 +47,7 @@ namespace TensorSharp.Runtime
         MXFP4 = 39,
     }
 
+    // 中文：描述单个张量在 GGUF 文件中的元信息（名称、形状、量化类型、数据偏移）
     public class GgufTensorInfo
     {
         public string Name { get; set; } = string.Empty;
@@ -49,6 +55,7 @@ namespace TensorSharp.Runtime
         public GgmlTensorType Type { get; set; }
         public ulong Offset { get; set; }
 
+        // 中文：计算张量的总元素数（各维度之积）
         public long NumElements
         {
             get
@@ -60,6 +67,7 @@ namespace TensorSharp.Runtime
         }
     }
 
+    // 中文：GGUF 文件的主读取类，封装内存映射、元数据解析与张量数据读取能力
     public class GgufFile : IDisposable
     {
         public uint Version { get; private set; }
@@ -76,6 +84,7 @@ namespace TensorSharp.Runtime
         private unsafe byte* _lockedBase;
         private ulong _lockedLength;
 
+        // 中文：构造函数，以只读方式打开指定路径的 GGUF 文件并立即解析文件头与张量目录
         public GgufFile(string path)
         {
             _path = path;
@@ -92,6 +101,8 @@ namespace TensorSharp.Runtime
         /// rlimit is too low, or the kernel rejects the wire request).
         /// Idempotent — safe to call multiple times.
         /// </summary>
+        // 中文：通过 mlock(2) 将内存映射区域锁定在物理内存中，防止推理过程中权重被换出；
+        //       优先一次性锁定整个区域，失败时按 256 MB 分块重试，整体为尽力而为（失败静默）
         public unsafe bool TryLockMappedRegion()
         {
             if (_lockedBase != null)
@@ -155,6 +166,8 @@ namespace TensorSharp.Runtime
         [DllImport("libc", SetLastError = true, EntryPoint = "munlock")]
         private static extern unsafe int munlock(void* addr, nuint len);
 
+        // 中文：解析 GGUF 文件头——校验魔数与版本，顺序读取所有键值元数据与张量目录，
+        //       并依据对齐要求计算张量数据区的起始偏移 DataOffset
         private void Parse()
         {
             using var reader = new BinaryReader(_stream, Encoding.UTF8, leaveOpen: true);
@@ -198,12 +211,14 @@ namespace TensorSharp.Runtime
             DataOffset = pos + (alignment - pos % alignment) % alignment;
         }
 
+        // 中文：从元数据中读取字符串类型的键值，键不存在时返回 defaultValue
         public string? GetString(string key, string? defaultValue = null)
         {
             if (!Metadata.TryGetValue(key, out var v)) return defaultValue;
             return v as string ?? defaultValue;
         }
 
+        // 中文：从元数据中读取 uint32 类型的键值，兼容 int[]/uint[] 数组首元素形式，键不存在时返回 defaultValue
         public uint GetUint32(string key, uint defaultValue = 0)
         {
             if (!Metadata.TryGetValue(key, out var v)) return defaultValue;
@@ -212,6 +227,7 @@ namespace TensorSharp.Runtime
             return Convert.ToUInt32(v);
         }
 
+        // 中文：从元数据中读取 float32 类型的键值，兼容 float[] 数组首元素形式，键不存在时返回 defaultValue
         public float GetFloat32(string key, float defaultValue = 0f)
         {
             if (!Metadata.TryGetValue(key, out var v)) return defaultValue;
@@ -219,12 +235,14 @@ namespace TensorSharp.Runtime
             return Convert.ToSingle(v);
         }
 
+        // 中文：从元数据中读取布尔类型的键值，键不存在时返回 defaultValue
         public bool GetBool(string key, bool defaultValue = false)
         {
             if (!Metadata.TryGetValue(key, out var v)) return defaultValue;
             return Convert.ToBoolean(v);
         }
 
+        // 中文：从元数据中读取字符串数组类型的键值，键不存在或类型不匹配时返回 null
         public string[]? GetStringArray(string key)
         {
             if (!Metadata.TryGetValue(key, out var v)) return null;
@@ -232,6 +250,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：从元数据中读取 float 数组类型的键值，键不存在或类型不匹配时返回 null
         public float[]? GetFloatArray(string key)
         {
             if (!Metadata.TryGetValue(key, out var v)) return null;
@@ -239,6 +258,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：从元数据中读取 int32 数组类型的键值，兼容 uint[] 自动转换，键不存在时返回 null
         public int[]? GetInt32Array(string key)
         {
             if (!Metadata.TryGetValue(key, out var v)) return null;
@@ -252,6 +272,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：从元数据中读取 bool 数组类型的键值，键不存在或类型不匹配时返回 null
         public bool[]? GetBoolArray(string key)
         {
             if (!Metadata.TryGetValue(key, out var v)) return null;
@@ -259,6 +280,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：从元数据中读取 uint32 数组类型的键值，兼容 int[] 自动转换，键不存在时返回 null
         public uint[]? GetUint32Array(string key)
         {
             if (!Metadata.TryGetValue(key, out var v)) return null;
@@ -272,6 +294,7 @@ namespace TensorSharp.Runtime
             return null;
         }
 
+        // 中文：将指定张量的原始字节数据读入新分配的托管字节数组并返回
         public byte[] ReadTensorData(GgufTensorInfo tensorInfo)
         {
             long byteCount = GetTensorByteCount(tensorInfo);
@@ -284,6 +307,7 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Read F32 tensor data directly into a float array in chunks (for tensors > 2GB raw bytes).
         /// </summary>
+        // 中文：以 16 MB 分块方式将 F32 张量数据直接读入托管 float 数组，适用于原始字节数超过 2 GB 的超大张量
         public unsafe void ReadTensorDataToFloat32(GgufTensorInfo tensorInfo, float[] dest, long numElements)
         {
             long totalBytes = numElements * 4;
@@ -311,6 +335,7 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Read F32 tensor data directly into native memory pointed to by dest (for tensors > 2G elements).
         /// </summary>
+        // 中文：以 16 MB 分块方式将 F32 张量数据读入由 dest 指向的原生内存，适用于元素数超过 2G 的超大张量
         public unsafe void ReadTensorDataToFloat32Native(GgufTensorInfo tensorInfo, IntPtr dest, long numElements)
         {
             long totalBytes = numElements * 4;
@@ -332,6 +357,7 @@ namespace TensorSharp.Runtime
         /// <summary>
         /// Read tensor data directly into pre-allocated native memory (for tensors > 2GB).
         /// </summary>
+        // 中文：以最大 8 MB 分块方式将任意格式张量的原始字节数据读入预分配的原生内存，适用于超过 2 GB 的张量
         public unsafe void ReadTensorDataToNative(GgufTensorInfo tensorInfo, IntPtr dest, long byteCount)
         {
             _stream.Seek(DataOffset + (long)tensorInfo.Offset, SeekOrigin.Begin);
@@ -348,6 +374,8 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：通过内存映射获取指定张量数据在进程地址空间中的直接指针，避免数据拷贝；
+        //       若内存映射不可用则返回 false
         public unsafe bool TryGetTensorDataPointer(GgufTensorInfo tensorInfo, out IntPtr dataPtr)
         {
             dataPtr = IntPtr.Zero;
@@ -362,6 +390,7 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：根据张量的形状和量化类型计算其在文件中占用的总字节数
         public long GetTensorByteCount(GgufTensorInfo tensorInfo)
         {
             long ne0 = (long)tensorInfo.Shape[0];
@@ -373,6 +402,7 @@ namespace TensorSharp.Runtime
             return rowBytes * rows;
         }
 
+        // 中文：计算指定量化类型下每行（沿最内层维度）所占字节数，公式为 (ne0 / blockSize) * typeSize
         private static long GetRowBytes(GgmlTensorType type, long ne0)
         {
             long blockSize = GetBlockSize(type);
@@ -380,6 +410,8 @@ namespace TensorSharp.Runtime
             return (ne0 / blockSize) * typeSize;
         }
 
+        // 中文：返回各量化格式的量化块大小（每块包含的元素数）；
+        //       标量格式块大小为 1，Q4_0/Q8_0 等经典格式为 32，k-quant/IQ 系列等超级块格式为 256
         public static long GetBlockSize(GgmlTensorType type)
         {
             switch (type)
@@ -407,6 +439,11 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：返回各量化格式每个量化块在文件中占用的字节数（类型大小）。
+        //       Q8_0 对称量化：每块存储 1 个 fp16 缩放因子 + 32 个 int8 权重，共 34 字节，参考 GGUF 规范。
+        //       Q4_K/Q5_K/Q6_K k-量化：超级块包含子块缩放因子与量化码，参考 https://github.com/ggerganov/llama.cpp/pull/1684
+        //       IQ2_XXS/IQ2_XS/IQ3_XXS 重要性量化：基于向量码本的极低比特量化，参考 https://github.com/ggerganov/llama.cpp/pull/4773
+        //       MXFP4 MX Microscaling：每块含 1 字节共享指数 + 32 个 4-bit 尾数，参考 https://arxiv.org/abs/2310.10537
         public static long GetTypeSize(GgmlTensorType type)
         {
             switch (type)
@@ -448,6 +485,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：从二进制流中读取 GGUF 格式的字符串（先读 uint64 长度，再读对应字节数的 UTF-8 内容）
         private string ReadString(BinaryReader reader)
         {
             ulong len = reader.ReadUInt64();
@@ -455,6 +493,7 @@ namespace TensorSharp.Runtime
             return Encoding.UTF8.GetString(bytes);
         }
 
+        // 中文：根据给定的值类型枚举从二进制流中读取对应的标量或数组值并以 object 形式返回
         private object ReadValue(BinaryReader reader, GgufValueType type)
         {
             switch (type)
@@ -477,6 +516,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：读取 GGUF 数组元数据（先读元素类型与数量，再逐元素解析）并以强类型数组形式返回
         private object ReadArray(BinaryReader reader)
         {
             var elemType = (GgufValueType)reader.ReadUInt32();
@@ -561,6 +601,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：释放所有非托管资源：先解锁 mlock 区域，再释放内存映射指针、视图、文件映射及文件流
         public unsafe void Dispose()
         {
             if (_lockedBase != null)
@@ -584,6 +625,7 @@ namespace TensorSharp.Runtime
             _stream = null!;
         }
 
+        // 中文：懒加载内存映射视图并获取基地址指针；已映射则直接返回，否则创建只读内存映射并固定指针
         private unsafe void EnsureMappedView()
         {
             if (_mappedBase != null)
@@ -600,4 +642,3 @@ namespace TensorSharp.Runtime
         }
     }
 }
-
