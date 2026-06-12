@@ -1,4 +1,4 @@
-﻿// Copyright (c) Zhongkai Fu. All rights reserved.
+// Copyright (c) Zhongkai Fu. All rights reserved.
 // https://github.com/zhongkaifu/TensorSharp
 //
 // This file is part of TensorSharp.
@@ -7,6 +7,18 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：StructuredOutputs.cs
+// 用途：为 LLM 推理框架提供结构化输出（Structured Output）支持，包含：
+//   - StructuredOutputKind        枚举，表示输出格式类型（JsonObject / JsonSchema）
+//   - StructuredOutputFormat      描述结构化输出格式（名称、JSON Schema、严格模式等）
+//   - StructuredOutputPrompt      将结构化输出指令注入到聊天消息列表的工具类
+//   - StructuredOutputSchemaValidationResult  Schema 验证结果载体
+//   - StructuredOutputNormalizationResult     输出归一化结果载体
+//   - StructuredOutputValidator   核心验证与归一化引擎，负责 JSON Schema 合规检查、
+//                                 模型原始输出提取和递归归一化
+// ────────────────────────
 
 using System;
 using System.Collections.Generic;
@@ -18,14 +30,17 @@ using System.Text.RegularExpressions;
 
 namespace TensorSharp.Runtime
 {
+    // 中文：定义结构化输出的格式种类：JsonObject（任意 JSON 对象）或 JsonSchema（符合特定 Schema 的 JSON 对象）
     public enum StructuredOutputKind
     {
         JsonObject,
         JsonSchema
     }
 
+    // 中文：描述结构化输出格式的不可变类，通过静态工厂方法创建实例
     public sealed class StructuredOutputFormat
     {
+        // 中文：私有构造函数，通过工厂方法 JsonObject() / JsonSchema() 创建实例，防止外部直接实例化
         private StructuredOutputFormat(StructuredOutputKind kind, string? name = null,
             string? schemaJson = null, bool strict = false, string? description = null)
         {
@@ -42,16 +57,20 @@ namespace TensorSharp.Runtime
         public bool Strict { get; }
         public string? Description { get; }
 
+        // 中文：创建表示"任意 JSON 对象"格式的实例
         public static StructuredOutputFormat JsonObject()
             => new(StructuredOutputKind.JsonObject);
 
+        // 中文：创建表示"符合指定 JSON Schema"格式的实例，strict 默认为 true 要求严格匹配
         public static StructuredOutputFormat JsonSchema(string name, string schemaJson,
             bool strict = true, string? description = null)
             => new(StructuredOutputKind.JsonSchema, name, schemaJson, strict, description);
     }
 
+    // 中文：将结构化输出指令注入聊天消息列表的静态工具类
     public static class StructuredOutputPrompt
     {
+        // 中文：将格式化指令追加到 system/developer 消息（若存在）或插入新的 system 消息，返回新消息列表
         public static List<ChatMessage> Apply(List<ChatMessage> messages, StructuredOutputFormat format)
         {
             if (format == null)
@@ -83,6 +102,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：根据格式类型构建面向模型的自然语言指令字符串，要求模型输出合法 JSON
         public static string BuildInstruction(StructuredOutputFormat format)
         {
             if (format == null)
@@ -118,6 +138,7 @@ namespace TensorSharp.Runtime
             return sb.ToString();
         }
 
+        // 中文：深度克隆单条 ChatMessage，包含所有可选列表字段，避免共享引用导致的副作用
         private static ChatMessage? CloneMessage(ChatMessage msg)
         {
             if (msg == null)
@@ -136,25 +157,30 @@ namespace TensorSharp.Runtime
         }
     }
 
+    // 中文：保存 JSON Schema 验证结果，包含是否合法及错误列表
     public sealed class StructuredOutputSchemaValidationResult
     {
         public bool IsValid { get; init; }
         public List<string> Errors { get; init; } = new();
 
+        // 中文：将所有错误信息拼接为单字符串，无错误时返回 null
         public string? ErrorMessage
             => Errors.Count == 0 ? null : string.Join("; ", Errors);
     }
 
+    // 中文：保存模型输出归一化结果，包含是否合法、规范化后的 JSON 内容及错误列表
     public sealed class StructuredOutputNormalizationResult
     {
         public bool IsValid { get; init; }
         public string NormalizedContent { get; init; } = string.Empty;
         public List<string> Errors { get; init; } = new();
 
+        // 中文：将所有错误信息拼接为单字符串，无错误时返回 null
         public string? ErrorMessage
             => Errors.Count == 0 ? null : string.Join("; ", Errors);
     }
 
+    // 中文：结构化输出核心引擎，提供 JSON Schema 合规验证与模型原始输出的提取和归一化
     public static class StructuredOutputValidator
     {
         private static readonly HashSet<string> SupportedPrimitiveTypes = new(StringComparer.Ordinal)
@@ -171,6 +197,8 @@ namespace TensorSharp.Runtime
             "minItems", "maxItems"
         };
 
+        // 中文：验证 StructuredOutputFormat 中的 JSON Schema 是否符合结构化输出约束规则，
+        //       包括属性总数上限（5000）、枚举值总数上限（1000）、字符串字节总量上限（120000）
         public static StructuredOutputSchemaValidationResult ValidateSchema(StructuredOutputFormat format)
         {
             var result = new StructuredOutputSchemaValidationResult();
@@ -238,6 +266,7 @@ namespace TensorSharp.Runtime
             };
         }
 
+        // 中文：将模型原始输出字符串归一化为符合指定格式的规范 JSON，先提取有效 JSON 再按 Schema 递归校验和重建节点树
         public static StructuredOutputNormalizationResult NormalizeOutput(string rawOutput, StructuredOutputFormat format)
         {
             if (format == null)
@@ -312,6 +341,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：针对 JsonObject 格式从原始输出中提取并验证 JSON 对象，不做 Schema 结构校验
         private static StructuredOutputNormalizationResult NormalizeJsonObject(string rawOutput)
         {
             if (!TryExtractJsonObject(rawOutput, out string? candidateJson, out string? extractError))
@@ -348,6 +378,9 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：递归验证单个 Schema 节点，检查嵌套深度（最大 10 层）、不支持关键字、
+        //       $ref 引用解析（防止循环引用）、anyOf 分支、对象必须包含 additionalProperties:false
+        //       及 required 列表与 properties 的一致性
         private static void ValidateSchemaNode(JsonElement schema, string path, int depth,
             bool isRoot, SchemaValidationContext ctx)
         {
@@ -483,6 +516,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：遍历 Schema 节点的所有属性，将不支持的关键字（如 allOf、if/then/else、pattern 等）记录为错误
         private static void RegisterUnsupportedKeywords(JsonElement schema, string path, SchemaValidationContext ctx)
         {
             foreach (var prop in schema.EnumerateObject())
@@ -492,6 +526,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：统计 Schema 节点中 enum 值的总数量及所有字符串值的字节长度，用于全局上限检查
         private static void RegisterEnumAndConstStats(JsonElement schema, string path, SchemaValidationContext ctx)
         {
             if (schema.TryGetProperty("enum", out var enumEl))
@@ -514,6 +549,7 @@ namespace TensorSharp.Runtime
                 ctx.TotalStringBytes += constEl.GetString()?.Length ?? 0;
         }
 
+        // 中文：从 Schema 节点读取 type 字段，支持字符串或数组形式，返回所有合法类型名称的集合
         private static HashSet<string> ReadTypeList(JsonElement schema, string path, SchemaValidationContext ctx)
         {
             var types = new HashSet<string>(StringComparer.Ordinal);
@@ -553,6 +589,8 @@ namespace TensorSharp.Runtime
             return types;
         }
 
+        // 中文：递归将模型输出的 JSON 值按 Schema 进行归一化，依次处理 $ref、anyOf、null、
+        //       对象、数组和基础类型，最后验证 enum/const 约束；深度超过 128 层时终止
         private static bool TryNormalizeValue(JsonElement value, JsonElement schema, JsonElement rootSchema,
             string path, int depth, List<string> errors, out JsonNode? normalized)
         {
@@ -610,6 +648,8 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：当 Schema 描述为对象类型时，将 JSON 值的各属性递归归一化，缺失且允许 null 的字段补 null，
+        //       缺失且不允许 null 的必要字段报错
         private static bool SchemaMatchesObject(JsonElement value, JsonElement schema, JsonElement rootSchema,
             string path, int depth, List<string> errors, out JsonNode? normalized)
         {
@@ -654,6 +694,7 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：当 Schema 描述为数组类型时，将 JSON 数组的每个元素按 items Schema 递归归一化
         private static bool SchemaMatchesArray(JsonElement value, JsonElement schema, JsonElement rootSchema,
             string path, int depth, List<string> errors, out JsonNode? normalized)
         {
@@ -691,6 +732,8 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：将 JSON 基础值（string/boolean/integer/number/null）按类型集合进行归一化，
+        //       integer 类型会对浮点数做四舍五入并验证精度（误差阈值 1e-9）
         private static bool TryNormalizePrimitive(JsonElement value, HashSet<string> types,
             string path, List<string> errors, out JsonNode? normalized)
         {
@@ -751,6 +794,8 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：验证归一化后的节点是否满足 Schema 中的 const（精确值）和 enum（枚举值列表）约束，
+        //       使用 JsonNode.DeepEquals 进行深度比较
         private static bool CheckEnumAndConst(JsonElement schema, JsonNode? normalized,
             List<string> errors, string path, bool allowNullFallback)
         {
@@ -790,6 +835,7 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：判断给定 Schema 节点是否允许（或描述）JSON 对象类型，通过 type 字段或 properties/additionalProperties 存在性判断
         private static bool SchemaAllowsObject(JsonElement schema, JsonElement rootSchema)
         {
             if (schema.TryGetProperty("$ref", out var refEl))
@@ -818,6 +864,8 @@ namespace TensorSharp.Runtime
                 || schema.TryGetProperty("additionalProperties", out _);
         }
 
+        // 中文：判断给定 Schema 节点是否类似对象结构（用于归一化时选择处理路径），
+        //       包含 properties、additionalProperties 或 type 为 object 均视为对象类型
         private static bool SchemaIsObjectLike(JsonElement schema, JsonElement rootSchema)
         {
             if (schema.TryGetProperty("$ref", out var refEl) &&
@@ -833,6 +881,7 @@ namespace TensorSharp.Runtime
                      (typeEl.ValueKind == JsonValueKind.Array && ArrayContainsType(typeEl, "object"))));
         }
 
+        // 中文：判断给定 Schema 节点是否允许 null 值，支持 type 为字符串或数组，以及 anyOf 中任意分支允许 null
         private static bool AllowsNull(JsonElement schema, JsonElement rootSchema)
         {
             if (schema.TryGetProperty("$ref", out var refEl))
@@ -861,6 +910,7 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：检查类型数组中是否包含指定类型字符串（大小写敏感）
         private static bool ArrayContainsType(JsonElement typeArray, string expected)
         {
             foreach (var item in typeArray.EnumerateArray())
@@ -872,6 +922,8 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：按 JSON Pointer（RFC 6901）规范解析 $ref 路径，支持 "#"（根引用）和 "#/path/to/def" 形式，
+        //       自动处理 ~0（~）和 ~1（/）转义序列；不支持外部引用
         private static bool TryResolveRef(JsonElement rootSchema, string? refPath,
             out JsonElement target, [NotNullWhen(false)] out string? error)
         {
@@ -912,6 +964,8 @@ namespace TensorSharp.Runtime
             return true;
         }
 
+        // 中文：从模型原始输出中提取有效 JSON 对象字符串，依次尝试：直接解析、Markdown 代码块提取、
+        //       逐字符扫描平衡大括号（处理模型在 JSON 前后附加说明文字的情况）
         private static bool TryExtractJsonObject(string rawOutput, [NotNullWhen(true)] out string? json, [NotNullWhen(false)] out string? error)
         {
             error = null;
@@ -941,6 +995,7 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：尝试将候选字符串解析为合法的 JSON 对象，成功时返回序列化后的紧凑 JSON 字符串
         private static bool TryParseCandidate(string candidate, [NotNullWhen(true)] out string? json)
         {
             json = null;
@@ -961,6 +1016,8 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：从指定起始位置读取平衡大括号范围内的子字符串，正确处理字符串内部的转义字符，
+        //       用于在含多余文本的模型输出中定位完整 JSON 对象
         private static bool TryReadBalancedObject(string text, int startIndex, [NotNullWhen(true)] out string? json)
         {
             json = null;
@@ -1007,8 +1064,11 @@ namespace TensorSharp.Runtime
             return false;
         }
 
+        // 中文：Schema 验证过程中使用的上下文，持有根 Schema 引用、错误列表、当前活跃 $ref 路径集合
+        //       以及三个全局统计计数器（属性总数、枚举值总数、字符串字节总量）
         private sealed class SchemaValidationContext
         {
+            // 中文：构造验证上下文，绑定根 Schema 元素与错误收集列表
             public SchemaValidationContext(JsonElement rootSchema, List<string> errors)
             {
                 RootSchema = rootSchema;
@@ -1024,4 +1084,3 @@ namespace TensorSharp.Runtime
         }
     }
 }
-

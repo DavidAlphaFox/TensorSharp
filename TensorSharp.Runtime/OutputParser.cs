@@ -1,4 +1,4 @@
-﻿// Copyright (c) Zhongkai Fu. All rights reserved.
+// Copyright (c) Zhongkai Fu. All rights reserved.
 // https://github.com/zhongkaifu/TensorSharp
 //
 // This file is part of TensorSharp.
@@ -7,6 +7,22 @@
 //
 // TensorSharp is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the BSD-3-Clause License for more details.
+
+// ──────【文件说明】──────
+// 文件：OutputParser.cs
+// 用途：定义流式输出解析器，用于从 LLM 模型生成的 token 流中实时提取
+//       思考内容（thinking）、正文内容（content）以及工具调用（tool calls）。
+// 主要类型：
+//   - ToolFunction / ToolParameter：描述向模型提供的工具函数定义
+//   - ToolCall / ParsedOutput：表示从模型输出中提取的工具调用与解析结果
+//   - IOutputParser：流式解析器接口
+//   - Qwen3OutputParser：Qwen3 格式解析器（<think>...</think> + <tool_call>...</tool_call>）
+//   - Qwen35OutputParser：Qwen3.5 格式解析器（继承 Qwen3，始终启用思考模式）
+//   - Gemma4OutputParser：Gemma4 格式解析器（<|channel>thought...</channel|> 思考 + <|tool_call>...</tool_call|> 工具）
+//   - HarmonyOutputParser：GPT-OSS/Harmony 格式解析器（<|start|>/<|end|> 消息帧，<|channel|> 频道分发）
+//   - PassthroughOutputParser：直通解析器（不做任何标签解析）
+//   - OutputParserFactory：根据模型架构名称创建对应解析器的工厂类
+// ────────────────────────
 
 using System;
 using System.Collections.Generic;
@@ -43,6 +59,7 @@ namespace TensorSharp.Runtime
         public Dictionary<string, object> Arguments { get; set; } = new();
         public int Index { get; set; }
 
+        // 中文：将工具调用序列化为 "函数名(JSON参数)" 的可读字符串形式
         public override string ToString()
         {
             string args = Arguments != null ? JsonSerializer.Serialize(Arguments) : "{}";
@@ -85,6 +102,7 @@ namespace TensorSharp.Runtime
         public bool HasToolSupport => true;
         public bool AlwaysRequired => false;
 
+        // 中文：初始化解析器状态，根据是否启用思考模式决定起始解析状态
         public void Init(bool enableThinking, List<ToolFunction> tools)
         {
             _buffer.Clear();
@@ -101,6 +119,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：流式接收新 token 文本，驱动状态机解析思考内容、正文内容及工具调用，返回本次增量解析结果
         public ParsedOutput Add(string text, bool done)
         {
             _buffer.Append(text);
@@ -257,6 +276,7 @@ namespace TensorSharp.Runtime
             return result;
         }
 
+        // 中文：将 Qwen3 格式的工具调用原始 JSON 字符串解析为 ToolCall 对象，提取函数名和参数字典
         private ToolCall? ParseQwen3ToolCall(string raw)
         {
             raw = raw.Trim();
@@ -282,6 +302,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：计算缓冲区尾部与给定标签集合之间的最大前缀重叠长度，用于流式场景中防止标签被截断拆分而导致漏判
         private static int HoldBackForPartialTag(string buf, params string[] tags)
         {
             int maxOverlap = 0;
@@ -300,6 +321,7 @@ namespace TensorSharp.Runtime
             return maxOverlap;
         }
 
+        // 中文：将 JsonElement 递归转换为对应的 CLR 对象（字符串、数值、布尔、字典、列表等）
         internal static object JsonElementToObject(JsonElement el)
         {
             return el.ValueKind switch
@@ -315,6 +337,7 @@ namespace TensorSharp.Runtime
             };
         }
 
+        // 中文：将 JSON Object 类型的 JsonElement 转换为 Dictionary<string, object>
         private static Dictionary<string, object> JsonElementToDict(JsonElement el)
         {
             var d = new Dictionary<string, object>();
@@ -323,6 +346,7 @@ namespace TensorSharp.Runtime
             return d;
         }
 
+        // 中文：将 JSON Array 类型的 JsonElement 转换为 List<object>
         private static List<object> JsonElementToList(JsonElement el)
         {
             var list = new List<object>();
@@ -358,6 +382,7 @@ namespace TensorSharp.Runtime
         public bool HasToolSupport => true;
         public bool AlwaysRequired => true;
 
+        // 中文：初始化 Gemma4 解析器，清空缓冲区并设置思考模式开关，始终从正文收集状态开始
         public void Init(bool enableThinking, List<ToolFunction> tools)
         {
             _buffer.Clear();
@@ -366,6 +391,7 @@ namespace TensorSharp.Runtime
             _state = State.CollectingContent;
         }
 
+        // 中文：流式接收新 token，驱动 Gemma4 格式状态机，解析 <|channel> 思考块与 <|tool_call> 工具调用块
         public ParsedOutput Add(string text, bool done)
         {
             _buffer.Append(text);
@@ -515,6 +541,7 @@ namespace TensorSharp.Runtime
         private static readonly Regex GemmaQuotedStringRe = new(@"<\|""\|>(.*?)<\|""\|>", RegexOptions.Singleline);
         private static readonly Regex GemmaBareKeyRe = new(@"([,{])(\w+):");
 
+        // 中文：解析 Gemma4 格式的工具调用内容（call:NAME{args}），先提取函数名，再将参数转换为标准 JSON 后反序列化
         private static ToolCall? ParseGemma4ToolCall(string content)
         {
             content = content.Trim();
@@ -542,6 +569,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：将 Gemma4 特有的非标准参数格式（<|"|> 引号标记 + 裸键名）转换为标准 JSON 字符串，以便后续反序列化
         internal static string Gemma4ArgsToJson(string s)
         {
             var quotedStrings = new List<string>();
@@ -562,6 +590,7 @@ namespace TensorSharp.Runtime
             return text;
         }
 
+        // 中文：计算缓冲区尾部与给定标签集合之间的最大前缀重叠长度，防止流式输出中标签被截断拆分
         private static int HoldBack(string buf, params string[] tags)
         {
             int maxOverlap = 0;
@@ -615,6 +644,7 @@ namespace TensorSharp.Runtime
         public bool HasToolSupport => true;
         public bool AlwaysRequired => true;
 
+        // 中文：初始化 Harmony 解析器，预置 "<|start|>assistant" 到缓冲区以跳过提示中已有的起始标记，重置所有状态
         public void Init(bool enableThinking, List<ToolFunction> tools)
         {
             _buffer.Clear();
@@ -630,6 +660,7 @@ namespace TensorSharp.Runtime
             _buffer.Append("<|start|>assistant");
         }
 
+        // 中文：流式接收新 token，驱动 Harmony 消息帧状态机（查找起始标记 → 解析消息头 → 解析正文），提取思考/正文/工具调用
         public ParsedOutput Add(string text, bool done)
         {
             _buffer.Append(text);
@@ -745,6 +776,7 @@ namespace TensorSharp.Runtime
         /// to extract the channel and, for tool calls, the "to=functions.NAME" recipient.
         /// Handles both header orderings (recipient before or after the channel tag).
         /// </summary>
+        // 中文：从消息头文本中提取 <|channel|> 频道名称和 to=functions.NAME 收件人信息，支持两种字段顺序
         private void ParseHeader(string header)
         {
             int chIdx = header.IndexOf(ChannelTag, StringComparison.Ordinal);
@@ -772,6 +804,7 @@ namespace TensorSharp.Runtime
             }
         }
 
+        // 中文：根据当前频道将内容分发到思考缓冲区、正文缓冲区或工具参数缓冲区
         private void EmitContent(string content, StringBuilder contentSb, StringBuilder thinkingSb)
         {
             if (content.Length == 0) return;
@@ -784,6 +817,7 @@ namespace TensorSharp.Runtime
         }
 
         /// <summary>Finalize the current message: emit a tool call if it targeted functions.*.</summary>
+        // 中文：完成当前消息处理，若收件人为 functions.* 则构建工具调用对象并加入结果列表，然后清空工具参数缓冲区
         private void FinalizeMessage(List<ToolCall> toolCalls)
         {
             if (IsToolCall())
@@ -796,9 +830,11 @@ namespace TensorSharp.Runtime
             _currentRecipient = null;
         }
 
+        // 中文：判断当前消息是否为工具调用（即收件人以 "functions." 前缀开头）
         private bool IsToolCall() =>
             _currentRecipient != null && _currentRecipient.StartsWith(FunctionPrefix, StringComparison.Ordinal);
 
+        // 中文：从收件人名称和工具参数缓冲区构建 ToolCall 对象，尝试将参数解析为 JSON，若解析失败则保留空参数字典
         private ToolCall? BuildToolCall()
         {
             string name = _currentRecipient!.Substring(FunctionPrefix.Length);
@@ -827,6 +863,7 @@ namespace TensorSharp.Runtime
         }
 
         /// <summary>Find the earliest message-terminating tag in the buffer.</summary>
+        // 中文：在缓冲区中线性搜索所有终止标签，返回最早出现的标签起始位置及其长度
         private static int FindEarliestEndTag(string buf, out int tagLen)
         {
             int best = -1;
@@ -843,6 +880,7 @@ namespace TensorSharp.Runtime
             return best;
         }
 
+        // 中文：计算缓冲区尾部与给定标签集合之间的最大前缀重叠长度，用于 Harmony 格式的流式标签边界保护
         private static int HoldBack(string buf, params string[] tags)
         {
             int maxOverlap = 0;
@@ -872,8 +910,10 @@ namespace TensorSharp.Runtime
         public bool HasToolSupport => false;
         public bool AlwaysRequired => false;
 
+        // 中文：直通解析器无需初始化操作，忽略所有参数
         public void Init(bool enableThinking, List<ToolFunction> tools) { }
 
+        // 中文：直接将输入文本作为正文内容返回，不做任何标签解析
         public ParsedOutput Add(string text, bool done)
         {
             return new ParsedOutput { Content = text };
@@ -886,6 +926,7 @@ namespace TensorSharp.Runtime
 
     public static class OutputParserFactory
     {
+        // 中文：根据模型架构名称创建对应的输出解析器实例，未知架构默认返回直通解析器
         public static IOutputParser Create(string architecture)
         {
             return architecture switch
@@ -899,10 +940,10 @@ namespace TensorSharp.Runtime
             };
         }
 
+        // 中文：判断给定架构是否要求解析器始终启用（即 AlwaysRequired 为 true 的架构）
         public static bool IsAlwaysRequired(string architecture)
         {
             return architecture is "gptoss" or "gpt-oss" or "gemma4";
         }
     }
 }
-
