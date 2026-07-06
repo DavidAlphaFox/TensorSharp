@@ -1349,7 +1349,7 @@ namespace TensorSharp.Runtime.Scheduling
                 seq.BlockTable.FreeSlotsInCurrentBlocks - 1);
 
             var accepted = new List<int>();
-            var penaltySampler = new TokenSampler(seq.SamplingConfig);
+            var penaltySampler = seq.GetOrCreateSampler();
             var swDecode = Stopwatch.StartNew();
             MtpDecodeOutcome outcome = _mtpCtx.Exec.DecodeStep(
                 sampledToken,
@@ -1358,7 +1358,7 @@ namespace TensorSharp.Runtime.Scheduling
                 // Each verify row is drawn with the request's own sampler over
                 // the live output history (kept exact by onDraftAccepted).
                 drawNext: rowLogits =>
-                    new TokenSampler(seq.SamplingConfig).Sample(rowLogits, seq.OutputTokens),
+                    seq.GetOrCreateSampler().Sample(rowLogits, seq.OutputTokens),
                 // Penalty-aligned drafting: the draft head must argmax the
                 // same penalized distribution verification draws from, or
                 // acceptance decays toward zero as the output history grows.
@@ -1766,8 +1766,7 @@ namespace TensorSharp.Runtime.Scheduling
             if (seq.LastLogits == null)
                 throw new InvalidOperationException(
                     $"Sequence {seq.RequestId} has no LastLogits to sample from at position {seq.NumComputedTokens}.");
-            var sampler = new TokenSampler(seq.SamplingConfig);
-            return sampler.Sample(seq.LastLogits, seq.OutputTokens);
+            return seq.GetOrCreateSampler().Sample(seq.LastLogits, seq.OutputTokens);
         }
 
         /// <summary>Extract all blocks for the current owner into PagedKvStorage.
